@@ -1,0 +1,5 @@
+{
+  "name": "OPrice",
+  "description": "Sistema completo de precificação de contratos de serviços (B2B) com controle de margem, cálculo de impostos por dentro e gestão de custos operacionais e de equipe.",
+  "requestFramePermissions": []
+}
