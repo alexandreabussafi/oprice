@@ -330,7 +330,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                         </div>
 
                         {/* Sales Taxes Management */}
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200">
                             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                                 <div className="flex items-center">
                                     <span className="text-xs font-bold text-slate-600 uppercase">Impostos s/ Venda (Gross Up)</span>
@@ -357,7 +357,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                         </div>
 
                         {/* Income Taxes Management */}
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200">
                             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                                 <div className="flex flex-col">
                                     <div className="flex items-center">

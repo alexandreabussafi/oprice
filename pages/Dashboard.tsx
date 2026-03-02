@@ -2,16 +2,47 @@
 import React, { useState } from 'react';
 import { ProposalData, AccountingMapping } from '../types';
 import { calculateFinancials, formatCurrency, formatPercent, generateFinancialProjections } from '../utils/pricingEngine';
-import { TrendingUp, Users, DollarSign, ArrowRight, HelpCircle, AlertCircle, Briefcase, Calculator, PieChart, Landmark, BarChart3, Coins, BookOpen, CalendarDays, Activity, BarChart4 } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, ArrowRight, HelpCircle, AlertCircle, Briefcase, Calculator, PieChart, Landmark, BarChart3, Coins, BookOpen, CalendarDays, Activity, BarChart4, CheckCircle, XCircle, Clock, FileText, Trash2, Edit3, Snowflake, Copy } from 'lucide-react';
 import InfoTooltip from '../components/InfoTooltip';
 
 interface DashboardProps {
     data: ProposalData;
     setActiveTab: (tab: string) => void;
+    initialSnapshot?: ProposalData | null;
+    allVersions?: ProposalData[];
+    onSaveVersion?: (notes: string) => void;
+    onSelectVersion?: (id: string) => void;
+    onUpdateVersionStatus?: (id: string, status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXPIRED') => void;
+    onUpdateProposal?: (id: string, updates: Partial<ProposalData>) => void;
+    currentUser?: { name: string; role: 'ADMIN' | 'SELLER' | 'MANAGER' };
 }
 
+const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapshot, allVersions = [], onSaveVersion, onSelectVersion, onUpdateVersionStatus, onUpdateProposal, currentUser }) => {
+    const getStatusBadge = () => {
+        if (data.status === 'Frozen') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-900/10 text-blue-900 border border-blue-200"><Snowflake size={10} /> Congelado</span>;
 
-const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab }) => {
+        switch (data.stage) {
+            case 'Won': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><CheckCircle size={10} /> Ganho</span>;
+            case 'Lost': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-200"><XCircle size={10} /> Perdido</span>;
+            case 'Pricing': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200"><Edit3 size={10} /> Precificação</span>;
+            case 'Sent': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200"><FileText size={10} /> Enviado</span>;
+            case 'Negotiation': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200"><Clock size={10} /> Negociação</span>;
+            case 'MQL': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">MQL</span>;
+            case 'Qualification': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-800 border border-violet-200">Qualificação</span>;
+            case 'Closing': return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-800 border border-cyan-200">Fechamento</span>;
+            default: return null;
+        }
+    };
+
+    const getMotionBadge = () => {
+        switch (data.motion) {
+            case 'NewBusiness': return <span className="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-100 font-bold">Novo</span>;
+            case 'Renewal': return <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold">Renovação</span>;
+            case 'Expansion': return <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100 font-bold">Expansão</span>;
+            default: return null;
+        }
+    };
+
     const [activeView, setActiveView] = useState<'summary' | 'cashflow' | 'dre' | 'feasibility'>('summary');
 
     const financials = calculateFinancials(data);
@@ -29,6 +60,48 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab }) => {
     // Managerial Calculation: Total Tax Burden (Sales + Income)
     const totalTaxAmount = financials.salesTaxAmount + financials.incomeTaxAmount;
     const effectiveTaxBurden = financials.monthlyValue > 0 ? totalTaxAmount / financials.monthlyValue : 0;
+
+    // --- VERSIONING MODAL STATE ---
+    const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
+    const [versionNotes, setVersionNotes] = useState('');
+
+    const handleSaveVersion = () => {
+        if (onSaveVersion) {
+            onSaveVersion(versionNotes);
+            setIsDiffModalOpen(false);
+            setVersionNotes('');
+        }
+    };
+
+    // --- APPROVAL LOGIC ---
+    const handleSubmitProposal = () => {
+        if (!onUpdateVersionStatus || !onUpdateProposal || !currentUser) return;
+
+        if (data.targetMargin < 0.15 && currentUser.role !== 'ADMIN') {
+            // Requires Approval
+            console.log(`[TEAMS WEBHOOK SIMULATION] Nova solicitação de aprovação enviada para o Gestor. Proposta: ${data.proposalId} | Cliente: ${data.clientName} | Margem: ${formatPercent(data.targetMargin)}`);
+            alert(`Aviso: A margem configurada (${formatPercent(data.targetMargin)}) está abaixo do piso de 15%. Uma solicitação foi enviada ao Gestor via MS Teams para aprovação.`);
+
+            onUpdateProposal(data.id, {
+                versionStatus: 'SUBMITTED',
+                approvalStatus: 'PENDING',
+                approvalRequestedBy: currentUser.name
+            });
+        } else {
+            // Auto Submit if Margin >= 15% or User is ADMIN
+            onUpdateVersionStatus(data.id, 'SUBMITTED');
+        }
+    };
+
+    const handleManagerDecision = (decision: 'APPROVED' | 'REJECTED') => {
+        if (!onUpdateProposal || !currentUser) return;
+
+        onUpdateProposal(data.id, {
+            versionStatus: decision,
+            approvalStatus: decision,
+            approvedBy: currentUser.name
+        });
+    };
 
     // --- SUB-COMPONENTS ---
 
@@ -69,93 +142,118 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab }) => {
             {/* KPI Cards Strategy: Price -> Ops Margin -> Contribution -> Net Result -> HC */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {/* Card 1: Revenue (Top Line) */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative group hover:border-slate-300 transition-colors">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center">
-                                Preço Final (Mensal)
-                            </p>
-                            <p className="text-[10px] text-slate-400">Com Impostos (Gross Up)</p>
-                        </div>
-                        <span className="p-2 bg-emerald-50 text-emerald-700 rounded-lg"><DollarSign size={20} /></span>
+                <div className="bg-emerald-50/50 p-6 rounded-xl shadow-sm border border-emerald-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-emerald-200">
+                    <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                        <DollarSign className="absolute -bottom-6 -right-6 w-36 h-36 text-emerald-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
                     </div>
-                    <p className="text-3xl font-black text-slate-900 tracking-tight">{formatCurrency(financials.monthlyValue)}</p>
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">Anual:</span>
-                        <span className="font-bold text-slate-700">{formatCurrency(financials.annualValue)}</span>
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center">
+                                    Preço Final (Mensal)
+                                </p>
+                                <p className="text-[10px] text-emerald-600/70 font-bold">Com Impostos (Gross Up)</p>
+                            </div>
+                            <span className="p-2.5 bg-white shadow-sm text-emerald-600 rounded-xl"><DollarSign size={22} /></span>
+                        </div>
+                        <p className="text-3xl font-black text-emerald-900 tracking-tight">{formatCurrency(financials.monthlyValue)}</p>
+                        <div className="mt-4 pt-3 border-t border-emerald-200/50 flex justify-between items-center text-xs">
+                            <span className="text-emerald-700/80 font-bold">Anual:</span>
+                            <span className="font-extrabold text-emerald-800 bg-white/60 px-2 py-0.5 rounded-md">{formatCurrency(financials.annualValue)}</span>
+                        </div>
                     </div>
                 </div>
 
                 {/* Card 2: Contribution Margin */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-slate-300 transition-colors">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center">
-                                Margem Operacional
-                                <InfoTooltip text="Receita Líquida - Custos Diretos. Mede a eficiência da operação em cobrir os custos variáveis de mão de obra e materiais antes de despesas indiretas." />
-                            </div>
-                            <p className="text-[10px] text-slate-400">Margem de Contribuição</p>
-                        </div>
-                        <span className="p-2 bg-blue-50 text-blue-600 rounded-lg"><BarChart4 size={20} /></span>
+                <div className="bg-sky-50/50 p-6 rounded-xl shadow-sm border border-sky-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-sky-200">
+                    <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                        <BarChart4 className="absolute -bottom-6 -right-6 w-36 h-36 text-sky-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
                     </div>
-                    <p className="text-3xl font-black text-slate-900 tracking-tight">{formatCurrency(financials.contributionMarginAmount)}</p>
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">Margem %:</span>
-                        <span className="font-bold text-blue-600">{formatPercent(financials.contributionMarginPercent / 100)}</span>
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <div className="text-xs font-bold text-sky-700 uppercase tracking-wider flex items-center focus-within:z-50">
+                                    Margem Operacional
+                                    <InfoTooltip text="Receita Líquida - Custos Diretos. Mede a eficiência da operação em cobrir os custos variáveis de mão de obra e materiais antes de despesas indiretas." />
+                                </div>
+                                <p className="text-[10px] text-sky-600/70 font-bold">Margem de Contribuição</p>
+                            </div>
+                            <span className="p-2.5 bg-white shadow-sm text-sky-600 rounded-xl"><BarChart4 size={22} /></span>
+                        </div>
+                        <p className="text-3xl font-black text-sky-900 tracking-tight">{formatCurrency(financials.contributionMarginAmount)}</p>
+                        <div className="mt-4 pt-3 border-t border-sky-200/50 flex justify-between items-center text-xs">
+                            <span className="text-sky-700/80 font-bold">Margem %:</span>
+                            <span className="font-extrabold text-sky-800 bg-white/60 px-2 py-0.5 rounded-md">{formatPercent(financials.contributionMarginPercent / 100)}</span>
+                        </div>
                     </div>
                 </div>
 
                 {/* Card 3: Operating Profit (EBITDA) */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-slate-300 transition-colors">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center">
-                                Resultado Operacional
-                                <InfoTooltip text="Resultado antes de juros, impostos e depreciação (EBITDA). Mede o potencial de geração de caixa da operação após custos diretos e contingências." />
-                            </div>
-                            <p className="text-[10px] text-slate-400">EBITDA (Pré-Financeiro)</p>
-                        </div>
-                        <span className="p-2 bg-amber-50 text-amber-600 rounded-lg"><TrendingUp size={20} /></span>
+                <div className="bg-amber-50/50 p-6 rounded-xl shadow-sm border border-amber-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-amber-200">
+                    <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                        <TrendingUp className="absolute -bottom-6 -right-6 w-36 h-36 text-amber-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
                     </div>
-                    <p className="text-3xl font-black text-slate-900 tracking-tight">{formatCurrency(financials.operationalProfitAmount)}</p>
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">Margem EBITDA:</span>
-                        <span className="font-bold text-amber-600">{formatPercent(financials.operationalMarginPercent / 100)}</span>
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <div className="text-xs font-bold text-amber-700 uppercase tracking-wider flex items-center focus-within:z-50">
+                                    Resultado Operacional
+                                    <InfoTooltip text="Resultado antes de juros, impostos e depreciação (EBITDA). Mede o potencial de geração de caixa da operação após custos diretos e contingências." />
+                                </div>
+                                <p className="text-[10px] text-amber-600/70 font-bold">EBITDA (Pré-Financeiro)</p>
+                            </div>
+                            <span className="p-2.5 bg-white shadow-sm text-amber-600 rounded-xl"><TrendingUp size={22} /></span>
+                        </div>
+                        <p className="text-3xl font-black text-amber-900 tracking-tight">{formatCurrency(financials.operationalProfitAmount)}</p>
+                        <div className="mt-4 pt-3 border-t border-amber-200/50 flex justify-between items-center text-xs">
+                            <span className="text-amber-700/80 font-bold">Margem EBITDA:</span>
+                            <span className="font-extrabold text-amber-800 bg-white/60 px-2 py-0.5 rounded-md">{formatPercent(financials.operationalMarginPercent / 100)}</span>
+                        </div>
                     </div>
                 </div>
 
                 {/* Card 4: Net Profit (Bottom Line) */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-slate-300 transition-colors">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center">
-                                Lucro Líquido Real
-                                <InfoTooltip text="Resultado final para o acionista após a dedução de todos os custos, despesas financeiras e impostos de renda (IRPJ/CSLL)." />
-                            </div>
-                            <p className="text-[10px] text-slate-400">Pós-IRPJ/CSLL</p>
-                        </div>
-                        <span className="p-2 bg-indigo-50 text-indigo-700 rounded-lg"><Calculator size={20} /></span>
+                <div className="bg-indigo-50/50 p-6 rounded-xl shadow-sm border border-indigo-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-indigo-200">
+                    <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                        <PieChart className="absolute -bottom-6 -right-6 w-36 h-36 text-indigo-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
                     </div>
-                    <p className="text-3xl font-black text-slate-900 tracking-tight">{formatCurrency(financials.netProfitAmount)}</p>
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">Margem Líquida:</span>
-                        <span className="font-bold text-indigo-600">{formatPercent(financials.netProfitPercent / 100)}</span>
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <div className="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center focus-within:z-50">
+                                    Lucro Líquido Real
+                                    <InfoTooltip text="Resultado final para o acionista após a dedução de todos os custos, despesas financeiras e impostos de renda (IRPJ/CSLL)." />
+                                </div>
+                                <p className="text-[10px] text-indigo-600/70 font-bold">Pós-IRPJ/CSLL</p>
+                            </div>
+                            <span className="p-2.5 bg-white shadow-sm text-indigo-600 rounded-xl"><Calculator size={22} /></span>
+                        </div>
+                        <p className="text-3xl font-black text-indigo-900 tracking-tight">{formatCurrency(financials.netProfitAmount)}</p>
+                        <div className="mt-4 pt-3 border-t border-indigo-200/50 flex justify-between items-center text-xs">
+                            <span className="text-indigo-700/80 font-bold">Margem Líquida:</span>
+                            <span className="font-extrabold text-indigo-800 bg-white/60 px-2 py-0.5 rounded-md">{formatPercent(financials.netProfitPercent / 100)}</span>
+                        </div>
                     </div>
                 </div>
 
                 {/* Card 5: Headcount */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:border-slate-300 transition-colors">
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Efetivo (HC)</p>
-                            <p className="text-[10px] text-slate-400">Total de Vidas</p>
-                        </div>
-                        <span className="p-2 bg-purple-50 text-purple-700 rounded-lg"><Users size={20} /></span>
+                <div className="bg-slate-50 p-6 rounded-xl shadow-sm border border-slate-200 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-slate-300">
+                    <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                        <Users className="absolute -bottom-6 -right-6 w-36 h-36 text-slate-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
                     </div>
-                    <p className="text-3xl font-black text-slate-900 tracking-tight">{totalHeadcount}</p>
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">Ticket Médio/Vida:</span>
-                        <span className="font-bold text-slate-700">{totalHeadcount > 0 ? formatCurrency(financials.monthlyValue / totalHeadcount) : 'R$ 0'}</span>
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <div>
+                                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Efetivo Acumulado</p>
+                                <p className="text-[10px] text-slate-500 font-bold">Total de Vidas</p>
+                            </div>
+                            <span className="p-2.5 bg-white shadow-sm text-slate-600 rounded-xl"><Users size={22} /></span>
+                        </div>
+                        <p className="text-3xl font-black text-slate-900 tracking-tight">{totalHeadcount}</p>
+                        <div className="mt-4 pt-3 border-t border-slate-200/50 flex justify-between items-center text-xs">
+                            <span className="text-slate-600 font-bold">Ticket Médio/Vida:</span>
+                            <span className="font-extrabold text-slate-700 bg-white/60 px-2 py-0.5 rounded-md">{totalHeadcount > 0 ? formatCurrency(financials.monthlyValue / totalHeadcount) : 'R$ 0'}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -708,7 +806,83 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab }) => {
                         <PieChart size={28} className="text-[#0f172a]" />
                         Dashboard Financeiro
                     </h2>
-                    <p className="text-slate-500 mt-1">Análise de viabilidade: {data.clientName} (#{data.proposalId})</p>
+                    <div className="flex flex-col gap-2 mt-1">
+                        <div className="flex items-center gap-2">
+                            <p className="text-slate-500 font-medium">Análise de viabilidade: {data.clientName} (#{data.proposalId})</p>
+
+                            {/* VERSION SELECTOR */}
+                            {allVersions.length > 0 && onSelectVersion && (
+                                <div className="relative group ml-2">
+                                    <select
+                                        className="appearance-none bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold py-1 pl-2 pr-6 rounded-md shadow-sm outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500/50"
+                                        value={data.id}
+                                        onChange={(e) => onSelectVersion(e.target.value)}
+                                    >
+                                        {allVersions.map(v => (
+                                            <option key={v.id} value={v.id}>
+                                                v{v.version} {v.isCurrentVersion ? '(Atual)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-indigo-700">
+                                        <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex gap-1 ml-2">
+                                {getStatusBadge()}
+                                {getMotionBadge()}
+                            </div>
+                        </div>
+
+                        {/* Status Management Bar */}
+                        {data.isCurrentVersion && onUpdateVersionStatus && (
+                            <div className="flex items-center gap-2 mt-2">
+                                {data.versionStatus === 'DRAFT' && (
+                                    <button onClick={handleSubmitProposal} className="text-[10px] font-bold px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 uppercase tracking-wider">Submeter Cotação</button>
+                                )}
+
+                                {data.versionStatus === 'SUBMITTED' && data.approvalStatus === 'PENDING' && (
+                                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 p-1.5 rounded-lg">
+                                        <span className="text-[10px] font-bold px-2 text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                                            <AlertCircle size={12} /> Aguardando Aprovação (Margem)
+                                        </span>
+                                        {currentUser?.role === 'MANAGER' || currentUser?.role === 'ADMIN' ? (
+                                            <>
+                                                <button onClick={() => handleManagerDecision('APPROVED')} className="text-[10px] font-bold px-2 py-1 bg-emerald-500 text-white rounded hover:bg-emerald-600 shadow-sm uppercase tracking-wider">Aprovar Margem</button>
+                                                <button onClick={() => handleManagerDecision('REJECTED')} className="text-[10px] font-bold px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 shadow-sm uppercase tracking-wider">Rejeitar</button>
+                                            </>
+                                        ) : (
+                                            <span className="text-[10px] px-2 py-1 text-amber-700/70 italic">Ação restrita ao Gestor</span>
+                                        )}
+                                    </div>
+                                )}
+
+                                {data.versionStatus === 'SUBMITTED' && data.approvalStatus !== 'PENDING' && (
+                                    <>
+                                        <span className="text-[10px] font-bold px-2 py-1 bg-blue-500 text-white rounded uppercase tracking-wider">Versão Submetida</span>
+                                        <button onClick={() => onUpdateVersionStatus(data.id, 'APPROVED')} className="text-[10px] font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 uppercase tracking-wider">Aprovação do Cliente</button>
+                                        <button onClick={() => onUpdateVersionStatus(data.id, 'REJECTED')} className="text-[10px] font-bold px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 uppercase tracking-wider">Rejeição do Cliente</button>
+                                    </>
+                                )}
+
+                                {data.versionStatus === 'APPROVED' && (
+                                    <span className="text-[10px] font-bold px-2 py-1 bg-emerald-500 text-white rounded uppercase tracking-wider">
+                                        {data.approvalStatus === 'APPROVED' ? 'Aprovado (Gestor & Cliente)' : 'Aprovado (Cliente)'}
+                                    </span>
+                                )}
+                                {data.versionStatus === 'REJECTED' && (
+                                    <span className="text-[10px] font-bold px-2 py-1 bg-red-500 text-white rounded uppercase tracking-wider">Versão Rejeitada</span>
+                                )}
+                            </div>
+                        )}
+                        {!data.isCurrentVersion && (
+                            <div className="mt-2 text-[10px] font-bold px-2 py-1 bg-slate-200 text-slate-500 rounded uppercase tracking-wider self-start">
+                                Modo de Visualização: Histórico (Leitura Apenas)
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-lg">
                     <button
@@ -735,6 +909,16 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab }) => {
                     >
                         Viabilidade Econômica
                     </button>
+
+                    {onSaveVersion && (
+                        <button
+                            onClick={() => setIsDiffModalOpen(true)}
+                            className="ml-4 px-4 py-2 bg-[#0f172a] hover:bg-slate-800 text-white rounded-md text-sm font-bold shadow-md transition-all flex items-center gap-2"
+                        >
+                            <Copy size={16} />
+                            Salvar Versionando
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -746,6 +930,115 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab }) => {
                 {activeView === 'dre' && renderDRE()}
                 {activeView === 'feasibility' && renderFeasibility()}
             </div>
+
+            {/* VERSION DIFF MODAL */}
+            {isDiffModalOpen && initialSnapshot && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Formalizar Nova Versão</h3>
+                                <p className="text-sm text-slate-500 mt-1">A versão atual será salva no histórico e uma nova versão (v{initialSnapshot.version + 1}) será criada.</p>
+                            </div>
+                            <button onClick={() => setIsDiffModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle size={24} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto max-h-[60vh]">
+                            <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                <Activity size={18} className="text-indigo-500" /> Resumo das Alterações
+                            </h4>
+
+                            <div className="space-y-3">
+                                {/* Compare Vidas */}
+                                {(() => {
+                                    const oldVidas = initialSnapshot.roles.reduce((a, r) => a + r.quantity, 0);
+                                    const newVidas = totalHeadcount;
+                                    if (oldVidas !== newVidas) {
+                                        return (
+                                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                <span className="text-sm font-medium text-slate-600">Total de Vidas</span>
+                                                <div className="flex items-center gap-2 text-sm font-bold">
+                                                    <span className="text-slate-400 line-through">{oldVidas}</span>
+                                                    <ArrowRight size={14} className="text-slate-400" />
+                                                    <span className={newVidas > oldVidas ? 'text-emerald-600' : 'text-red-500'}>{newVidas}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+
+                                {/* Compare Margin */}
+                                {(() => {
+                                    const oldMargin = initialSnapshot.targetMargin;
+                                    const newMargin = data.targetMargin;
+                                    if (oldMargin !== newMargin) {
+                                        return (
+                                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                <span className="text-sm font-medium text-slate-600">Margem Meta (Target)</span>
+                                                <div className="flex items-center gap-2 text-sm font-bold">
+                                                    <span className="text-slate-400 line-through">{formatPercent(oldMargin)}</span>
+                                                    <ArrowRight size={14} className="text-slate-400" />
+                                                    <span className={newMargin > oldMargin ? 'text-emerald-600' : 'text-red-500'}>{formatPercent(newMargin)}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+
+                                {/* Compare Revenue */}
+                                {(() => {
+                                    const oldRevenue = calculateFinancials(initialSnapshot).monthlyValue;
+                                    const newRevenue = financials.monthlyValue;
+                                    if (Math.abs(oldRevenue - newRevenue) > 1) { // 1 to handle minor floats
+                                        return (
+                                            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                <span className="text-sm font-medium text-slate-600">Preço Final (Mensal)</span>
+                                                <div className="flex items-center gap-2 text-sm font-bold">
+                                                    <span className="text-slate-400 line-through">{formatCurrency(oldRevenue)}</span>
+                                                    <ArrowRight size={14} className="text-slate-400" />
+                                                    <span className={newRevenue > oldRevenue ? 'text-emerald-600' : 'text-red-500'}>{formatCurrency(newRevenue)}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                            </div>
+
+                            <div className="mt-6">
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Notas da Versão</label>
+                                <textarea
+                                    className="w-full text-sm rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3"
+                                    rows={3}
+                                    placeholder="Descreva brevemente o motivo desta nova versão (ex: 'Ajuste de margem após negociação')"
+                                    value={versionNotes}
+                                    onChange={(e) => setVersionNotes(e.target.value)}
+                                ></textarea>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsDiffModalOpen(false)}
+                                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSaveVersion}
+                                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-100 text-white rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-2"
+                            >
+                                <CheckCircle size={16} />
+                                Confirmar Versão {initialSnapshot.version + 1}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

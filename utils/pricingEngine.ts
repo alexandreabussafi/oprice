@@ -52,6 +52,7 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
   let totalOperationalCost = 0;
   let totalSafetyCost = 0;
   let totalSupportCost = 0;
+  let totalDepreciationCost = 0;
 
   if (data.type === 'SPOT') {
     // Cálculo Spot: Simples e Direto
@@ -81,7 +82,18 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
 
       const unitBase = PricingMath.add(baseSalary, addOns);
       const unitCharges = PricingMath.multiply(unitBase, data.taxConfig.socialChargesRate);
-      const unitTotalCost = PricingMath.add(unitBase, unitCharges);
+
+      // Calculate Benefits
+      let unitBenefits = 0;
+      if (data.benefitsConfig) {
+        const { healthInsurance, healthInsuranceDependentFactor, foodAllowance, mealAllowance, transportAllowance, hasCafeteria } = data.benefitsConfig;
+        unitBenefits += PricingMath.round(healthInsurance * healthInsuranceDependentFactor);
+        unitBenefits += foodAllowance;
+        if (!hasCafeteria) unitBenefits += mealAllowance;
+        unitBenefits += transportAllowance;
+      }
+
+      const unitTotalCost = PricingMath.add(unitBase, PricingMath.add(unitCharges, unitBenefits));
 
       totalLaborCost = PricingMath.add(totalLaborCost, unitTotalCost * role.quantity);
     });
@@ -114,9 +126,16 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
       const itemTotal = PricingMath.round(item.costPerVisit * item.quantity);
       totalSupportCost = PricingMath.add(totalSupportCost, itemTotal);
     });
+
+    // 4b. CAPEX Depreciation
+    (data.capexItems || []).forEach(item => {
+      const months = item.lifespanMonths > 0 ? item.lifespanMonths : 60;
+      const monthlyDepr = PricingMath.round(item.value / months);
+      totalDepreciationCost = PricingMath.add(totalDepreciationCost, monthlyDepr);
+    });
   }
 
-  // 5. Custos Diretos Totais (CD)
+  // 5. Custos Diretos Totais (CD) - Non-Depreciation Box
   const totalDirectCost = PricingMath.add(
     PricingMath.add(totalLaborCost, totalOperationalCost),
     PricingMath.add(totalSafetyCost, totalSupportCost)
@@ -124,9 +143,12 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
 
   // --- PRICING LOGIC (SHARED) ---
 
-  // A. CONTINGÊNCIA (Sobre o Custo Direto)
-  const contingencyAmount = PricingMath.multiply(totalDirectCost, data.contingencyRate);
-  const totalCostWithContingency = PricingMath.add(totalDirectCost, contingencyAmount);
+  // Costs strictly for building the price Numerator
+  const totalCostBaseForPricing = PricingMath.add(totalDirectCost, totalDepreciationCost);
+
+  // A. CONTINGÊNCIA (Sobre o Custo Base com Depreciação)
+  const contingencyAmount = PricingMath.multiply(totalCostBaseForPricing, data.contingencyRate);
+  const totalCostWithContingency = PricingMath.add(totalCostBaseForPricing, contingencyAmount);
 
   // B. NUMERADOR (Custo Inflado + Lucro)
   const markupAmountTarget = PricingMath.multiply(totalCostWithContingency, effectiveMarkupRate);
@@ -170,7 +192,7 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
   } else {
     // Em Lucro Real (COMMERCIAL), o IR incide sobre o Lucro antes do IR (EBT) e não sobre a Receita Bruta
     // Como simplificação inicial para manter a margem, calculamos como proporção da receita líquida - custos
-    const ebtEstimate = netRevenue - totalDirectCost - financialCostAmount - contingencyAmount;
+    const ebtEstimate = netRevenue - totalDirectCost - totalDepreciationCost - financialCostAmount - contingencyAmount;
     incomeTaxAmount = PricingMath.multiply(ebtEstimate > 0 ? ebtEstimate : 0, activeIncomeRate);
     revenueDeductionsAmount = PricingMath.add(revenueDeductionsAmount, incomeTaxAmount);
   }
@@ -183,7 +205,7 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
   markupAmount -= financialCostAmount;
   if (data.taxConfig.calculationMode === 'COMMERCIAL') markupAmount -= incomeTaxAmount;
   markupAmount -= contingencyAmount;
-  markupAmount -= totalDirectCost;
+  markupAmount -= totalCostBaseForPricing;
   markupAmount = PricingMath.round(markupAmount);
 
   // G. INDICADORES DRE (Top-Down)
@@ -193,6 +215,7 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
 
   let operationalProfitAmount = contributionMarginAmount;
   operationalProfitAmount -= contingencyAmount;
+  operationalProfitAmount -= totalDepreciationCost;
   operationalProfitAmount = PricingMath.round(operationalProfitAmount);
 
   const operationalMarginPercent = grossRevenue > 0 ? (operationalProfitAmount / grossRevenue) * 100 : 0;
@@ -211,6 +234,7 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
     totalOperationalCost,
     totalSafetyCost,
     totalSupportCost,
+    totalDepreciationCost,
     totalDirectCost,
     contingencyAmount,
     financialCostAmount,
@@ -275,6 +299,8 @@ export interface FinancialMonth {
     grossProfit: number;
     indirectCosts: number;
     ebitda: number;
+    depreciation: number;
+    ebit: number;
     financialResult: number;
     ebt: number;
     taxesOnProfit: number;
@@ -286,6 +312,7 @@ export interface FinancialMonth {
     outflowTaxes: number;
     outflowSuppliers: number;
     outflowFinancial: number;
+    outflowCapex: number;
     totalOutflow: number;
     netCash: number;
     cumulativeCash: number;
@@ -399,11 +426,15 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
 
       indirectCosts: PricingMath.multiply(financials.contingencyAmount, opFactor),
 
+      depreciation: PricingMath.multiply(financials.totalDepreciationCost, opFactor),
+
       get ebitda() { return PricingMath.round(this.grossProfit - this.indirectCosts) },
+
+      get ebit() { return PricingMath.round(this.ebitda - this.depreciation) },
 
       financialResult: hasRevenue ? -financials.financialCostAmount : 0,
 
-      get ebt() { return PricingMath.round(this.ebitda + this.financialResult) },
+      get ebt() { return PricingMath.round(this.ebit + this.financialResult) },
 
       taxesOnProfit: hasRevenue ? financials.incomeTaxAmount : 0,
 
@@ -432,7 +463,20 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
     const financialSource = getMonthDRE(i);
     const outflowFinancial = financialSource.financialCostAmount * (financialSource.monthlyValue > 0 ? 1 : 0);
 
-    const totalOutflow = outflowLabor + outflowTaxes + outflowSuppliers + outflowFinancial;
+    let outflowCapex = 0;
+    (data.capexItems || []).forEach(item => {
+      const pMonth = item.purchaseMonth ?? 0;
+      if (item.paymentTerm === 'UPFRONT' && pMonth === i) {
+        outflowCapex += item.value;
+      } else if (item.paymentTerm === 'INSTALLMENTS' && item.installments) {
+        const instVal = item.value / item.installments;
+        if (i >= pMonth && i < pMonth + item.installments) {
+          outflowCapex += instVal;
+        }
+      }
+    });
+
+    const totalOutflow = outflowLabor + outflowTaxes + outflowSuppliers + outflowFinancial + outflowCapex;
     const netCash = inflow - totalOutflow;
 
     cumulativeCash += netCash;
@@ -449,6 +493,7 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
         outflowTaxes,
         outflowSuppliers,
         outflowFinancial,
+        outflowCapex,
         totalOutflow,
         netCash,
         cumulativeCash
@@ -462,9 +507,33 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
   let npv = 0;
   const netCashFlows: number[] = [];
 
+  // Calculate Residual Value if enabled
+  let totalResidualValue = 0;
+  if (data.includeResidualValueInNPV && !isSpot && data.capexItems) {
+    data.capexItems.forEach(item => {
+      const pMonth = item.purchaseMonth ?? 0;
+      const monthsSpan = item.lifespanMonths > 0 ? item.lifespanMonths : 60;
+      const monthlyDepr = PricingMath.round(item.value / monthsSpan);
+
+      const elapsed = Math.max(0, contractDuration - pMonth);
+      const accumulatedDepr = monthlyDepr * elapsed;
+      const residual = Math.max(0, item.value - accumulatedDepr);
+      totalResidualValue += residual;
+    });
+  }
+
   months.forEach((m, index) => {
-    npv += m.cashFlow.netCash / Math.pow(1 + discountRateMonthly, index);
-    netCashFlows.push(m.cashFlow.netCash);
+    let finalNetCash = m.cashFlow.netCash;
+
+    // Injects residual value into the last month of the actual contract duration
+    if (m.monthIndex === contractDuration - 1 && totalResidualValue > 0) {
+      finalNetCash += totalResidualValue;
+      m.cashFlow.inflow += totalResidualValue; // Update the UI visually too
+      m.cashFlow.netCash = finalNetCash;
+    }
+
+    npv += finalNetCash / Math.pow(1 + discountRateMonthly, index);
+    netCashFlows.push(finalNetCash);
   });
 
   const irrMonthly = calculateIRR(netCashFlows);

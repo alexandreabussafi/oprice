@@ -99,8 +99,8 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData }) => {
     return (
         <div className="p-8 space-y-6 max-w-[1600px] mx-auto">
             <header>
-                <h2 className="text-2xl font-bold text-slate-800">Impostos & Encargos</h2>
-                <p className="text-slate-500 text-sm mt-1">Gestão detalhada de regime tributário, alíquotas de venda e encargos sociais.</p>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 transition-colors">Impostos & Encargos</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 transition-colors">Gestão detalhada de regime tributário, alíquotas de venda e encargos sociais.</p>
             </header>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
@@ -108,25 +108,25 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData }) => {
                 {/* LEFT COLUMN: TAX REGIME & REVENUE TAXES (4 columns wide) */}
                 <div className="xl:col-span-4 space-y-6">
                     {/* Regime Selection */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 transition-colors">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2 bg-blue-50 text-blue-700 rounded-lg"><FileText size={20} /></div>
-                            <h3 className="font-bold text-slate-800">Regime Tributário</h3>
+                            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg transition-colors"><FileText size={20} /></div>
+                            <h3 className="font-bold text-slate-800 dark:text-slate-100 transition-colors">Regime Tributário</h3>
                         </div>
                         <div className="flex gap-2 mb-4">
-                            <button onClick={() => updateRegime('Lucro Real')} className={`flex-1 py-3 px-2 rounded-lg border transition-all text-xs font-bold text-center ${data.taxConfig.regime === 'Lucro Real' ? 'border-[#0f172a] bg-[#0f172a] text-white shadow-md' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>Lucro Real</button>
-                            <button onClick={() => updateRegime('Lucro Presumido')} className={`flex-1 py-3 px-2 rounded-lg border transition-all text-xs font-bold text-center ${data.taxConfig.regime === 'Lucro Presumido' ? 'border-[#0f172a] bg-[#0f172a] text-white shadow-md' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>Lucro Presumido</button>
+                            <button onClick={() => updateRegime('Lucro Real')} className={`flex-1 py-3 px-2 rounded-lg border transition-all text-xs font-bold text-center ${data.taxConfig.regime === 'Lucro Real' ? 'border-[#0f172a] dark:border-indigo-600 bg-[#0f172a] dark:bg-indigo-600 text-white shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Lucro Real</button>
+                            <button onClick={() => updateRegime('Lucro Presumido')} className={`flex-1 py-3 px-2 rounded-lg border transition-all text-xs font-bold text-center ${data.taxConfig.regime === 'Lucro Presumido' ? 'border-[#0f172a] dark:border-indigo-600 bg-[#0f172a] dark:bg-indigo-600 text-white shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>Lucro Presumido</button>
                         </div>
 
                         {/* Calculation Mode Switch */}
-                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Modo de Cálculo (Gross Up)</p>
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800 transition-colors">
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Modo de Cálculo (Gross Up)</p>
                             <div className="flex gap-2">
-                                <button onClick={() => updateMode('NORMATIVE')} className={`flex-1 py-2 px-2 rounded-md border transition-all text-[10px] font-bold text-center ${data.taxConfig.calculationMode === 'NORMATIVE' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-400'}`}>NORMATIVO<br />(Padrão Contábil)</button>
-                                <button onClick={() => updateMode('COMMERCIAL')} className={`flex-1 py-2 px-2 rounded-md border transition-all text-[10px] font-bold text-center ${data.taxConfig.calculationMode === 'COMMERCIAL' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-400'}`}>COMERCIAL<br />(Meta Líquida)</button>
+                                <button onClick={() => updateMode('NORMATIVE')} className={`flex-1 py-2 px-2 rounded-md border transition-all text-[10px] font-bold text-center ${data.taxConfig.calculationMode === 'NORMATIVE' ? 'border-emerald-500 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>NORMATIVO<br />(Padrão Contábil)</button>
+                                <button onClick={() => updateMode('COMMERCIAL')} className={`flex-1 py-2 px-2 rounded-md border transition-all text-[10px] font-bold text-center ${data.taxConfig.calculationMode === 'COMMERCIAL' ? 'border-blue-500 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>COMERCIAL<br />(Meta Líquida)</button>
                             </div>
                             {data.taxConfig.calculationMode === 'COMMERCIAL' && (
-                                <p className="text-[10px] text-blue-600 mt-2 leading-tight">
+                                <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-2 leading-tight">
                                     *Inclui IRPJ/CSLL no divisor do Gross Up para forçar o preço final a cobrir os impostos de renda.
                                 </p>
                             )}
@@ -134,29 +134,29 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData }) => {
                     </div>
 
                     {/* Sales Taxes */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 transition-colors">
                             <div className="flex items-center gap-2">
-                                <TrendingUp size={18} className="text-red-500" />
+                                <TrendingUp size={18} className="text-red-500 dark:text-red-400" />
                                 <div>
-                                    <h3 className="font-bold text-slate-800 text-sm">Impostos s/ Venda (Gross Up)</h3>
-                                    <p className="text-[10px] text-slate-500">Sempre inclusos</p>
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Impostos s/ Venda (Gross Up)</h3>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Sempre inclusos</p>
                                 </div>
                             </div>
-                            <span className="text-lg font-bold text-red-600">{formatPercent(calculateTotalRate(data.taxConfig.salesTaxes))}</span>
+                            <span className="text-lg font-bold text-red-600 dark:text-red-500 transition-colors">{formatPercent(calculateTotalRate(data.taxConfig.salesTaxes))}</span>
                         </div>
-                        <div className="divide-y divide-slate-100">
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {data.taxConfig.salesTaxes.map(tax => (
-                                <div key={tax.id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                <div key={tax.id} className="p-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <button onClick={() => toggleTaxActive('sales', tax.id)} className="text-slate-400 hover:text-slate-600">
-                                            {tax.active ? <CheckSquare size={18} className="text-[#0f172a]" /> : <Square size={18} />}
+                                        <button onClick={() => toggleTaxActive('sales', tax.id)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                            {tax.active ? <CheckSquare size={18} className="text-[#0f172a] dark:text-white" /> : <Square size={18} />}
                                         </button>
-                                        <span className={`text-sm font-medium ${tax.active ? 'text-slate-700' : 'text-slate-400 line-through'}`}>{tax.name}</span>
+                                        <span className={`text-sm font-medium ${tax.active ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-600 line-through'}`}>{tax.name}</span>
                                     </div>
-                                    <div className="flex items-center bg-white border border-slate-200 rounded-md w-24">
-                                        <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('sales', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1.5 outline-none" />
-                                        <span className="pr-2 text-[10px] font-bold text-slate-400 select-none">%</span>
+                                    <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md w-24 shadow-sm transition-colors">
+                                        <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('sales', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
+                                        <span className="pr-2 text-[10px] font-bold text-slate-400 select-none transition-colors">%</span>
                                     </div>
                                 </div>
                             ))}
@@ -164,36 +164,36 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData }) => {
                     </div>
 
                     {/* Income Taxes */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 transition-colors">
                             <div className="flex items-center gap-2">
-                                <DollarSign size={18} className="text-indigo-500" />
+                                <DollarSign size={18} className="text-indigo-500 dark:text-indigo-400" />
                                 <div>
-                                    <h3 className="font-bold text-slate-800 text-sm">Impostos s/ Renda (IRPJ)</h3>
-                                    <p className="text-[10px] text-slate-500">
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Impostos s/ Renda (IRPJ)</h3>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
                                         {data.taxConfig.calculationMode === 'NORMATIVE' ? 'Dedução do Lucro' : 'Incluso no Gross Up'}
                                     </p>
                                 </div>
                             </div>
-                            <span className="text-lg font-bold text-indigo-600">{formatPercent(calculateTotalRate(data.taxConfig.incomeTaxes))}</span>
+                            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-500 transition-colors">{formatPercent(calculateTotalRate(data.taxConfig.incomeTaxes))}</span>
                         </div>
-                        <div className="divide-y divide-slate-100">
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800 transition-colors">
                             {data.taxConfig.incomeTaxes.map(tax => (
-                                <div key={tax.id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                                <div key={tax.id} className="p-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <button onClick={() => toggleTaxActive('profit', tax.id)} className="text-slate-400 hover:text-slate-600">
-                                            {tax.active ? <CheckSquare size={18} className="text-[#0f172a]" /> : <Square size={18} />}
+                                        <button onClick={() => toggleTaxActive('profit', tax.id)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                                            {tax.active ? <CheckSquare size={18} className="text-[#0f172a] dark:text-white" /> : <Square size={18} />}
                                         </button>
-                                        <span className={`text-sm font-medium ${tax.active ? 'text-slate-700' : 'text-slate-400 line-through'}`}>{tax.name}</span>
+                                        <span className={`text-sm font-medium ${tax.active ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-600 line-through'}`}>{tax.name}</span>
                                     </div>
-                                    <div className="flex items-center bg-white border border-slate-200 rounded-md w-24">
-                                        <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('profit', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1.5 outline-none" />
-                                        <span className="pr-2 text-[10px] font-bold text-slate-400 select-none">%</span>
+                                    <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md w-24 shadow-sm transition-colors">
+                                        <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('profit', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
+                                        <span className="pr-2 text-[10px] font-bold text-slate-400 select-none transition-colors">%</span>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        <div className={`p-3 text-xs flex gap-2 ${data.taxConfig.calculationMode === 'NORMATIVE' ? 'bg-indigo-50 text-indigo-800' : 'bg-amber-50 text-amber-800'}`}>
+                        <div className={`p-3 text-xs flex gap-2 transition-colors ${data.taxConfig.calculationMode === 'NORMATIVE' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'}`}>
                             <Info size={14} className="shrink-0 mt-0.5" />
                             <p>
                                 {data.taxConfig.calculationMode === 'NORMATIVE'
@@ -205,16 +205,16 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData }) => {
                 </div>
 
                 {/* CENTER COLUMN: SOCIAL CHARGES (5 columns wide) */}
-                <div className="xl:col-span-5">
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full flex flex-col">
+                <div className="xl:col-span-5 transition-colors">
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 h-full flex flex-col transition-colors">
                         <div className="flex justify-between items-center mb-6">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-emerald-50 text-emerald-700 rounded-lg"><Percent size={20} /></div>
-                                <h3 className="font-bold text-slate-800">Encargos Sociais (Folha)</h3>
+                                <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg transition-colors"><Percent size={20} /></div>
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 transition-colors">Encargos Sociais (Folha)</h3>
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total</p>
-                                <p className="text-3xl font-black text-emerald-600 tracking-tight">{formatPercent(data.taxConfig.socialChargesRate)}</p>
+                                <p className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider transition-colors">Total</p>
+                                <p className="text-3xl font-black text-emerald-600 dark:text-emerald-500 tracking-tight transition-colors">{formatPercent(data.taxConfig.socialChargesRate)}</p>
                             </div>
                         </div>
 
@@ -224,18 +224,29 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData }) => {
                                 const total = getGroupTotal(items);
                                 const isExpanded = expandedGroups[group.key];
                                 return (
-                                    <div key={group.key} className={`border rounded-xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-slate-300 shadow-md ring-1 ring-slate-100' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                                        <button onClick={() => toggleGroup(group.key)} className={`w-full flex justify-between items-center p-4 focus:outline-none transition-colors ${isExpanded ? 'bg-slate-50/50' : 'bg-white'}`}>
-                                            <div className="text-left"><h4 className={`font-bold text-sm ${group.text} flex items-center gap-2`}>{group.title}</h4><p className="text-[11px] text-slate-500 mt-1 font-medium opacity-80">{group.desc}</p></div>
-                                            <div className="flex items-center gap-4"><span className={`font-bold ${group.text} ${group.bg} px-3 py-1.5 rounded-lg text-sm border ${group.border}`}>{formatPercent(total)}</span><div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}><ChevronDown size={20} className="text-slate-400" /></div></div>
+                                    <div key={group.key} className={`border rounded-xl transition-all duration-300 overflow-hidden ${isExpanded ? 'border-slate-300 dark:border-slate-600 shadow-md ring-1 ring-slate-100 dark:ring-slate-800' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'}`}>
+                                        <button onClick={() => toggleGroup(group.key)} className={`w-full flex justify-between items-center p-4 focus:outline-none transition-colors ${isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/50' : 'bg-white dark:bg-slate-900'}`}>
+                                            <div className="text-left">
+                                                <h4 className={`font-bold text-sm ${group.text} dark:text-slate-200 flex items-center gap-2 transition-colors`}>{group.title}</h4>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-medium opacity-80 transition-colors">{group.desc}</p>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className={`font-bold ${group.text} dark:text-slate-100 ${group.bg} dark:bg-slate-800 px-3 py-1.5 rounded-lg text-sm border ${group.border} dark:border-slate-700 transition-colors`}>{formatPercent(total)}</span>
+                                                <div className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                    <ChevronDown size={20} className="text-slate-400 dark:text-slate-500" />
+                                                </div>
+                                            </div>
                                         </button>
                                         {isExpanded && (
-                                            <div className="bg-white p-2 border-t border-slate-100">
+                                            <div className="bg-white dark:bg-slate-900 p-2 border-t border-slate-100 dark:border-slate-800 transition-colors">
                                                 {items.map((item) => (
-                                                    <div key={item.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg group/item transition-colors border border-transparent hover:border-slate-100">
-                                                        <input type="text" value={item.name} onChange={(e) => updateComponent(group.key, item.id, 'name', e.target.value)} className="flex-1 text-sm font-medium text-slate-700 bg-transparent border-none focus:ring-0 p-0 placeholder-slate-400" />
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="relative flex items-center bg-white border border-slate-200 rounded-md shadow-sm w-24"><input type="number" step="0.01" value={(item.value * 100).toFixed(2)} onChange={(e) => updateComponent(group.key, item.id, 'value', (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1.5 outline-none" /><span className="pr-2 text-[10px] font-bold text-slate-400 select-none">%</span></div>
+                                                    <div key={item.id} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg group/item transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
+                                                        <input type="text" value={item.name} onChange={(e) => updateComponent(group.key, item.id, 'name', e.target.value)} className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 bg-transparent border-none focus:ring-0 p-0 placeholder-slate-400 dark:placeholder-slate-500 transition-colors" />
+                                                        <div className="flex items-center gap-3 transition-colors">
+                                                            <div className="relative flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm w-24 transition-colors">
+                                                                <input type="number" step="0.01" value={(item.value * 100).toFixed(2)} onChange={(e) => updateComponent(group.key, item.id, 'value', (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
+                                                                <span className="pr-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 select-none transition-colors">%</span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}

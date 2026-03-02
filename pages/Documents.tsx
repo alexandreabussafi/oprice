@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { ProposalData, Attachment } from '../types';
 import { calculateFinancials, formatCurrency, formatPercent } from '../utils/pricingEngine';
-import { FileText, Target, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Save, UploadCloud, File, X, Paperclip, Hash, Calendar, Clock, DollarSign, PenTool, Globe } from 'lucide-react';
+import { FileText, Target, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Save, UploadCloud, File, X, Paperclip, Hash, Calendar, Clock, DollarSign, PenTool, Globe, Printer } from 'lucide-react';
+import ProposalPrint from '../components/ProposalPrint';
 
 interface DocumentsProps {
     data: ProposalData;
@@ -96,10 +97,25 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData }) => {
                     </h2>
                     <p className="text-slate-500 mt-1">Configuração do cronograma, parâmetros financeiros locais e escopo técnico.</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] text-white rounded-lg font-bold text-sm hover:bg-[#1e293b] shadow-lg shadow-slate-900/10 transition-colors">
-                    <Save size={18} /> Salvar Alterações
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => {
+                            setTimeout(() => {
+                                window.print();
+                            }, 100);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg font-bold text-sm hover:bg-slate-50 shadow-sm transition-colors"
+                    >
+                        <Printer size={18} /> Gerar PDF (Proposta)
+                    </button>
+                    <button className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] text-white rounded-lg font-bold text-sm hover:bg-[#1e293b] shadow-lg shadow-slate-900/10 transition-colors">
+                        <Save size={18} /> Salvar Alterações
+                    </button>
+                </div>
             </header>
+
+            {/* Hidden Print Component */}
+            <ProposalPrint data={data} />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 

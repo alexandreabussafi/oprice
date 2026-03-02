@@ -1,3 +1,4 @@
+export type AccountClassification = 'Lead' | 'Prospect' | 'Client';
 
 export interface Client {
   id: string;
@@ -5,10 +6,49 @@ export interface Client {
   cnpj?: string;
   industry?: string;
   contactName?: string;
-  email?: string; // Novo campo
-  phone?: string; // Novo campo
+  email?: string;
+  phone?: string;
   location?: string;
   status: 'Active' | 'Inactive';
+  classification?: AccountClassification;
+  segment?: string;
+  subSegment?: string;
+  corporateGroup?: string;
+  cep?: string;
+  address?: string;
+  addressNumber?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  legalName?: string;
+  tradeName?: string;
+  registrationStatus?: string;
+  stateRegistration?: string;
+}
+
+export interface Contact {
+  id: string;
+  clientId: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  influenceLevel: 'Decision Maker' | 'Influencer' | 'Evaluator' | 'User';
+  linkedin?: string;
+}
+
+export interface CRMTask {
+  id: string;
+  clientId?: string;
+  proposalId?: string;
+  contactId?: string;
+  assignee?: string; // NOVO: Responsável pela tarefa
+  title: string;
+  description: string;
+  type: 'Meeting' | 'Call' | 'Email' | 'Follow-up' | 'Other';
+  status: 'To Do' | 'In Progress' | 'Done';
+  dueDate: string; // ISO date string
+  createdAt: string;
 }
 
 export interface CanvasSection {
@@ -59,6 +99,27 @@ export interface ExpenseItem {
   unitPrice: number;
   lifespan: number; // In months
   allocation: 'Fixed' | 'PerHead';
+}
+
+export interface CapexItem {
+  id: string;
+  name: string;
+  category: 'Machine' | 'Vehicle' | 'IT' | 'Furniture' | 'Other';
+  value: number; // Purchase Value
+  purchaseMonth: number; // Month 0 is upfront
+  paymentTerm: 'UPFRONT' | 'INSTALLMENTS';
+  installments?: number; // E.g., 12x
+  lifespanMonths: number; // For linear depreciation
+}
+
+
+export interface BenefitsConfig {
+  healthInsurance: number;
+  healthInsuranceDependentFactor: number;
+  foodAllowance: number; // VA
+  mealAllowance: number; // VR
+  transportAllowance: number; // VT/VC
+  hasCafeteria: boolean; // Zera VR
 }
 
 // Novos Tipos para Segurança e Suporte
@@ -137,6 +198,7 @@ export interface AccountingMapping {
   supportCostsAccount: AccountingAccount; // Overhead
   marginAccount: AccountingAccount; // Lucro
   financialResultAccount: AccountingAccount; // Resultado Financeiro
+  depreciationAccount?: AccountingAccount; // CAPEX Depreciation
 }
 
 export interface TaxConfig {
@@ -166,11 +228,83 @@ export interface ProposalDocuments {
   attachments: Attachment[]; // Novo: Arquivos anexados
 }
 
-export type ProposalStatus = 'Draft' | 'Sent' | 'Negotiation' | 'Won' | 'Lost';
+export type ContinuousStage = 'MQL' | 'Qualification' | 'SolutionDesign' | 'Pricing' | 'Sent' | 'Negotiation' | 'Review' | 'Won' | 'Lost';
+export type SpotStage = 'MQL' | 'Diagnosis' | 'Pricing' | 'Sent' | 'FinalAdjustments' | 'AwaitingPO' | 'Won' | 'Lost';
+
+export type OpportunityStage = ContinuousStage | SpotStage;
+export type OpportunityStatus = 'Active' | 'Frozen' | 'Archived';
+export type OpportunityMotion = 'NewBusiness' | 'Renewal' | 'Expansion' | 'Addendum' | 'Reactivation';
+
+export type ProposalVersionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+
+export type AppRole = 'ADMIN' | 'SELLER' | 'MANAGER';
+
+export type ProposalStatus = OpportunityStage; // Alias for compatibility during migration
 
 export type PricingModel = 'MARKUP' | 'MARGIN';
 
 export type ProposalType = 'CONTINUOUS' | 'SPOT';
+
+export const CONTINUOUS_STAGES: ContinuousStage[] = [
+  'MQL',
+  'Qualification',
+  'SolutionDesign',
+  'Pricing',
+  'Sent',
+  'Negotiation',
+  'Review',
+  'Won',
+  'Lost'
+];
+
+export const SPOT_STAGES: SpotStage[] = [
+  'MQL',
+  'Diagnosis',
+  'Pricing',
+  'Sent',
+  'FinalAdjustments',
+  'AwaitingPO',
+  'Won',
+  'Lost'
+];
+
+export const STAGE_LABELS: Record<OpportunityStage, string> = {
+  MQL: 'MQL/Lead',
+  Qualification: 'Qualificação',
+  SolutionDesign: 'Desenho de Solução',
+  Pricing: 'Precificação',
+  Sent: 'Proposta Enviada',
+  Negotiation: 'Negociação',
+  Review: 'Em Revisão',
+  Won: 'Vencida (Won)',
+  Lost: 'Perdida (Lost)',
+  Diagnosis: 'Diagnóstico',
+  FinalAdjustments: 'Ajustes Finais',
+  AwaitingPO: 'Aguardando PO'
+};
+
+export const CONTINUOUS_TO_SPOT_MAPPING: Record<ContinuousStage, SpotStage> = {
+  MQL: 'MQL',
+  Qualification: 'Diagnosis',
+  SolutionDesign: 'Diagnosis',
+  Pricing: 'Pricing',
+  Sent: 'Sent',
+  Negotiation: 'FinalAdjustments',
+  Review: 'AwaitingPO',
+  Won: 'Won',
+  Lost: 'Lost'
+};
+
+export const SPOT_TO_CONTINUOUS_MAPPING: Record<SpotStage, ContinuousStage> = {
+  MQL: 'MQL',
+  Diagnosis: 'Qualification',
+  Pricing: 'Pricing',
+  Sent: 'Sent',
+  FinalAdjustments: 'Negotiation',
+  AwaitingPO: 'Review',
+  Won: 'Won',
+  Lost: 'Lost'
+};
 
 // --- SPOT SPECIFIC TYPES ---
 export interface SpotResource {
@@ -196,11 +330,24 @@ export interface SpotServiceType {
   icon: string;
 }
 
+export interface Milestone {
+  id: string;
+  title: string;
+  date: string; // ISO date string
+  completed: boolean;
+  notes?: string;
+}
+
 export interface ProposalData {
   id: string; // Internal UUID
   proposalId: string; // Human readable ID (e.g. 180256)
   version: number; // 1, 2, 3...
+  versionNotes?: string; // Motivo da nova versão
+  versionStatus: ProposalVersionStatus; // Controle de edição/envio
+  isCurrentVersion: boolean; // Histórico no Kanban
   type: ProposalType; // NOVO: Tipo de Proposta
+
+  milestones?: Milestone[]; // Prazos e eventos
 
   createdAt: string;
   updatedAt: string;
@@ -211,7 +358,29 @@ export interface ProposalData {
 
   clientId?: string; // Link to Client Registry
   clientName: string; // Snapshot or fallback
-  status: ProposalStatus;
+
+  // NEW CRM ARCHITECTURE
+  stage: OpportunityStage;
+  status: OpportunityStatus; // Transversal (Active, Frozen, etc)
+  frozenReason?: string;
+  frozenUntil?: string;
+
+  // Roles & Approvals
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  approvalRequestedBy?: string;
+  approvedBy?: string;
+  approvalJustification?: string;
+  motion: OpportunityMotion;
+
+  // Reference for Motions other than NewBusiness
+  referenceOpportunityId?: string;
+  expansionType?: 'Volume' | 'Scope' | 'Site';
+
+  /** @deprecated use stage instead */
+  proposalStatus?: OpportunityStage;
+  /** @deprecated legacy field, will be removed after migration */
+  status_legacy?: string;
+
 
   // CRM Data
   probability: number; // 0-100%
@@ -246,11 +415,16 @@ export interface ProposalData {
   expenses: ExpenseItem[];
   safetyCosts: SafetyItem[]; // NRs, Treinamentos
   supportCosts: SupportItem[]; // Overhead, Visitas de Gestão
+  benefitsConfig?: BenefitsConfig; // NOVO: Configuração Global de Benefícios
 
   // SPOT SPECIFIC (NOVO)
   spotServiceIds?: string[]; // IDs dos serviços selecionados
   spotResources?: SpotResource[];
   spotExpenses?: SpotExpense[];
+
+  // CAPEX
+  capexItems?: CapexItem[];
+  includeResidualValueInNPV?: boolean; // Se verdadeiro, o valor não depreciado do CAPEX retorna como caixa no VPL
 
   // Configuração de Kits (Geralmente preenchido apenas no GlobalConfig)
   kitTemplates?: KitTemplate[];
@@ -267,10 +441,12 @@ export interface ProposalData {
 export interface CalculatedFinancials {
   totalLaborCost: number;
   totalOperationalCost: number; // Materiais e Despesas
-  totalSafetyCost: number; // Novo: Treinamentos e Exames
-  totalSupportCost: number; // Novo: Overhead de Gestão
+  totalSafetyCost: number; // Treinamentos e Exames
+  totalSupportCost: number; // Overhead de Gestão
+  totalDepreciationCost: number; // Sum of monthly depreciation for CAPEX
 
   totalDirectCost: number; // Soma de tudo acima
+
 
   totalIndirectCost: number; // Financial + Contingency
   totalCostBase: number; // Direct + Indirect
@@ -283,7 +459,7 @@ export interface CalculatedFinancials {
   contributionMarginAmount: number; // Margem Operacional (Net Revenue - Direct Costs)
   contributionMarginPercent: number;
 
-  operationalProfitAmount: number; // EBITDA (Contribution - Contingency/Overhead)
+  operationalProfitAmount: number; // EBIT/EBITDA proxy (Contribution - Contingency/Overhead)
   operationalMarginPercent: number; // % da Margem Operacional sobre Venda Bruta
 
   salesTaxAmount: number; // Impostos da Nota

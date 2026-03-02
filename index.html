@@ -6,6 +6,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OPrice - Pricing System</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          // You can add custom colors here if needed
+        }
+      }
+    }
+
+    // Apply dark mode immediately to avoid flash
+    if (localStorage.getItem('oprice-theme') === 'dark' ||
+      (!localStorage.getItem('oprice-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  </script>
   <style>
     /* --- PRINT OPTIMIZATION --- */
     @media print {

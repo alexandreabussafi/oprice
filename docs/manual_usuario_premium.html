@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpCapex — Manual do Usuário</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0f172a;
+            --primary-light: #1e293b;
+            --accent: #3b82f6;
+            --accent-soft: #eff6ff;
+            --text-dark: #1e293b;
+            --text-medium: #475569;
+            --text-light: #94a3b8;
+            --bg-page: #f8fafc;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            color: var(--text-dark);
+            background-color: var(--bg-page);
+            padding: 0;
+        }
+
+        /* Print Settings */
+        @media print {
+            body {
+                background-color: white;
+            }
+
+            .sidebar,
+            .print-btn {
+                display: none !important;
+            }
+
+            .content {
+                margin-left: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+
+            .page-break {
+                page-break-before: always;
+            }
+
+            pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+        }
+
+        /* Layout */
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .sidebar {
+            width: 300px;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .content {
+            flex: 1;
+            padding: 4rem;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.02);
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            color: var(--primary);
+            margin-bottom: 2rem;
+            line-height: 1.1;
+            border-bottom: 8px solid var(--accent);
+            padding-bottom: 1.5rem;
+            display: inline-block;
+        }
+
+        h2 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 4rem 0 1.5rem;
+            border-left: 6px solid var(--accent);
+            padding-left: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            color: var(--primary-light);
+        }
+
+        p {
+            margin-bottom: 1.25rem;
+            font-size: 1.1rem;
+            color: var(--text-medium);
+        }
+
+        /* Components */
+        .nav-list {
+            list-style: none;
+        }
+
+        .nav-item {
+            margin-bottom: 0.75rem;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-medium);
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: block;
+            padding: 0.5rem 0;
+        }
+
+        .nav-link:hover {
+            color: var(--accent);
+            transform: translateX(5px);
+        }
+
+        .screenshot-container {
+            margin: 2.5rem 0;
+            background: var(--bg-page);
+            padding: 1rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .screenshot-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .screenshot-caption {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+            font-style: italic;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--primary);
+            color: white;
+            text-align: left;
+            padding: 1rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-medium);
+            font-size: 0.95rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:nth-child(even) {
+            background-color: var(--bg-page);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .alert {
+            padding: 1.5rem;
+            border-radius: 1rem;
+            margin: 2rem 0;
+            background: var(--accent-soft);
+            border-left: 6px solid var(--accent);
+        }
+
+        .code-block {
+            background: var(--primary);
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin: 2rem 0;
+        }
+
+        .footer {
+            margin-top: 5rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-light);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .hero {
+            padding: 4rem 0;
+            margin-bottom: 4rem;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--primary);
+            margin-bottom: 2rem;
+            display: block;
+        }
+
+        .print-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 1.25rem 2rem;
+            border-radius: 9999px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s;
+            z-index: 100;
+        }
+
+        .print-btn:hover {
+            transform: scale(1.05) translateY(-5px);
+            box-shadow: 0 15px 35px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+
+<body>
+
+    <button class="print-btn" onclick="window.print()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+        </svg>
+        Gerar PDF Oficial
+    </button>
+
+    <div class="container">
+        <div class="sidebar">
+            <span class="logo-text">OpCapex</span>
+            <nav>
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="#intro" class="nav-link">1. Visão Geral</a></li>
+                    <li class="nav-item"><a href="#crm" class="nav-link">2. Módulo CRM</a></li>
+                    <li class="nav-item"><a href="#editor" class="nav-link">3. Editor de Proposta</a></li>
+                    <li class="nav-item"><a href="#versions" class="nav-link">4. Versionamento</a></li>
+                    <li class="nav-item"><a href="#approval" class="nav-link">5. Aprovações</a></li>
+                    <li class="nav-item"><a href="#configs" class="nav-link">6. Configurações</a></li>
+                    <li class="nav-item"><a href="#glossary" class="nav-link">7. Glossário</a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <main class="content">
+            <div class="hero" id="intro">
+                <h1>Manual do<br>Usuário</h1>
+                <p><strong>Industrial Viability Engine — Versão 1.0</strong></p>
+                <p style="font-size: 1.4rem; color: var(--text-dark); margin-top: 2rem; max-width: 600px;">
+                    Tudo o que você precisa saber para gerenciar oportunidades e precificar com precisão técnica e
+                    financeira.
+                </p>
+            </div>
+
+            <section>
+                <h2>1. Visão Geral do Sistema</h2>
+                <p>O <strong>OpCapex</strong> é uma plataforma de precificação e viabilidade financeira para contratos
+                    de serviços industriais. Ele combina um CRM visual com um sofisticado motor de cálculos financeiros.
+                </p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Descrição</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Continuado</strong></td>
+                            <td>Contratos recorrentes com faturamento mensal.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Spot</strong></td>
+                            <td>Projetos únicos com escopo e prazo fechados.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="crm" class="page-break">
+                <h2>2. Módulo CRM — Gestão de Oportunidades</h2>
+                <p>O CRM é a porta de entrada. Nele você visualiza o fluxo de vendas e decide quais cotações priorizar.
+                </p>
+
+                <h3>2.1 Visão Kanban</h3>
+                <p>Os cards representam as oportunidades em cada estágio. Arraste e solte para mudar o status comercial.
+                </p>
+
+                <div class="screenshot-container">
+                    <img src="./screenshots/crm_kanban.png" alt="CRM Kanban">
+                    <div class="screenshot-caption">Figura 1: Visão do funil de vendas (Pipeline)</div>
+                </div>
+
+                <h3>2.3 Visão Analytics</h3>
+                <p>Painel com KPIs consolidados para tomada de decisão gerencial.</p>
+                <div class="screenshot-container">
+                    <img src="./screenshots/crm_analytics.png" alt="CRM Analytics">
+                    <div class="screenshot-caption">Figura 2: Indicadores de conversão e volume financeiro</div>
+                </div>
+
+                <h3 id="crm_contas">2.4 Contas e Carteira de Clientes</h3>
+                <p>O submódulo de Contas permite gerenciar de forma inteligente as empresas com as quais você se
+                    relaciona, criando uma base unificada para as análises financeiras.</p>
+                <ul>
+                    <li><strong>Classificação Transparente:</strong> As contas são filtradas em três tipos:
+                        <em>Lead</em> (prospecção inicial), <em>Prospect</em> (em desenvolvimento/negociação) ou
+                        <em>Client</em> (carteira ativa).
+                    </li>
+                    <li><strong>Inteligência Cadastral e Automação:</strong> Ao cadastrar um cliente, basta inserir
+                        o <strong>CNPJ</strong> e clicar em <strong>"Buscar"</strong>. O sistema preenche
+                        automaticamente:
+                        <ul style="margin-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                            <li><em>Dados Fiscais:</em> Razão Social, Nome Fantasia e
+                                <strong>Inscrição Estadual (SEFAZ)</strong> integrada via CNPJ.ws.
+                            </li>
+                            <li><em>Mapeamento B2B:</em> Segmento (CNAE Principal), Sub-segmento e Grupo Econômico.</li>
+                            <li><em>Endereço Granular:</em> Decomposição automática em CEP, Logradouro, Bairro e Cidade.
+                            </li>
+                        </ul>
+                    </li>
+                    <li><strong>Máscaras de Entrada:</strong> O sistema aplica formatação automática em campos críticos
+                        (CNPJ/IE) durante a digitação.</li>
+                    <li><strong>Visibilidade Dinâmica:</strong> Alterne entre a Visão Lista e a Visão Grade com cartões
+                        visuais detalhados.</li>
+                    <li><strong>Sidebar de Inteligência:</strong> KPIs de LTV, Pipeline Aberto e histórico rápido por
+                        conta.</li>
+                </ul>
+
+                <h3 id="crm_contatos">2.5 Gestão de Contatos</h3>
+                <p>A aba de Contatos é onde você organiza sua rede de influência corporativa, vital em vendas complexas
+                    B2B.</p>
+                <ul>
+                    <li><strong>Nível de Influência:</strong> Classifique stakeholders com badges visuais (Decisor,
+                        Influenciador, Avaliador).</li>
+                    <li><strong>LinkedIn Integrado:</strong> Adicione o perfil profissional para acesso direto em um
+                        clique pelo card.</li>
+                    <li><strong>Deep Links:</strong> Disparo instantâneo de e-mails e chamadas por atalhos de software.
+                    </li>
+                    <li><strong>Vínculo de Base:</strong> Cada contato é atrelado a uma Conta (Empresa) principal.</li>
+                </ul>
+
+                <h3 id="crm_tarefas">2.6 Tarefas e Múltiplas Visões</h3>
+                <p>O centro de produtividade para follow-ups e gestão de agenda comercial.</p>
+                <ul>
+                    <li><strong>KPI Cards:</strong> Indicadores no topo informando tarefas Totais, Atrasadas, No Prazo e
+                        Concluídas.</li>
+                    <li><strong>Modos de Visualização:</strong>
+                        <ul style="margin-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem;">
+                            <li><em>Lista:</em> Visão técnica para processamento rápido.</li>
+                            <li><em>Kanban:</em> Gestão visual por status de execução.</li>
+                            <li><em>Calendário:</em> Agenda temporal para planejamento de longo prazo.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Filtros e Atribuição:</strong> Atribua responsáveis (Assignees) e filtre por tipo de
+                        ação ou usuário.</li>
+                    <li><strong>Sinalização de Atrasos:</strong> Badges vermelhos automáticos em tarefas com data
+                        expirada.</li>
+                    <li><strong>Contexto:</strong> Vínculos visuais com o Contato, Conta ou Proposta específica.</li>
+                </ul>
+
+                <h3>2.8 Sidebar — Resumo da Cotação</h3>
+                <p>Visualização rápida dos dados de um cliente sem sair do pipeline.</p>
+                <div class="screenshot-container">
+                    <img src="./screenshots/crm_sidebar.png" alt="CRM Sidebar">
+                    <div class="screenshot-caption">Figura 3: Preview de dados e milestones na lateral do CRM</div>
+                </div>
+            </section>
+
+            <section id="editor" class="page-break">
+                <h2>3. Editor de Proposta — Precificação</h2>
+
+                <h3 id="editor_dashboard">3.1 Dashboard (Resumo Executivo)</h3>
+                <p>A central de comando da proposta. Se o Health Check estiver verde, você está pronto para negociar.
+                </p>
+                <div class="screenshot-container">
+                    <img src="./screenshots/editor_dashboard.png" alt="Editor Dashboard">
+                    <div class="screenshot-caption">Figura 4: Dashborad de viabilidade e fluxo de caixa</div>
+                </div>
+
+                <h3 id="editor_team">3.2 Equipe (Quadro de Pessoal)</h3>
+                <p>Defina a hierarquia e os custos trabalhistas. Utilize o Organograma para uma visão Miro-style.</p>
+                <div class="screenshot-container">
+                    <img src="./screenshots/editor_team.png" alt="Quadro de Pessoal">
+                    <div class="screenshot-caption">Figura 5: Montagem de equipe e salários</div>
+                </div>
+
+                <h3 id="editor_capex">3.3 CAPEX (Ativos Imobilizados)</h3>
+                <p>Lance os investimentos em maquinário aqui para calcular a depreciação e o impacto no VPL.</p>
+                <div class="screenshot-container">
+                    <img src="./screenshots/editor_costs_capex.png" alt="CAPEX Management">
+                    <div class="screenshot-caption">Figura 6: Gestão de investimentos e valor residual</div>
+                </div>
+
+                <h3>3.7 Precificação (DRE)</h3>
+                <p>Onde o preço nasce. A cascata (Waterfall) mostra exatamente onde cada centavo da receita é alocado.
+                </p>
+                <div class="screenshot-container">
+                    <img src="./screenshots/editor_pricing.png" alt="DRE Waterfall">
+                    <div class="screenshot-caption">Figura 7: Formação de preço e demonstrativo DRE</div>
+                </div>
+
+                <div class="alert">
+                    <strong>Dica do Consultor:</strong> O <strong>Valor Residual</strong> configurado no CAPEX pode ser
+                    o diferencial para tornar um projeto viável em licitações competitivas.
+                </div>
+            </section>
+
+            <section id="versions" class="page-break">
+                <h2>4. Versionamento de Propostas</h2>
+                <p>Nunca perca um histórico. O sistema congela versões aprovadas e permite criar cópias para novas
+                    simulações em segundos.</p>
+            </section>
+
+            <section id="glossary" class="page-break">
+                <h2>7. Glossário de Termos</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Termo</th>
+                            <th>Definição Simplificada</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>VPL (NPV)</td>
+                            <td>Valor do projeto em dinheiro de hoje. Positivo = Útil.</td>
+                        </tr>
+                        <tr>
+                            <td>TIR (IRR)</td>
+                            <td>Rentabilidade do projeto. Maior é melhor.</td>
+                        </tr>
+                        <tr>
+                            <td>CAPEX</td>
+                            <td>Dinheiro gasto para comprar equipamentos/infra.</td>
+                        </tr>
+                        <tr>
+                            <td>OPEX</td>
+                            <td>Dinheiro gasto para rodar a operação (mês a mês).</td>
+                        </tr>
+                        <tr>
+                            <td>Margem</td>
+                            <td>Quanto sobra de lucro sobre a venda.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <footer class="footer">
+                <p>&copy; 2026 Lubrin Lubrificação Industrial. Todos os direitos reservados.</p>
+                <p>OpCapex — Gerado via AntiGravity Engine</p>
+            </footer>
+        </main>
+    </div>
+
+</body>
+
+</html>

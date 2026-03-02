@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ProposalData, Role, CanvasSection, CanvasDecoration } from '../types';
 import { formatCurrency } from '../utils/pricingEngine';
-import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard } from 'lucide-react';
+import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard, HeartPulse, ShoppingBag, Utensils, Bus } from 'lucide-react';
 
 interface TeamProps {
     data: ProposalData;
@@ -303,7 +303,24 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         if (role.additionalDanger) addOns += role.baseSalary * 0.30;
         const totalBase = base + addOns;
         const charges = totalBase * data.taxConfig.socialChargesRate;
-        return (totalBase + charges) * role.quantity;
+
+        // Calculate Benefits
+        let unitBenefits = 0;
+        const benefitsConfig = data.benefitsConfig || {
+            healthInsurance: 0,
+            healthInsuranceDependentFactor: 1,
+            foodAllowance: 0,
+            mealAllowance: 0,
+            transportAllowance: 0,
+            hasCafeteria: false
+        };
+        const { healthInsurance, healthInsuranceDependentFactor, foodAllowance, mealAllowance, transportAllowance, hasCafeteria } = benefitsConfig;
+        unitBenefits += Math.round((healthInsurance * healthInsuranceDependentFactor + Number.EPSILON) * 100) / 100;
+        unitBenefits += foodAllowance;
+        if (!hasCafeteria) unitBenefits += mealAllowance;
+        unitBenefits += transportAllowance;
+
+        return (totalBase + charges + unitBenefits) * role.quantity;
     };
 
     const handleContextMenuCanvas = (e: React.MouseEvent, type: 'node' | 'section' | 'decoration' | 'canvas', targetId?: string) => {
@@ -431,6 +448,27 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const roles = data.roles;
     const sections = data.sections || [];
     const decorations = data.decorations || [];
+
+    // --- Global Benefits Config Fallback ---
+    const benefits = data.benefitsConfig || {
+        healthInsurance: 0,
+        healthInsuranceDependentFactor: 1,
+        foodAllowance: 0,
+        mealAllowance: 0,
+        transportAllowance: 0,
+        hasCafeteria: false
+    };
+
+    const updateBenefits = (field: keyof typeof benefits, value: any) => {
+        updateData({ benefitsConfig: { ...benefits, [field]: value } });
+    };
+
+    // --- Overview Indicators ---
+    const totalHeadcount = roles.reduce((acc, role) => acc + role.quantity, 0);
+    const totalCost = roles.reduce((acc, role) => acc + calculateRoleCost(role), 0);
+    const averageSalary = totalHeadcount > 0
+        ? roles.reduce((acc, role) => acc + (role.baseSalary * role.quantity), 0) / totalHeadcount
+        : 0;
 
     return (
         <div className="flex flex-col h-full overflow-hidden bg-slate-50">
@@ -758,7 +796,162 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                 </div>
             ) : (
                 /* LIST OR GRID VIEW (Standard Views) */
-                <div className="p-8 max-w-[1600px] mx-auto w-full">
+                <div className="p-8 max-w-[1600px] mx-auto w-full flex flex-col gap-6">
+                    {/* OVERVIEW INDICATORS */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {/* Efetivo Total */}
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Efetivo Total</p>
+                                <div className="flex items-baseline gap-2 mt-1">
+                                    <p className="text-3xl font-black text-slate-800 tracking-tight">{totalHeadcount}</p>
+                                    <span className="text-xs font-medium text-slate-400">pessoas</span>
+                                </div>
+                            </div>
+                            <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
+                                <Users size={24} />
+                            </div>
+                        </div>
+
+                        {/* Salário Médio Base */}
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Salário Médio Base</p>
+                                <p className="text-3xl font-black text-emerald-600 mt-1 tracking-tight">{formatCurrency(averageSalary)}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Não inclui adicionais e encargos</p>
+                            </div>
+                            <div className="h-12 w-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                                <DollarSign size={24} />
+                            </div>
+                        </div>
+
+                        {/* Custo Total em Folha */}
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Custo Total da Folha</p>
+                                <p className="text-3xl font-black text-amber-600 mt-1 tracking-tight">{formatCurrency(totalCost)}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium flex items-center gap-1">
+                                    Inclui adicionais e <span className="font-bold text-amber-600 bg-amber-50 px-1 py-0.5 rounded">{data.taxConfig.socialChargesRate * 100}%</span> de encargos
+                                </p>
+                            </div>
+                            <div className="h-12 w-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-600">
+                                <Briefcase size={24} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BENEFITS CONFIGURATION SECTION */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 shrink-0">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Box className="text-purple-600" size={20} />
+                            <h3 className="text-lg font-bold text-slate-800">Configuração Global de Benefícios</h3>
+                            <span className="text-xs font-medium text-slate-500 ml-2">Aplicado proporcionalmente ao efetivo total</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                            {/* Assistência Médica */}
+                            <div className="col-span-1 lg:col-span-1 border border-rose-200 bg-rose-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <label className="text-xs font-bold text-rose-700 block mb-3 flex items-center gap-1">
+                                    <HeartPulse size={16} /> Assistência Médica
+                                </label>
+                                <div className="flex items-center gap-1 bg-white p-2.5 rounded-md border border-rose-100 focus-within:ring-2 focus-within:ring-rose-200 focus-within:border-rose-300 transition-all">
+                                    <span className="text-rose-400 text-xs font-bold">R$</span>
+                                    <input
+                                        type="number"
+                                        value={benefits.healthInsurance}
+                                        onChange={(e) => updateBenefits('healthInsurance', parseFloat(e.target.value) || 0)}
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0"
+                                        placeholder="0,00"
+                                    />
+                                    <span className="text-rose-300 text-[10px] font-bold">/mês</span>
+                                </div>
+                            </div>
+
+                            {/* Dependentes */}
+                            <div className="col-span-1 lg:col-span-1 border border-indigo-200 bg-indigo-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <label className="text-xs font-bold text-indigo-700 block mb-3 flex items-center gap-1">
+                                    <Users size={16} /> Fator Dependentes
+                                </label>
+                                <div className="bg-white p-2.5 rounded-md border border-indigo-100 flex items-center focus-within:ring-2 focus-within:ring-indigo-200 focus-within:border-indigo-300 transition-all">
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        value={benefits.healthInsuranceDependentFactor}
+                                        onChange={(e) => updateBenefits('healthInsuranceDependentFactor', parseFloat(e.target.value) || 1)}
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0 text-center"
+                                        title="Ex: 1.5 significa Titular + 0.5 dependentes em média"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Alimentação (VA) */}
+                            <div className="col-span-1 lg:col-span-1 border border-orange-200 bg-orange-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <label className="text-xs font-bold text-orange-700 block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                                    <ShoppingBag size={16} className="shrink-0" /> Vale Alimentação (VA)
+                                </label>
+                                <div className="flex items-center gap-1 bg-white p-2.5 rounded-md border border-orange-100 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-300 transition-all">
+                                    <span className="text-orange-400 text-xs font-bold">R$</span>
+                                    <input
+                                        type="number"
+                                        value={benefits.foodAllowance}
+                                        onChange={(e) => updateBenefits('foodAllowance', parseFloat(e.target.value) || 0)}
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0"
+                                        placeholder="0,00"
+                                    />
+                                    <span className="text-orange-300 text-[10px] font-bold">/mês</span>
+                                </div>
+                            </div>
+
+                            {/* Refeição (VR) vs Refeitório */}
+                            <div className="col-span-2 lg:col-span-1 flex flex-col gap-2">
+                                <div className={`border rounded-lg p-4 flex-1 shadow-sm transition-all ${benefits.hasCafeteria ? 'border-slate-200 bg-slate-100/50' : 'border-amber-200 bg-amber-50 hover:shadow-md'}`}>
+                                    <label className={`text-xs font-bold block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis ${benefits.hasCafeteria ? 'text-slate-400' : 'text-amber-700'}`}>
+                                        <Utensils size={16} className="shrink-0" /> Vale Refeição (VR)
+                                    </label>
+                                    <div className={`flex items-center gap-1 p-2.5 rounded-md border transition-all ${benefits.hasCafeteria ? 'bg-white/50 border-slate-200' : 'bg-white border-amber-100 focus-within:ring-2 focus-within:ring-amber-200 focus-within:border-amber-300'}`}>
+                                        <span className={`text-xs font-bold ${benefits.hasCafeteria ? 'text-slate-300' : 'text-amber-400'}`}>R$</span>
+                                        <input
+                                            type="number"
+                                            value={benefits.mealAllowance}
+                                            onChange={(e) => updateBenefits('mealAllowance', parseFloat(e.target.value) || 0)}
+                                            disabled={benefits.hasCafeteria}
+                                            className={`w-full bg-transparent font-extrabold text-sm border-none p-0 focus:ring-0 ${benefits.hasCafeteria ? 'text-slate-400' : 'text-slate-700'}`}
+                                            placeholder="0,00"
+                                        />
+                                        <span className={`text-[10px] font-bold ${benefits.hasCafeteria ? 'text-slate-300' : 'text-amber-300'}`}>/mês</span>
+                                    </div>
+                                </div>
+                                <label className={`flex items-center justify-center gap-2 cursor-pointer border px-3 py-2 rounded-lg transition-colors shadow-sm ${benefits.hasCafeteria ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={benefits.hasCafeteria}
+                                        onChange={(e) => updateBenefits('hasCafeteria', e.target.checked)}
+                                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold">Possui Refeitório?</span>
+                                </label>
+                            </div>
+
+                            {/* Transporte (VT) */}
+                            <div className="col-span-1 lg:col-span-1 border border-cyan-200 bg-cyan-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <label className="text-xs font-bold text-cyan-700 block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                                    <Bus size={16} className="shrink-0" /> Vale Transporte (VT)
+                                </label>
+                                <div className="flex items-center gap-1 bg-white p-2.5 rounded-md border border-cyan-100 focus-within:ring-2 focus-within:ring-cyan-200 focus-within:border-cyan-300 transition-all">
+                                    <span className="text-cyan-400 text-xs font-bold">R$</span>
+                                    <input
+                                        type="number"
+                                        value={benefits.transportAllowance}
+                                        onChange={(e) => updateBenefits('transportAllowance', parseFloat(e.target.value) || 0)}
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0"
+                                        placeholder="0,00"
+                                    />
+                                    <span className="text-cyan-300 text-[10px] font-bold">/mês</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {viewMode === 'list' && (
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                             <table className="w-full text-sm text-left">
