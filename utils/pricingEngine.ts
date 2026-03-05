@@ -54,7 +54,17 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
   let totalSupportCost = 0;
   let totalDepreciationCost = 0;
 
-  if (data.type === 'SPOT') {
+  if (data.type === 'PRODUCT') {
+    // Cálculo de Produtos: Soma direta dos itens da lista
+    (data.productLines || []).forEach(line => {
+      const lineCost = PricingMath.multiply(line.unitCost, line.quantity);
+      totalOperationalCost = PricingMath.add(totalOperationalCost, lineCost);
+      // Os impostos e margem são calculados no Gross Up abaixo usando as taxas globais ou per-item?
+      // O ProductEditor usa taxas per-item. Para manter consistência, o calculateFinancials 
+      // precisaria ser muito mais complexo ou o ProductEditor deveria usar o motor.
+      // Vamos assumir que para o "Resumo Financeiro" global, usamos o somatório de custos.
+    });
+  } else if (data.type === 'SPOT') {
     // Cálculo Spot: Simples e Direto
     // Labor = Resources * Days * Rate
     (data.spotResources || []).forEach(res => {

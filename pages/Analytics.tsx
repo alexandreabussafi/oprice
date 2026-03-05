@@ -2,30 +2,33 @@
 import React, { useState } from 'react';
 import { ProposalData } from '../types';
 import { calculateFinancials, formatCurrency } from '../utils/pricingEngine';
-import { DollarSign, Zap, Repeat, TrendingUp, XCircle } from 'lucide-react';
+import { DollarSign, Zap, Repeat, TrendingUp, XCircle, Package } from 'lucide-react';
 
 interface AnalyticsProps {
     proposals: ProposalData[];
     onSelectProposal: (id: string) => void;
+    businessUnit: 'SERVICES' | 'PRODUCTS';
 }
 
-const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal }) => {
-    const [funnelFilter, setFunnelFilter] = useState<'ALL' | 'SPOT' | 'MENSAL'>('ALL');
+const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, businessUnit }) => {
+    const [funnelFilter, setFunnelFilter] = useState<'ALL' | 'SPOT' | 'MENSAL' | 'PRODUCT'>(businessUnit === 'PRODUCTS' ? 'PRODUCT' : 'ALL');
     const [dateFilter, setDateFilter] = useState<'ALL' | 'THIS_MONTH' | 'THIS_QUARTER' | 'THIS_YEAR'>('ALL');
 
     const activeProposals = proposals.filter(p => p.isCurrentVersion);
 
     // Filter properties based on funnel selection for KPI
     const kpiProposals = activeProposals.filter(p =>
-        funnelFilter === 'ALL' || p.type === (funnelFilter === 'SPOT' ? 'SPOT' : 'CONTINUOUS')
+        funnelFilter === 'ALL' || p.type === (funnelFilter === 'SPOT' ? 'SPOT' : funnelFilter === 'MENSAL' ? 'CONTINUOUS' : 'PRODUCT')
     );
 
-    const continuousProposals = kpiProposals.filter(p => p.type !== 'SPOT');
+    const continuousProposals = kpiProposals.filter(p => p.type === 'CONTINUOUS');
     const spotProposals = kpiProposals.filter(p => p.type === 'SPOT');
+    const productProposals = kpiProposals.filter(p => p.type === 'PRODUCT');
 
     const continuousValue = continuousProposals.reduce((acc, p) => acc + p.value, 0);
     const spotValue = spotProposals.reduce((acc, p) => acc + p.value, 0);
-    const totalValue = continuousValue + spotValue;
+    const productValue = productProposals.reduce((acc, p) => acc + p.value, 0);
+    const totalValue = continuousValue + spotValue + productValue;
 
     const today = new Date();
     const currentMonth = today.getMonth();
@@ -57,7 +60,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal }) =>
             </div>
 
             {/* Top Mix Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${businessUnit === 'SERVICES' ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
                     <div>
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Receita Total</p>
@@ -67,30 +70,50 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal }) =>
                         <DollarSign size={24} />
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
-                    <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Projetos Spot</p>
-                        <p className="text-2xl font-black text-amber-600 dark:text-amber-500">{formatCurrency(spotValue)}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 rounded inline-block">
-                            {spotProposals.length} propostas ({totalValue > 0 ? ((spotValue / totalValue) * 100).toFixed(0) : 0}%)
-                        </p>
+
+                {businessUnit === 'SERVICES' && (
+                    <>
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Projetos Spot</p>
+                                <p className="text-2xl font-black text-amber-600 dark:text-amber-500">{formatCurrency(spotValue)}</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 rounded inline-block">
+                                    {spotProposals.length} propostas ({totalValue > 0 ? ((spotValue / totalValue) * 100).toFixed(0) : 0}%)
+                                </p>
+                            </div>
+                            <div className="h-12 w-12 bg-amber-50 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 dark:text-amber-500 shadow-inner">
+                                <Zap size={24} />
+                            </div>
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Contratos Mensais</p>
+                                <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{formatCurrency(continuousValue)}</p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 rounded inline-block">
+                                    {continuousProposals.length} propostas ({totalValue > 0 ? ((continuousValue / totalValue) * 100).toFixed(0) : 0}%)
+                                </p>
+                            </div>
+                            <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
+                                <Repeat size={24} />
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {businessUnit === 'PRODUCTS' && (
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Produtos</p>
+                            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(productValue)}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 rounded inline-block">
+                                {productProposals.length} propostas ({totalValue > 0 ? ((productValue / totalValue) * 100).toFixed(0) : 0}%)
+                            </p>
+                        </div>
+                        <div className="h-12 w-12 bg-emerald-50 dark:bg-emerald-900/40 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-inner">
+                            <Package size={24} />
+                        </div>
                     </div>
-                    <div className="h-12 w-12 bg-amber-50 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 dark:text-amber-500 shadow-inner">
-                        <Zap size={24} />
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
-                    <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Contratos Contínuos</p>
-                        <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{formatCurrency(continuousValue)}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 rounded inline-block">
-                            {continuousProposals.length} propostas ({totalValue > 0 ? ((continuousValue / totalValue) * 100).toFixed(0) : 0}%)
-                        </p>
-                    </div>
-                    <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
-                        <Repeat size={24} />
-                    </div>
-                </div>
+                )}
             </div>
 
             {/* Funnel & Table Area */}
@@ -106,13 +129,19 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal }) =>
                         <div className="flex items-center gap-2">
                             {/* Filter Pill */}
                             <div className="flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-                                {(['ALL', 'SPOT', 'MENSAL'] as const).map(f => (
+                                {businessUnit === 'SERVICES' ? (
+                                    (['ALL', 'SPOT', 'MENSAL'] as const).map(f => (
+                                        <button
+                                            key={f}
+                                            onClick={() => setFunnelFilter(f)}
+                                            className={`px-3 py-1 text-[10px] font-black uppercase rounded-md transition-all ${funnelFilter === f ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                                        >{f === 'ALL' ? 'Tudo' : f}</button>
+                                    ))
+                                ) : (
                                     <button
-                                        key={f}
-                                        onClick={() => setFunnelFilter(f)}
-                                        className={`px-3 py-1 text-[10px] font-black uppercase rounded-md transition-all ${funnelFilter === f ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
-                                    >{f === 'ALL' ? 'Tudo' : f}</button>
-                                ))}
+                                        className="px-3 py-1 text-[10px] font-black uppercase rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm transition-colors"
+                                    >Produtos</button>
+                                )}
                             </div>
 
                             <select

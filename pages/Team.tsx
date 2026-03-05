@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ProposalData, Role, CanvasSection, CanvasDecoration } from '../types';
 import { formatCurrency } from '../utils/pricingEngine';
-import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard, HeartPulse, ShoppingBag, Utensils, Bus } from 'lucide-react';
+import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard, HeartPulse, ShoppingBag, Utensils, Bus, Wand2, Maximize2 } from 'lucide-react';
 
 interface TeamProps {
     data: ProposalData;
@@ -53,6 +53,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         initialObjY: number;
         initialObjW?: number;
         initialObjH?: number;
+        initialRoles?: Role[];
     } | null>(null);
 
     const isPanningRef = useRef(false);
@@ -124,9 +125,25 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                 const deltaY = (e.clientY - startY) / currentScale;
 
                 if (type === 'role') {
-                    const updatedRoles = currentData.roles.map(r =>
-                        r.id === id ? { ...r, x: initialObjX + deltaX, y: initialObjY + deltaY } : r
-                    );
+                    const initialRoles = dragInfoRef.current.initialRoles || currentData.roles;
+                    const getDescendants = (parentId: string): string[] => {
+                        const children = initialRoles.filter(r => r.parentId === parentId).map(r => r.id);
+                        return children.reduce((acc, childId) => [...acc, childId, ...getDescendants(childId)], [] as string[]);
+                    };
+                    const descendantIds = getDescendants(id);
+
+                    const updatedRoles = currentData.roles.map(r => {
+                        if (r.id === id) {
+                            return { ...r, x: initialObjX + deltaX, y: initialObjY + deltaY };
+                        } else if (descendantIds.includes(r.id)) {
+                            // Move children by the same exact delta relative to their own initial position
+                            const initR = initialRoles.find(ir => ir.id === r.id);
+                            if (initR) {
+                                return { ...r, x: (initR.x || 0) + deltaX, y: (initR.y || 0) + deltaY };
+                            }
+                        }
+                        return r;
+                    });
                     updateData({ roles: updatedRoles });
                 } else if (type === 'section') {
                     const updatedSections = (currentData.sections || []).map(s =>
@@ -195,7 +212,8 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             type, id,
             startX: e.clientX, startY: e.clientY,
             initialObjX: initialObj.x, initialObjY: initialObj.y,
-            initialObjW: initialObj.width, initialObjH: initialObj.height
+            initialObjW: initialObj.width, initialObjH: initialObj.height,
+            initialRoles: data.roles
         };
 
         setIsDraggingUI(true);
@@ -212,6 +230,12 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         }
         return { x: 0, y: 0 };
     };
+
+    useEffect(() => {
+        const handleClickOutside = () => setContextMenu(null);
+        window.addEventListener('mousedown', handleClickOutside);
+        return () => window.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // --- CRUD Actions ---
 
@@ -433,15 +457,100 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         }
     };
 
+    const applyAutoLayout = () => {
+        const rootNodes = data.roles.filter(r => !r.parentId);
+        if (rootNodes.length === 0) return;
+
+        const xSpacing = 320;
+        const ySpacing = 200;
+        const newRoles = [...data.roles];
+
+        const layoutSubtree = (nodeId: string, level: number, currentX: number) => {
+            const children = newRoles.filter(r => r.parentId === nodeId);
+            const nodeIndex = newRoles.findIndex(r => r.id === nodeId);
+
+            if (children.length === 0) {
+                if (nodeIndex !== -1) {
+                    newRoles[nodeIndex] = { ...newRoles[nodeIndex], x: currentX, y: level * ySpacing };
+                }
+                return currentX + xSpacing;
+            }
+
+            let nextX = currentX;
+            children.forEach(child => {
+                nextX = layoutSubtree(child.id, level + 1, nextX);
+            });
+
+            // Center parent over children
+            const firstChild = newRoles.find(r => r.id === children[0].id);
+            const lastChild = newRoles.find(r => r.id === children[children.length - 1].id);
+            if (firstChild && lastChild && nodeIndex !== -1) {
+                newRoles[nodeIndex] = {
+                    ...newRoles[nodeIndex],
+                    x: ((firstChild.x || 0) + (lastChild.x || 0)) / 2,
+                    y: level * ySpacing
+                };
+            }
+
+            return nextX;
+        };
+
+        let startX = 0;
+        rootNodes.forEach(root => {
+            startX = layoutSubtree(root.id, 0, startX);
+        });
+
+        updateData({ roles: newRoles });
+    };
+
+    const fitToView = useCallback(() => {
+        if (data.roles.length === 0 || !canvasRef.current) return;
+        const cW = 256;
+        const cH = 140;
+        const padding = 80;
+        const xs = data.roles.map(r => r.x || 0);
+        const ys = data.roles.map(r => r.y || 0);
+        const minX = Math.min(...xs) - padding;
+        const minY = Math.min(...ys) - padding;
+        const maxX = Math.max(...xs) + cW + padding;
+        const maxY = Math.max(...ys) + cH + padding;
+        const contentW = maxX - minX;
+        const contentH = maxY - minY;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const viewW = rect.width || 800;
+        const viewH = rect.height || 600;
+
+        let newScale = Math.min(viewW / contentW, viewH / contentH, 1.0);
+
+        // Prevent extreme zoom outs due to wild coordinates or 0 dimensions
+        if (newScale < 0.5) newScale = 0.7;
+
+        const newPanX = (viewW - contentW * newScale) / 2 - minX * newScale;
+        const newPanY = (viewH - contentH * newScale) / 2 - minY * newScale;
+
+        // Ensure values are numbers, not NaN
+        setScale(Number.isNaN(newScale) ? 0.85 : newScale);
+        setPan({
+            x: Number.isNaN(newPanX) ? 50 : newPanX,
+            y: Number.isNaN(newPanY) ? 50 : newPanY
+        });
+    }, [data.roles]);
+
     useEffect(() => {
-        // Initial Layout if empty
-        if (viewMode === 'organogram' && data.roles.length > 0 && data.roles[0].x === undefined) {
-            const updatedRoles = data.roles.map((r, i) => ({
-                ...r,
-                x: (i % 3) * 300,
-                y: Math.floor(i / 3) * 250
-            }));
-            updateData({ roles: updatedRoles });
+        // Initial Layout: assign coordinates when entering organogram if roles lack them
+        if (viewMode === 'organogram' && data.roles.length > 0) {
+            const hasCoords = data.roles.some(r => r.x !== undefined && r.x !== null && r.x !== 0);
+            if (!hasCoords) {
+                const cols = Math.max(3, Math.ceil(Math.sqrt(data.roles.length)));
+                const updatedRoles = data.roles.map((r, i) => ({
+                    ...r,
+                    x: (i % cols) * 320 + 100,
+                    y: Math.floor(i / cols) * 220 + 80
+                }));
+                updateData({ roles: updatedRoles });
+            }
+            // Always center the view when entering organogram
+            setTimeout(() => fitToView(), 100);
         }
     }, [viewMode]);
 
@@ -507,7 +616,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
             {/* VIEW CONTENT */}
             {viewMode === 'organogram' ? (
-                <div className={`flex-1 relative overflow-hidden select-none bg-[#f8fafc] ${isDraggingUI ? 'cursor-grabbing' : 'cursor-grab'}`}>
+                <div className={`flex-1 relative overflow-hidden min-h-[600px] select-none bg-[#f8fafc] ${isDraggingUI ? 'cursor-grabbing' : 'cursor-grab'}`}>
                     {/* Infinite Canvas */}
                     <div
                         ref={canvasRef}
@@ -715,7 +824,16 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                         </button>
                         <div className="w-px h-6 bg-slate-300 mx-1"></div>
                         <button
+                            onClick={applyAutoLayout}
+                            title="Organizar Automaticamente"
+                            className="p-3 rounded-full hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 transition-colors"
+                        >
+                            <Wand2 size={20} />
+                        </button>
+                        <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                        <button
                             onClick={() => addSection()}
+
                             title="Criar Área (Lane)"
                             className="p-3 rounded-full hover:bg-amber-50 text-amber-600 hover:text-amber-700 transition-colors relative group"
                         >

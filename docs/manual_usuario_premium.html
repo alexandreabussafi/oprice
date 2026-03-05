@@ -302,13 +302,14 @@
             <span class="logo-text">OpCapex</span>
             <nav>
                 <ul class="nav-list">
-                    <li class="nav-item"><a href="#intro" class="nav-link">1. Visão Geral</a></li>
-                    <li class="nav-item"><a href="#crm" class="nav-link">2. Módulo CRM</a></li>
-                    <li class="nav-item"><a href="#editor" class="nav-link">3. Editor de Proposta</a></li>
-                    <li class="nav-item"><a href="#versions" class="nav-link">4. Versionamento</a></li>
-                    <li class="nav-item"><a href="#approval" class="nav-link">5. Aprovações</a></li>
-                    <li class="nav-item"><a href="#configs" class="nav-link">6. Configurações</a></li>
-                    <li class="nav-item"><a href="#glossary" class="nav-link">7. Glossário</a></li>
+                    <li class="nav-item"><a href="#overview" class="nav-link">1. Visão Geral</a></li>
+                    <li class="nav-item"><a href="#lifecycle" class="nav-link">2. Ciclo de Trabalho</a></li>
+                    <li class="nav-item"><a href="#crm" class="nav-link">3. Módulo CRM</a></li>
+                    <li class="nav-item"><a href="#editor" class="nav-link">4. Editor de Proposta</a></li>
+                    <li class="nav-item"><a href="#versions" class="nav-link">5. Versionamento</a></li>
+                    <li class="nav-item"><a href="#approval" class="nav-link">6. Fluxo de Aprovação</a></li>
+                    <li class="nav-item"><a href="#configs" class="nav-link">7. Configurações</a></li>
+                    <li class="nav-item"><a href="#glossary" class="nav-link">8. Glossário</a></li>
                 </ul>
             </nav>
         </div>
@@ -323,7 +324,7 @@
                 </p>
             </div>
 
-            <section>
+            <section id="overview">
                 <h2>1. Visão Geral do Sistema</h2>
                 <p>O <strong>OpCapex</strong> é uma plataforma de precificação e viabilidade financeira para contratos
                     de serviços industriais. Ele combina um CRM visual com um sofisticado motor de cálculos financeiros.
@@ -349,12 +350,85 @@
                 </table>
             </section>
 
+            <section id="lifecycle">
+                <h2>2. Ciclo de Trabalho (Fluxo Industrial)</h2>
+                <p>O sucesso na precificação industrial depende de um processo disciplinado. Abaixo, o fluxo sugerido no
+                    <strong>OpCapex</strong>:
+                </p>
+
+                <div class="alert"
+                    style="background: white; border: 1px solid var(--border); border-left: 6px solid var(--accent); padding: 2rem;">
+                    <div style="display: flex; flex-direction: column; gap: 2rem; position: relative;">
+                        <!-- line connecting steps -->
+                        <div
+                            style="position: absolute; left: 15px; top: 10px; bottom: 10px; width: 2px; background: var(--border); z-index: 1;">
+                        </div>
+
+                        <div style="position: relative; z-index: 2; display: flex; gap: 1rem; align-items: flex-start;">
+                            <span class="badge"
+                                style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; font-size: 1rem; box-shadow: 0 0 0 4px white;">1</span>
+                            <div>
+                                <strong
+                                    style="display: block; color: var(--primary); font-size: 1.1rem; margin-bottom: 0.25rem;">Mapeamento
+                                    Cadastral</strong>
+                                Cadastre a Conta via CNPJ com automação e identifique os Contatos-chave (decisores e
+                                viabilizadores).
+                            </div>
+                        </div>
+                        <div style="position: relative; z-index: 2; display: flex; gap: 1rem; align-items: flex-start;">
+                            <span class="badge"
+                                style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; font-size: 1rem; box-shadow: 0 0 0 4px white;">2</span>
+                            <div>
+                                <strong
+                                    style="display: block; color: var(--primary); font-size: 1.1rem; margin-bottom: 0.25rem;">Oportunidade
+                                    (CRM)</strong>
+                                Crie a proposta no funil correto (Continuado ou Spot), defina as premissas iniciais e
+                                avance o card de prospecção.
+                            </div>
+                        </div>
+                        <div style="position: relative; z-index: 2; display: flex; gap: 1rem; align-items: flex-start;">
+                            <span class="badge"
+                                style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; font-size: 1rem; box-shadow: 0 0 0 4px white;">3</span>
+                            <div>
+                                <strong
+                                    style="display: block; color: var(--primary); font-size: 1.1rem; margin-bottom: 0.25rem;">Edição
+                                    Técnica (Editor)</strong>
+                                Monte o modelo do negócio: configure a Equipe (Salários), Consumíveis (OPEX) e
+                                Equipamentos (CAPEX) para formar o preço final.
+                            </div>
+                        </div>
+                        <div style="position: relative; z-index: 2; display: flex; gap: 1rem; align-items: flex-start;">
+                            <span class="badge"
+                                style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; font-size: 1rem; box-shadow: 0 0 0 4px white;">4</span>
+                            <div>
+                                <strong
+                                    style="display: block; color: var(--primary); font-size: 1.1rem; margin-bottom: 0.25rem;">Aprovação
+                                    & Versionamento</strong>
+                                Avalie a viabilidade (VPL e Heath Check). Congele versões comerciais e submeta cenários
+                                de baixa margem ao Gestor.
+                            </div>
+                        </div>
+                        <div style="position: relative; z-index: 2; display: flex; gap: 1rem; align-items: flex-start;">
+                            <span class="badge"
+                                style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; font-size: 1rem; box-shadow: 0 0 0 4px white;">5</span>
+                            <div>
+                                <strong
+                                    style="display: block; color: var(--primary); font-size: 1.1rem; margin-bottom: 0.25rem;">Follow-up
+                                    (Tarefas)</strong>
+                                Após o envio do PDF timbrado oficial, governe suas agendas comerciais ativamente via
+                                painel central para o fechamento (Won).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section id="crm" class="page-break">
-                <h2>2. Módulo CRM — Gestão de Oportunidades</h2>
+                <h2>3. Módulo CRM — Gestão de Oportunidades</h2>
                 <p>O CRM é a porta de entrada. Nele você visualiza o fluxo de vendas e decide quais cotações priorizar.
                 </p>
 
-                <h3>2.1 Visão Kanban</h3>
+                <h3>3.1 Visão Kanban</h3>
                 <p>Os cards representam as oportunidades em cada estágio. Arraste e solte para mudar o status comercial.
                 </p>
 
@@ -363,14 +437,14 @@
                     <div class="screenshot-caption">Figura 1: Visão do funil de vendas (Pipeline)</div>
                 </div>
 
-                <h3>2.3 Visão Analytics</h3>
+                <h3>3.2 Visão Analytics</h3>
                 <p>Painel com KPIs consolidados para tomada de decisão gerencial.</p>
                 <div class="screenshot-container">
                     <img src="./screenshots/crm_analytics.png" alt="CRM Analytics">
                     <div class="screenshot-caption">Figura 2: Indicadores de conversão e volume financeiro</div>
                 </div>
 
-                <h3 id="crm_contas">2.4 Contas e Carteira de Clientes</h3>
+                <h3 id="crm_contas">3.3 Contas e Carteira de Clientes</h3>
                 <p>O submódulo de Contas permite gerenciar de forma inteligente as empresas com as quais você se
                     relaciona, criando uma base unificada para as análises financeiras.</p>
                 <ul>
@@ -398,7 +472,7 @@
                         conta.</li>
                 </ul>
 
-                <h3 id="crm_contatos">2.5 Gestão de Contatos</h3>
+                <h3 id="crm_contatos">3.4 Gestão de Contatos</h3>
                 <p>A aba de Contatos é onde você organiza sua rede de influência corporativa, vital em vendas complexas
                     B2B.</p>
                 <ul>
@@ -411,7 +485,7 @@
                     <li><strong>Vínculo de Base:</strong> Cada contato é atrelado a uma Conta (Empresa) principal.</li>
                 </ul>
 
-                <h3 id="crm_tarefas">2.6 Tarefas e Múltiplas Visões</h3>
+                <h3 id="crm_tarefas">3.5 Tarefas e Múltiplas Visões</h3>
                 <p>O centro de produtividade para follow-ups e gestão de agenda comercial.</p>
                 <ul>
                     <li><strong>KPI Cards:</strong> Indicadores no topo informando tarefas Totais, Atrasadas, No Prazo e
@@ -430,7 +504,7 @@
                     <li><strong>Contexto:</strong> Vínculos visuais com o Contato, Conta ou Proposta específica.</li>
                 </ul>
 
-                <h3>2.8 Sidebar — Resumo da Cotação</h3>
+                <h3>3.6 Sidebar — Resumo da Cotação</h3>
                 <p>Visualização rápida dos dados de um cliente sem sair do pipeline.</p>
                 <div class="screenshot-container">
                     <img src="./screenshots/crm_sidebar.png" alt="CRM Sidebar">
@@ -439,9 +513,9 @@
             </section>
 
             <section id="editor" class="page-break">
-                <h2>3. Editor de Proposta — Precificação</h2>
+                <h2>4. Editor de Proposta — Precificação</h2>
 
-                <h3 id="editor_dashboard">3.1 Dashboard (Resumo Executivo)</h3>
+                <h3 id="editor_dashboard">4.1 Dashboard (Resumo Executivo)</h3>
                 <p>A central de comando da proposta. Se o Health Check estiver verde, você está pronto para negociar.
                 </p>
                 <div class="screenshot-container">
@@ -449,21 +523,21 @@
                     <div class="screenshot-caption">Figura 4: Dashborad de viabilidade e fluxo de caixa</div>
                 </div>
 
-                <h3 id="editor_team">3.2 Equipe (Quadro de Pessoal)</h3>
+                <h3 id="editor_team">4.2 Equipe (Quadro de Pessoal)</h3>
                 <p>Defina a hierarquia e os custos trabalhistas. Utilize o Organograma para uma visão Miro-style.</p>
                 <div class="screenshot-container">
                     <img src="./screenshots/editor_team.png" alt="Quadro de Pessoal">
                     <div class="screenshot-caption">Figura 5: Montagem de equipe e salários</div>
                 </div>
 
-                <h3 id="editor_capex">3.3 CAPEX (Ativos Imobilizados)</h3>
+                <h3 id="editor_capex">4.3 CAPEX (Ativos Imobilizados)</h3>
                 <p>Lance os investimentos em maquinário aqui para calcular a depreciação e o impacto no VPL.</p>
                 <div class="screenshot-container">
                     <img src="./screenshots/editor_costs_capex.png" alt="CAPEX Management">
                     <div class="screenshot-caption">Figura 6: Gestão de investimentos e valor residual</div>
                 </div>
 
-                <h3>3.7 Precificação (DRE)</h3>
+                <h3>4.4 Precificação (DRE)</h3>
                 <p>Onde o preço nasce. A cascata (Waterfall) mostra exatamente onde cada centavo da receita é alocado.
                 </p>
                 <div class="screenshot-container">
@@ -478,13 +552,33 @@
             </section>
 
             <section id="versions" class="page-break">
-                <h2>4. Versionamento de Propostas</h2>
+                <h2>5. Versionamento de Propostas</h2>
                 <p>Nunca perca um histórico. O sistema congela versões aprovadas e permite criar cópias para novas
                     simulações em segundos.</p>
             </section>
 
+            <section id="approval" class="page-break">
+                <h2>6. Fluxo de Aprovação</h2>
+                <p>Para garantir a rentabilidade, propostas com margem abaixo do limite operacional passam por uma alça
+                    de decisão técnica.</p>
+                <ul>
+                    <li><strong>Vendedor:</strong> Prepara a cotação e solicita aval.</li>
+                    <li><strong>Gestor/Director:</strong> Revisa o DRE e aprova ou rejeita com observações.</li>
+                </ul>
+            </section>
+
+            <section id="configs" class="page-break">
+                <h2>7. Configurações do Sistema</h2>
+                <p>Apenas administradores podem gerenciar as premissas globais que alimentam o motor de cálculo:</p>
+                <ul>
+                    <li>Encargos Sociais e Tributos (PIS/COFINS/ISS).</li>
+                    <li>Benefícios Padrão (VA/VR/Plano de Saúde).</li>
+                    <li>Parâmetros de WACC e Taxas de Desconto.</li>
+                </ul>
+            </section>
+
             <section id="glossary" class="page-break">
-                <h2>7. Glossário de Termos</h2>
+                <h2>8. Glossário de Termos</h2>
                 <table>
                     <thead>
                         <tr>

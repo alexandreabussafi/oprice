@@ -18,9 +18,12 @@ import Help from './pages/Help';
 import Analytics from './pages/Analytics';
 import Contacts from './pages/Contacts';
 import Tasks from './pages/Tasks';
-import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ContinuousStage, SpotStage, CONTINUOUS_TO_SPOT_MAPPING, SPOT_TO_CONTINUOUS_MAPPING, ProposalVersionStatus, AppRole, Milestone, Contact, CRMTask } from './types';
+import ProductEditor from './pages/ProductEditor'; // NOVO: Módulo de Produtos
+import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ContinuousStage, SpotStage, CONTINUOUS_TO_SPOT_MAPPING, SPOT_TO_CONTINUOUS_MAPPING, ProposalVersionStatus, AppRole, BusinessUnitAccess, Milestone, Contact, CRMTask, CatalogProduct, defaultAccounting, TimelineEvent } from './types';
 import { calculateFinancials } from './utils/pricingEngine';
 import { Moon, Sun } from 'lucide-react';
+import { useAuth } from './contexts/AuthContext';
+import Login from './pages/Login';
 
 // Default Tax Config (The System Standard)
 const defaultTaxConfig: ProposalData['taxConfig'] = {
@@ -104,6 +107,20 @@ const defaultKits: KitTemplate[] = [
   }
 ];
 
+const defaultLetterheadConfig: ProposalData['letterheadConfig'] = {
+  logoUrl: '/logo.png',
+  primaryColor: '#0f172a',
+  secondaryColor: '#2563eb',
+  companyName: 'OPCAPEX',
+  companySlogan: 'Industrial Viability Engine',
+  addressLine1: 'Av. Industrial, 1000',
+  addressLine2: 'São Paulo/SP - CEP 00000-000',
+  cnpj: '00.000.000/0001-00',
+  contactEmail: 'contato@opcapex.com.br',
+  contactPhone: '(11) 9999-9999',
+  website: 'www.opcapex.com.br'
+};
+
 // Default Template for new proposals
 const defaultProposalTemplate: ProposalData = {
   id: '',
@@ -151,7 +168,17 @@ const defaultProposalTemplate: ProposalData = {
   spotResources: [],
   spotExpenses: [],
   milestones: [],
+  productLines: [], // NOVO: Vazio por padrão
 };
+
+// --- INITIAL PRODUCT CATALOG (MOCK ERP) ---
+const initialProductCatalog: CatalogProduct[] = [
+  { id: 'prod-001', name: 'Bomba de Engrenagem', description: 'Bomba de engrenagem 10GPM', costPrice: 2500, standardMargin: 0.35, category: 'Equipment' },
+  { id: 'prod-002', name: 'Filtro Dessecante', description: 'Filtro dessecante de ar 1"', costPrice: 350, standardMargin: 0.45, category: 'Consumable' },
+  { id: 'prod-003', name: 'Software Monitoramento', description: 'Licença anual software preditivo', costPrice: 1200, standardMargin: 0.60, category: 'Software' },
+  { id: 'prod-004', name: 'Sensor de Vibração IOT', description: 'Sensor sem fio triaxial', costPrice: 850, standardMargin: 0.40, category: 'Equipment' },
+  { id: 'prod-005', name: 'Unidade Hidráulica', description: 'Unidade 50L com trocador de calor', costPrice: 15000, standardMargin: 0.30, category: 'Equipment' },
+];
 
 // Initial Mock Clients
 const initialClients: Client[] = [
@@ -259,6 +286,89 @@ const mockInitialProposals: ProposalData[] = [
     expirationDate: new Date('2023-09-05').toISOString(),
     responsible: 'Roberto Almeida',
     taxConfig: defaultTaxConfig,
+  },
+  {
+    ...defaultProposalTemplate,
+    id: 'mock-prod-1',
+    clientId: 'c1',
+    clientName: 'Electrolux - Almoxarifado',
+    proposalId: 'PRD-1001',
+    stage: 'Pricing',
+    status: 'Active',
+    motion: 'NewBusiness',
+    type: 'PRODUCT',
+    versionStatus: 'DRAFT',
+    isCurrentVersion: true,
+    version: 1,
+    value: 5400,
+    createdAt: new Date('2024-03-01').toISOString(),
+    expirationDate: new Date('2024-03-15').toISOString(),
+    responsible: 'Ana Silva',
+    salesOrderNumber: 'OV-2024-001',
+    clientPO: 'PO-998877',
+    deliveryDeadline: '10 dias úteis',
+    validity: '15 dias',
+    deliveryAddress: 'Rua das Industrias, 500 - Curitiba/PR',
+    billingAddress: '00.000.000/0001-91',
+    shippingAddress: 'Almoxarifado Central - A/C Sr. Marcos',
+    destinationState: 'PR',
+    productLines: [
+      {
+        id: 'li-1',
+        productId: 'prod-001',
+        name: 'Bomba de Engrenagem',
+        sku: 'BOMBA-G-10',
+        ncm: '8413.60.11',
+        quantity: 2,
+        unit: 'UN',
+        unitCost: 2500,
+        icmsPercent: 0.12,
+        ipiPercent: 0.05,
+        overrideMargin: 0.35,
+        finalPrice: 5200,
+        total: 10400
+      }
+    ]
+  },
+  {
+    ...defaultProposalTemplate,
+    id: 'mock-prod-2',
+    clientId: 'c2',
+    clientName: 'Klabin - Manutenção Central',
+    proposalId: 'PRD-1002',
+    stage: 'Sent',
+    status: 'Active',
+    motion: 'Expansion',
+    type: 'PRODUCT',
+    versionStatus: 'SUBMITTED',
+    isCurrentVersion: true,
+    version: 1,
+    value: 12500,
+    createdAt: new Date('2024-02-25').toISOString(),
+    expirationDate: new Date('2024-03-10').toISOString(),
+    responsible: 'Carlos Mendes',
+    salesOrderNumber: 'OV-2024-002',
+    deliveryAddress: 'Fazenda Monte Alegre - Telêmaco Borba/PR',
+    billingAddress: '89.637.490/0001-45',
+    shippingAddress: 'Pátio de Cargas - Portão 4',
+    destinationState: 'PR',
+    productLines: [
+      {
+        id: 'li-2',
+        productId: 'prod-005',
+        name: 'Unidade Hidráulica',
+        sku: 'UH-50L-TC',
+        ncm: '8412.29.00',
+        quantity: 1,
+        unit: 'UN',
+        unitCost: 15000,
+        icmsPercent: 0.12,
+        ipiPercent: 0,
+        overrideMargin: 0.30,
+        finalPrice: 21428.57,
+        total: 21428.57
+      }
+    ]
   }
 ];
 
@@ -272,7 +382,6 @@ function App() {
   });
 
   useEffect(() => {
-    console.log('App theme changed to:', darkMode ? 'DARK' : 'LIGHT');
     if (darkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('oprice-theme', 'dark');
@@ -288,57 +397,84 @@ function App() {
   };
 
   const [activeTab, setActiveTab] = useState('crm-dashboard');
-
-  // --- MOCK USER STATE ---
-  const [currentUser, setCurrentUser] = useState<{ name: string, role: AppRole }>({
-    name: 'Admin OPrice',
-    role: 'ADMIN'
+  const [businessUnit, setBusinessUnit] = useState<'SERVICES' | 'PRODUCTS'>(() => {
+    const saved = localStorage.getItem('oprice-business-unit');
+    return (saved as 'SERVICES' | 'PRODUCTS') || 'SERVICES';
   });
 
+  useEffect(() => {
+    localStorage.setItem('oprice-business-unit', businessUnit);
+  }, [businessUnit]);
+
+  const { session, loading, profile, signOut } = useAuth();
+  const [currentUser, setCurrentUser] = useState<{ id: string, name: string, role: AppRole, allowed_types: BusinessUnitAccess[] }>({
+    id: '',
+    name: 'Convidado',
+    role: 'SELLER',
+    allowed_types: ['PRODUCTS', 'SERVICES']
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setCurrentUser({
+        id: profile.id,
+        name: profile.full_name || profile.email?.split('@')[0] || 'Usuário',
+        role: profile.role,
+        allowed_types: profile.allowed_types || ['PRODUCTS', 'SERVICES']
+      });
+      // Force business unit if they don't have access to BOTH
+      if (profile.allowed_types?.length === 1) {
+        setBusinessUnit(profile.allowed_types[0] as 'PRODUCTS' | 'SERVICES');
+      }
+    }
+  }, [profile]);
+
   // --- PERSISTENCE ---
-  // Master Data State
+  // Master Data State (must be declared before any conditional returns)
   const [clients, setClients] = useState<Client[]>(initialClients);
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [tasks, setTasks] = useState<CRMTask[]>(initialTasks);
-  // Migration logic for separating terminal stages from activity status
-  const migrateLegacyProposals = (props: any[]): ProposalData[] => {
-    return props.map(p => {
+
+  const [proposals, setProposals] = useState<ProposalData[]>(() => {
+    return mockInitialProposals.map((p: any) => {
       let newStage = p.stage;
       let newStatus = p.status;
-
-      // If status implies a terminal state, move it to Stage and reset Status to Active (or Archived)
-      if (['Won', 'Lost'].includes(p.status)) {
-        newStage = p.status as OpportunityStage;
-        newStatus = 'Active';
-      }
-      // If status was Canceled or OnHold, treat as Archived or Frozen
-      if (['Canceled', 'OnHold'].includes(p.status)) {
-        newStatus = p.status === 'OnHold' ? 'Frozen' : 'Archived';
-      }
-
-      return {
-        ...p,
-        stage: newStage,
-        status: newStatus as OpportunityStatus,
-        versionStatus: p.versionStatus || 'DRAFT',
-        isCurrentVersion: p.isCurrentVersion !== undefined ? p.isCurrentVersion : true
-      };
+      if (['Won', 'Lost'].includes(p.status)) { newStage = p.status; newStatus = 'Active'; }
+      if (['Canceled', 'OnHold'].includes(p.status)) { newStatus = p.status === 'OnHold' ? 'Frozen' : 'Archived'; }
+      return { ...p, stage: newStage, status: newStatus as OpportunityStatus, versionStatus: p.versionStatus || 'DRAFT', isCurrentVersion: p.isCurrentVersion !== undefined ? p.isCurrentVersion : true };
     });
-  };
-
-  const [proposals, setProposals] = useState<ProposalData[]>(migrateLegacyProposals(mockInitialProposals));
+  });
 
   // Global Settings State (Mocking a singleton proposal to hold global config)
-  const [globalConfig, setGlobalConfig] = useState<ProposalData>({
-    ...defaultProposalTemplate,
-    id: 'global-config',
-    clientName: 'Configuração Global',
-    kitTemplates: defaultKits, // Init with default kits
-    // Global Defaults
-    markup: 0.30,
-    financialCostRate: 0.025,
-    contingencyRate: 0.05
+  const [globalConfig, setGlobalConfig] = useState<ProposalData>(() => {
+    const saved = localStorage.getItem('oprice-global-config');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...defaultProposalTemplate,
+        ...parsed,
+        letterheadConfig: parsed.letterheadConfig || defaultLetterheadConfig
+      };
+    }
+    return {
+      ...defaultProposalTemplate,
+      id: 'global-config',
+      clientName: 'Configuração Global',
+      kitTemplates: defaultKits,
+      letterheadConfig: defaultLetterheadConfig,
+      productCatalog: initialProductCatalog,
+      accountingConfig: defaultAccounting,
+      productAccountingConfig: defaultAccounting,
+      markup: 0.30,
+      financialCostRate: 0.025,
+      contingencyRate: 0.05
+    };
   });
+
+  // Persist global config changes
+  useEffect(() => {
+    localStorage.setItem('oprice-global-config', JSON.stringify(globalConfig));
+  }, [globalConfig]);
 
   // State: Currently selected proposal ID
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -346,8 +482,29 @@ function App() {
   // State: Initial snapshot of the current proposal when opened (for versioning diff)
   const [initialDataSnapshot, setInitialDataSnapshot] = useState<ProposalData | null>(null);
 
+  // Compute visible proposals based on Role and Business Unit Access rules
+  const visibleProposals = proposals.filter((p) => {
+    const pTypeAccess: BusinessUnitAccess = p.type === 'PRODUCT' ? 'PRODUCTS' : 'SERVICES';
+    if (!currentUser.allowed_types.includes(pTypeAccess) && !currentUser.allowed_types.includes('BOTH')) {
+      return false;
+    }
+    if (currentUser.role === 'SELLER' || currentUser.role === 'ANALYST') {
+      return p.responsible === currentUser.name;
+    }
+    return true;
+  });
+
   // Computed: The actual data object of the current proposal
   const currentData = proposals.find(p => p.id === currentId);
+
+  // ---- GUARD RETURNS (all hooks declared above, safe to return early now) ----
+  if (loading) {
+    return <div className="h-screen w-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 text-slate-500">Carregando...</div>;
+  }
+
+  if (!session) {
+    return <Login />;
+  }
 
   // --- CRM ACTIONS ---
 
@@ -392,11 +549,19 @@ function App() {
       financialCostRate: globalConfig.financialCostRate,
       contingencyRate: globalConfig.contingencyRate,
       accountingConfig: globalConfig.accountingConfig,
+      productAccountingConfig: globalConfig.productAccountingConfig,
+      timeline: [{
+        id: Math.random().toString(36).substring(2, 9),
+        date: today.toISOString(),
+        type: 'CREATED',
+        title: 'Oportunidade Criada',
+        user: currentUser.name || 'Sistema'
+      }]
     };
     setProposals([newProp, ...proposals]);
     setCurrentId(newId);
     setView('EDITOR');
-    setActiveTab('dashboard'); // Default start tab
+    setActiveTab(payload.type === 'PRODUCT' ? 'product-editor' : 'dashboard');
   };
 
   const handleCreateNewVersion = (id: string, notes?: string) => {
@@ -426,6 +591,17 @@ function App() {
       createdAt: today.toISOString(),
       updatedAt: today.toISOString(),
       expirationDate: expiry.toISOString(),
+      timeline: [
+        ...(source.timeline || []),
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          date: today.toISOString(),
+          type: 'VERSION_CREATED',
+          title: `Nova versão criada (v${source.version + 1})`,
+          user: currentUser.name || 'Sistema',
+          metadata: { notes }
+        }
+      ]
     };
 
     setProposals([newProp, ...updatedProposals]);
@@ -460,6 +636,13 @@ function App() {
       createdAt: today.toISOString(),
       updatedAt: today.toISOString(),
       expirationDate: expiry.toISOString(),
+      timeline: [{
+        id: Math.random().toString(36).substring(2, 9),
+        date: today.toISOString(),
+        type: 'CREATED',
+        title: `Cotação duplicada a partir de #${source.proposalId}`,
+        user: currentUser.name || 'Sistema'
+      }]
     };
     setProposals([newProp, ...proposals]);
   };
@@ -479,22 +662,58 @@ function App() {
     if (prop) {
       // Deep clone stringifying to keep a strict historical snapshot before edits
       setInitialDataSnapshot(JSON.parse(JSON.stringify(prop)));
+      setCurrentId(id);
+      setView('EDITOR');
+      setActiveTab(prop.type === 'PRODUCT' ? 'product-editor' : 'dashboard');
     }
-    setCurrentId(id);
-    setView('EDITOR');
-    setActiveTab('dashboard');
   };
 
   const handleUpdateStage = (id: string, newStage: OpportunityStage) => {
-    setProposals(prev => prev.map(p =>
-      p.id === id ? { ...p, stage: newStage, updatedAt: new Date().toISOString() } : p
-    ));
+    setProposals(prev => prev.map(p => {
+      if (p.id === id && p.stage !== newStage) {
+        return {
+          ...p,
+          stage: newStage,
+          updatedAt: new Date().toISOString(),
+          timeline: [
+            ...(p.timeline || []),
+            {
+              id: Math.random().toString(36).substring(2, 9),
+              date: new Date().toISOString(),
+              type: 'STAGE_CHANGE',
+              title: `O Estágio foi atualizado de ${p.stage} para ${newStage}`,
+              user: currentUser.name || 'Sistema',
+              metadata: { from: p.stage, to: newStage }
+            }
+          ]
+        };
+      }
+      return p;
+    }));
   };
 
   const handleUpdateStatus = (id: string, newStatus: OpportunityStatus) => {
-    setProposals(prev => prev.map(p =>
-      p.id === id ? { ...p, status: newStatus, updatedAt: new Date().toISOString() } : p
-    ));
+    setProposals(prev => prev.map(p => {
+      if (p.id === id && p.status !== newStatus) {
+        return {
+          ...p,
+          status: newStatus,
+          updatedAt: new Date().toISOString(),
+          timeline: [
+            ...(p.timeline || []),
+            {
+              id: Math.random().toString(36).substring(2, 9),
+              date: new Date().toISOString(),
+              type: 'STATUS_CHANGE',
+              title: `O Status foi alterado de ${p.status} para ${newStatus}`,
+              user: currentUser.name || 'Sistema',
+              metadata: { from: p.status, to: newStatus }
+            }
+          ]
+        };
+      }
+      return p;
+    }));
   };
 
   const handleUpdateProposal = (id: string, data: Partial<ProposalData>) => {
@@ -561,6 +780,17 @@ function App() {
       version: initialDataSnapshot.version + 1,
       versionNotes: versionNotes,
       updatedAt: new Date().toISOString(),
+      timeline: [
+        ...(currentSaved.timeline || []),
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          date: new Date().toISOString(),
+          type: 'VERSION_CREATED',
+          title: `Nova versão gerada no editor (v${initialDataSnapshot.version + 1})`,
+          user: currentUser.name || 'Sistema',
+          metadata: { notes: versionNotes }
+        }
+      ]
     };
 
     setProposals(prev => prev.map(p => p.id === currentId ? revertedOriginal : p).concat(newVersionedProp));
@@ -591,7 +821,7 @@ function App() {
         case 'crm-dashboard':
           return <CRM
             clients={clients}
-            proposals={proposals}
+            proposals={visibleProposals}
             onSelectProposal={handleSelectProposal}
             onCreateProposal={handleCreateProposal}
             onCreateNewVersion={handleCreateNewVersion}
@@ -601,15 +831,17 @@ function App() {
             onUpdateStatus={handleUpdateStatus}
             onUpdateProposal={handleUpdateProposal}
             initialViewMode="kanban"
+            businessUnit={businessUnit}
             currentUser={currentUser}
           />;
         case 'crm-analytics':
           return <Analytics
-            proposals={proposals}
+            proposals={visibleProposals}
             onSelectProposal={handleSelectProposal}
+            businessUnit={businessUnit}
           />;
         case 'crm-clients':
-          return <Clients clients={clients} setClients={setClients} proposals={proposals} />;
+          return <Clients clients={clients} setClients={setClients} proposals={visibleProposals} />;
         case 'crm-contacts':
           return <Contacts contacts={contacts} setContacts={setContacts} clients={clients} currentUser={currentUser} />;
         case 'crm-tasks':
@@ -618,7 +850,7 @@ function App() {
             setTasks={setTasks}
             clients={clients}
             contacts={contacts}
-            proposals={proposals}
+            proposals={visibleProposals}
             currentUser={currentUser}
             users={[
               { name: 'Admin User', role: 'Admin' },
@@ -632,7 +864,7 @@ function App() {
         default:
           return <CRM
             clients={clients}
-            proposals={proposals}
+            proposals={visibleProposals}
             onSelectProposal={handleSelectProposal}
             onCreateProposal={handleCreateProposal}
             onCreateNewVersion={handleCreateNewVersion}
@@ -642,6 +874,7 @@ function App() {
             onUpdateStatus={handleUpdateStatus}
             onUpdateProposal={handleUpdateProposal}
             initialViewMode="kanban"
+            businessUnit={businessUnit}
             currentUser={currentUser}
           />;
       }
@@ -656,6 +889,8 @@ function App() {
     if (!currentData) return <div>Erro: Proposta não encontrada.</div>;
 
     const isSpot = currentData.type === 'SPOT';
+    const isContinuous = currentData.type === 'CONTINUOUS';
+    const isProduct = currentData.type === 'PRODUCT';
     const allVersions = proposals.filter(p => p.proposalId === currentData.proposalId).sort((a, b) => b.version - a.version);
     const isLocked = ['Won', 'Lost'].includes(currentData.stage) || currentData.status === 'Archived';
 
@@ -673,21 +908,25 @@ function App() {
             currentUser={currentUser}
           />;
         case 'docs':
-          return <Documents data={currentData} updateData={updateCurrentData} />;
+          return <Documents data={currentData!} updateData={updateCurrentData} globalConfig={globalConfig} />;
 
         // CONTINUOUS SPECIFIC ROUTES
         case 'team':
-          return !isSpot ? <Team data={currentData} updateData={updateCurrentData} /> : null;
+          return isContinuous ? <Team data={currentData} updateData={updateCurrentData} /> : null;
         case 'safety':
-          return !isSpot ? <Safety data={currentData} updateData={updateCurrentData} globalConfig={globalConfig} /> : null;
+          return isContinuous ? <Safety data={currentData} updateData={updateCurrentData} globalConfig={globalConfig} /> : null;
         case 'support':
-          return !isSpot ? <Support data={currentData} updateData={updateCurrentData} /> : null;
+          return isContinuous ? <Support data={currentData} updateData={updateCurrentData} /> : null;
         case 'costs':
-          return !isSpot ? <Costs data={currentData} updateData={updateCurrentData} globalConfig={globalConfig} /> : null;
+          return isContinuous ? <Costs data={currentData} updateData={updateCurrentData} globalConfig={globalConfig} /> : null;
 
         // SPOT SPECIFIC ROUTE
         case 'spot-editor':
           return isSpot ? <SpotEditor data={currentData} updateData={updateCurrentData} /> : null;
+
+        // PRODUCT SPECIFIC ROUTE
+        case 'product-editor':
+          return isProduct ? <ProductEditor data={currentData} updateData={updateCurrentData} globalConfig={globalConfig} /> : null;
 
         // SHARED ROUTES
         case 'settings':
@@ -727,6 +966,8 @@ function App() {
       proposalType={currentData?.type}
       darkMode={darkMode}
       toggleDarkMode={toggleDarkMode}
+      businessUnit={businessUnit}
+      setBusinessUnit={setBusinessUnit}
       currentUser={currentUser}
       setCurrentUser={setCurrentUser}
     >

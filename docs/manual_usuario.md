@@ -9,31 +9,24 @@
 ## Sumário
 
 1. [Visão Geral do Sistema](#1-visão-geral-do-sistema)
-2. [Módulo CRM — Gestão de Oportunidades](#2-módulo-crm--gestão-de-oportunidades)
-   - 2.1 [Visão Kanban](#21-visão-kanban)
-   - 2.2 [Visão Lista](#22-visão-lista)
-   - 2.3 [Visão Analytics](#23-visão-analytics)
-   - 2.4 [Contas e Carteira de Clientes](#24-contas-e-carteira-de-clientes)
-   - 2.5 [Gestão de Contatos](#25-gestão-de-contatos)
-   - 2.6 [Tarefas e Atividades](#26-tarefas-e-atividades)
-   - 2.7 [Criando uma Nova Oportunidade](#27-criando-uma-nova-oportunidade)
-   - 2.8 [Sidebar — Resumo da Cotação](#28-sidebar--resumo-da-cotação)
-   - 2.9 [Pipeline Continuado vs Spot](#29-pipeline-continuado-vs-spot)
-   - 2.10 [Status Transversais (Ativo, Congelado, Arquivado)](#210-status-transversais-ativo-congelado-arquivado)
-   - 2.11 [Milestones](#211-milestones)
-   - 2.12 [Ações Rápidas (Clique Direito)](#212-ações-rápidas-clique-direito)
-3. [Editor de Proposta — Precificação](#3-editor-de-proposta--precificação)
-   - 3.1 [Dashboard (Resumo Executivo)](#31-dashboard-resumo-executivo)
-   - 3.2 [Equipe (Quadro de Pessoal)](#32-equipe-quadro-de-pessoal)
-   - 3.3 [Custos e Investimentos (OPEX / CAPEX)](#33-custos-e-investimentos-opex--capex)
-   - 3.4 [Segurança (SST)](#34-segurança-sst)
-   - 3.5 [Suporte Técnico](#35-suporte-técnico)
-   - 3.6 [Impostos](#36-impostos)
-   - 3.7 [Precificação (DRE)](#37-precificação-dre)
-4. [Versionamento de Propostas](#4-versionamento-de-propostas)
-5. [Workflow de Aprovação](#5-workflow-de-aprovação)
-6. [Configurações Globais](#6-configurações-globais)
-7. [Glossário de Termos](#7-glossário-de-termos)
+2. [Ciclo de Trabalho (Fluxo Industrial)](#2-ciclo-de-trabalho-fluxo-industrial)
+3. [Módulo CRM — Gestão de Oportunidades](#3-módulo-crm--gestão-de-oportunidades)
+   - 3.1 [Visão Kanban](#31-visão-kanban)
+   - 3.2 [Visão Lista](#32-visão-lista)
+   - 3.3 [Visão Analytics](#33-visão-analytics)
+   - 3.4 [Contas e Carteira de Clientes](#34-contas-e-carteira-de-clientes)
+   - 3.5 [Gestão de Contatos](#35-gestão-de-contatos)
+   - 3.6 [Tarefas e Múltiplas Visões](#36-tarefas-e-múltiplas-visões)
+   - 3.7 [Criando uma Nova Oportunidade](#37-criando-uma-nova-oportunidade)
+   - 3.8 [Sidebar — Resumo da Cotação](#38-sidebar--resumo-da-cotação)
+4. [Editor de Proposta — Precificação](#4-editor-de-proposta--precificação)
+   - 4.1 [Dashboard (Resumo Executivo)](#41-dashboard-resumo-executivo)
+   - 4.2 [Equipe (Quadro de Pessoal)](#42-equipe-quadro-de-pessoal)
+   - 4.3 [Custos e Investimentos (OPEX / CAPEX)](#43-custos-e-investimentos-opex--capex)
+5. [Versionamento de Propostas](#5-versionamento-de-propostas)
+6. [Workflow de Aprovação](#6-workflow-de-aprovação)
+7. [Configurações Globais](#7-configurações-globais)
+8. [Glossário de Termos](#8-glossário-de-termos)
 
 ---
 
@@ -54,11 +47,39 @@ O sistema suporta dois tipos de proposta:
 
 ---
 
-## 2. Módulo CRM — Gestão de Oportunidades
+## 2. Ciclo de Trabalho (Fluxo Industrial)
+
+Para obter o máximo de precisão na precificação, siga este fluxo padrão:
+
+```mermaid
+graph TD;
+    A[1. Mapeamento Cadastral] --> |CNPJ & Contatos| B(2. Oportunidade no CRM)
+    B --> |Criar e Mover| C{3. Edição Técnica}
+    C --> |Equipe, OPEX, CAPEX| D[4. Análise de Viabilidade]
+    D --> |VPL/TIR e Heath Check| E(5. Follow-up & Execução)
+    E --> |Tarefas & Negociação| F((Fechamento!))
+    
+    style A fill:#f8fafc,stroke:#3b82f6,stroke-width:2px;
+    style B fill:#f8fafc,stroke:#3b82f6,stroke-width:2px;
+    style C fill:#eff6ff,stroke:#3b82f6,stroke-width:2px;
+    style D fill:#f8fafc,stroke:#3b82f6,stroke-width:2px;
+    style E fill:#f8fafc,stroke:#3b82f6,stroke-width:2px;
+    style F fill:#10b981,stroke:#059669,stroke-width:2px,color:#fff;
+```
+
+1.  **Mapeamento Cadastral**: Cadastre a Conta via CNPJ com automação e identifique os Contatos-chave (decisores e viabilizadores).
+2.  **Oportunidade (CRM)**: Crie a proposta no funil correto (Continuado ou Spot), defina as premissas iniciais e avance o card de prospecção.
+3.  **Edição Técnica**: Monte o modelo de negócio configurando a Equipe (Salários), Consumíveis (OPEX) e Equipamentos (CAPEX) para formar o preço final e a margem bruta no DRE.
+4.  **Aprovação & Versionamento**: Avalie os indicadores financeiros (VPL e Heath Check). Congele versões comerciais do histórico e submeta cenários de rentabilidade sensível ao Gestor.
+5.  **Follow-up (Tarefas)**: Após gerar e extrair o **PDF Oficial** da sua Proposta, governe suas interações futuras ativamente usando a aba Tarefas do CRM até atingir o aceite.
+
+---
+
+## 3. Módulo CRM — Gestão de Oportunidades
 
 O CRM é a tela principal do sistema. Nele você visualiza **todas as oportunidades** em andamento, filtra por pipeline, pesquisa por cliente ou responsável, e gerencia o ciclo de vida das cotações.
 
-### 2.1 Visão Kanban
+### 3.1 Visão Kanban
 
 A visão padrão. Cada coluna representa um **estágio do pipeline**:
 
@@ -79,14 +100,14 @@ A visão padrão. Cada coluna representa um **estágio do pipeline**:
 - **Arrastar e soltar** (Drag & Drop) o card de uma coluna para outra.
 - Isso atualiza automaticamente o estágio da oportunidade.
 
-### 2.2 Visão Lista
+### 3.2 Visão Lista
 
 Exibe todas as oportunidades em formato de tabela. Ideal para:
 - Buscar rapidamente por **nome do cliente** ou **ID da proposta**.
 - Ordenar por valor, data de criação ou responsável.
 - Clicar em uma linha para abrir a **sidebar de preview**.
 
-### 2.3 Visão Analytics
+### 3.3 Visão Analytics
 
 Painel analítico com KPIs consolidados do pipeline:
 ![CRM Analytics](./screenshots/crm_analytics.png)
@@ -95,7 +116,7 @@ Painel analítico com KPIs consolidados do pipeline:
 - **Valor Total do Pipeline**: Soma estimada de todas as oportunidades ativas.
 - **Ticket Médio**: Valor médio por oportunidade.
 
-### 2.4 Contas e Carteira de Clientes
+### 3.4 Contas e Carteira de Clientes
 
 O submódulo de Contas permite gerenciar de forma inteligente as empresas com as quais você se relaciona, criando uma base unificada para as análises financeiras.
 
@@ -114,7 +135,7 @@ O submódulo de Contas permite gerenciar de forma inteligente as empresas com as
 - **Visibilidade Flexível**: Alterne rapidamente entre a **Visão Lista** (tabela) e a **Visão Grade** (cards visuais com badges de status e segmento).
 - **Barra de Inteligência Financeira (Sidebar)**: Ao selecionar uma conta, a barra lateral exibe KPIs como LTV (Lifetime Value), Pipeline Aberto e histórico de propostas.
 
-### 2.5 Gestão de Contatos
+### 3.5 Gestão de Contatos
 
 Stakeholders mudam de empresa e posição. A aba de Contatos é onde você organiza essa rede de pessoas, vinculando-as de fato às Contas criadas.
 
@@ -127,7 +148,7 @@ Stakeholders mudam de empresa e posição. A aba de Contatos é onde você organ
 - **Perfil Profissional (LinkedIn)**: Adicione URLs de LinkedIn para acesso rápido ao perfil do contato diretamente pelo card.
 - **Ações Rápidas (Deep Links)**: Atalhos diretos para disparar e-mails ou chamadas telefônicas via aplicativos padrão do seu computador.
 
-### 2.6 Tarefas e Atividades (Multi-View)
+### 3.6 Tarefas e Atividades (Multi-View)
 
 O módulo de Tarefas foi reformulado para ser o centro de controle produtivo da sua rotina comercial.
 
@@ -144,7 +165,7 @@ O módulo de Tarefas foi reformulado para ser o centro de controle produtivo da 
   - **Atrasada**: Identificação imediata via badge vermelho se a data limite for menor que hoje.
   - **Concluída**: Marque o checkbox para finalizar a ação (fundo esmeralda e texto riscado).
 
-### 2.7 Criando uma Nova Oportunidade
+### 3.7 Criando uma Nova Oportunidade
 
 1. Clique no botão **"+ Nova Oportunidade"** no canto superior direito do CRM.
 2. No modal que aparece, preencha:
@@ -158,7 +179,7 @@ O módulo de Tarefas foi reformulado para ser o centro de controle produtivo da 
      | Expansion | Expansão de escopo, volume ou site |
 3. Clique em **"Criar"**. A nova oportunidade aparecerá no primeiro estágio do pipeline selecionado.
 
-### 2.8 Sidebar — Resumo da Cotação
+### 3.8 Sidebar — Resumo da Cotação
 
 Ao clicar em um card no Kanban (ou em uma linha na Lista), a **sidebar direita** abre com o resumo:
 
@@ -178,14 +199,14 @@ Ao clicar em um card no Kanban (ou em uma linha na Lista), a **sidebar direita**
 | 🗑️ Excluir | Remove a proposta permanentemente |
 | 🔁 Nova Versão | Cria uma versão incrementada (v1 → v2) |
 
-### 2.9 Pipeline Continuado vs Spot
+### 3.9 Pipeline Continuado vs Spot
 
 No topo do CRM existe um **seletor de pipeline**. Ao alternar entre "Continuado" e "Spot":
 - Os estágios do Kanban mudam automaticamente.
 - Os KPIs e filtros se adaptam ao tipo de projeto selecionado.
 - Ao criar uma nova oportunidade, o pipeline do tipo selecionado é utilizado.
 
-### 2.10 Status Transversais (Ativo, Congelado, Arquivado)
+### 3.10 Status Transversais (Ativo, Congelado, Arquivado)
 
 Além do estágio no pipeline, cada oportunidade possui um **status transversal**:
 

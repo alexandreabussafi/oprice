@@ -314,11 +314,15 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                     <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden print:shadow-none print:border-slate-300 transition-colors">
                         <div className="bg-[#0f172a] dark:bg-slate-950 p-6 text-white flex justify-between items-center relative overflow-hidden print:bg-white print:text-slate-900 print:border-b print:border-slate-300 transition-colors">
                             <div className="relative z-10">
-                                <h3 className="font-bold text-lg dark:text-slate-100">Demonstrativo de Formação de Preço</h3>
-                                <p className="text-sm opacity-70 mt-1 dark:text-slate-400 print:text-slate-500">Waterfall Detalhado (DRE)</p>
+                                <h3 className="font-bold text-lg dark:text-slate-100">
+                                    {data.type === 'PRODUCT' ? 'Demonstrativo de Venda (Produtos)' : 'Demonstrativo de Formação de Preço'}
+                                </h3>
+                                <p className="text-sm opacity-70 mt-1 dark:text-slate-400 print:text-slate-500">
+                                    {data.type === 'PRODUCT' ? 'Resumo de Itens e Impostos' : 'Waterfall Detalhado (DRE)'}
+                                </p>
                             </div>
                             <div className="text-right relative z-10">
-                                <p className="text-[10px] uppercase font-bold opacity-60 tracking-wider dark:text-slate-400 print:text-slate-500">Preço Final (Revenue)</p>
+                                <p className="text-[10px] uppercase font-bold opacity-60 tracking-wider dark:text-slate-400 print:text-slate-500">Valor Total da Ordem</p>
                                 <p className="text-3xl font-bold text-[#fbbf24] dark:text-amber-400 print:text-slate-900 transition-colors">{formatCurrency(financials.monthlyValue)}</p>
                             </div>
                         </div>
@@ -334,107 +338,152 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200 transition-colors">
 
-                                    {/* 1. FATURAMENTO BRUTO */}
-                                    <tr className="bg-slate-50 dark:bg-slate-800/40 print:bg-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors">
-                                        <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">1. Faturamento Bruto</td>
-                                        <td className="px-6 py-3 text-right font-bold text-slate-800 dark:text-slate-100">{formatCurrency(financials.monthlyValue)}</td>
-                                        <td className="px-6 py-3 text-right">
-                                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-full transition-colors">100%</span>
-                                        </td>
-                                    </tr>
+                                    {data.type === 'PRODUCT' ? (
+                                        <>
+                                            {/* PRODUCT SIMPLE DRE */}
+                                            <tr className="bg-slate-50 dark:bg-slate-800/40 print:bg-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors">
+                                                <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">1. Valor Bruto dos Produtos</td>
+                                                <td className="px-6 py-3 text-right font-bold text-slate-800 dark:text-slate-100">{formatCurrency(financials.monthlyValue)}</td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-full transition-colors">100%</span>
+                                                </td>
+                                            </tr>
+                                            <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-red-300 dark:hover:border-red-800">
+                                                    (-) Impostos Incidentes (ICMS/IPI)
+                                                </td>
+                                                <td className="px-6 py-2 text-right text-red-600 dark:text-red-400">({formatCurrency(financials.salesTaxAmount)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">
+                                                    {formatPercent(financials.salesTaxAmount / financials.monthlyValue)}
+                                                </td>
+                                            </tr>
+                                            <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700 print:bg-slate-50 font-bold transition-colors">
+                                                <td className="px-6 py-3 text-slate-800 dark:text-slate-100">= 2. Receita Líquida</td>
+                                                <td className="px-6 py-3 text-right text-slate-800 dark:text-slate-100">{formatCurrency(financials.netRevenue)}</td>
+                                                <td className="px-6 py-3 text-right text-[10px] text-slate-500 dark:text-slate-400 transition-colors">{formatPercent(financials.netRevenue / financials.monthlyValue)}</td>
+                                            </tr>
+                                            <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Custo dos Produtos (COGS)</td>
+                                                <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalDirectCost)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(financials.totalDirectCost / financials.monthlyValue)}</td>
+                                            </tr>
+                                            <tr className="bg-emerald-50 dark:bg-emerald-900/10 print:bg-white border-l-4 border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors">
+                                                <td className="px-6 py-5 font-bold uppercase tracking-wider flex items-center gap-2">
+                                                    <DollarSign size={20} className="text-emerald-600 dark:text-emerald-400 print:text-slate-900 transition-colors" /> = 3. Lucro Bruto (Margem)
+                                                </td>
+                                                <td className="px-6 py-5 text-right font-bold text-xl text-emerald-700 dark:text-emerald-400 print:text-slate-900 transition-colors">
+                                                    {formatCurrency(financials.netRevenue - financials.totalDirectCost)}
+                                                </td>
+                                                <td className="px-6 py-5 text-right font-bold text-emerald-600 dark:text-slate-100 print:text-slate-900 transition-colors">
+                                                    {formatPercent((financials.netRevenue - financials.totalDirectCost) / financials.monthlyValue)}
+                                                </td>
+                                            </tr>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {/* ORIGINAL SERVICE DRE */}
+                                            <tr className="bg-slate-50 dark:bg-slate-800/40 print:bg-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors">
+                                                <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">1. Faturamento Bruto</td>
+                                                <td className="px-6 py-3 text-right font-bold text-slate-800 dark:text-slate-100">{formatCurrency(financials.monthlyValue)}</td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-full transition-colors">100%</span>
+                                                </td>
+                                            </tr>
 
-                                    {/* 2. IMPOSTOS SOBRE VENDA */}
-                                    <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
-                                        <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-red-300 dark:hover:border-red-800">
-                                            (-) Impostos sobre Venda (PIS/COFINS/ISS)
-                                            <InfoTooltip text="Tributos incidentes diretamente sobre o faturamento bruto. Inclui PIS, COFINS e o ISS (em caso de serviços) ou ICMS (mercadorias)." />
-                                        </td>
-                                        <td className="px-6 py-2 text-right text-red-600 dark:text-red-400">({formatCurrency(financials.salesTaxAmount)})</td>
-                                        <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(activeSalesRate)}</td>
-                                    </tr>
+                                            {/* 2. IMPOSTOS SOBRE VENDA */}
+                                            <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-red-300 dark:hover:border-red-800">
+                                                    (-) Impostos sobre Venda (PIS/COFINS/ISS)
+                                                    <InfoTooltip text="Tributos incidentes diretamente sobre o faturamento bruto. Inclui PIS, COFINS e o ISS (em caso de serviços) ou ICMS (mercadorias)." />
+                                                </td>
+                                                <td className="px-6 py-2 text-right text-red-600 dark:text-red-400">({formatCurrency(financials.salesTaxAmount)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(activeSalesRate)}</td>
+                                            </tr>
 
-                                    {/* 3. RECEITA LÍQUIDA */}
-                                    <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700 print:bg-slate-50 font-bold transition-colors">
-                                        <td className="px-6 py-3 text-slate-800 dark:text-slate-100">= 3. Receita Líquida</td>
-                                        <td className="px-6 py-3 text-right text-slate-800 dark:text-slate-100">{formatCurrency(financials.netRevenue)}</td>
-                                        <td className="px-6 py-3 text-right text-[10px] text-slate-500 dark:text-slate-400 transition-colors">{formatPercent(financials.netRevenue / financials.monthlyValue)}</td>
-                                    </tr>
+                                            {/* 3. RECEITA LÍQUIDA */}
+                                            <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700 print:bg-slate-50 font-bold transition-colors">
+                                                <td className="px-6 py-3 text-slate-800 dark:text-slate-100">= 3. Receita Líquida</td>
+                                                <td className="px-6 py-3 text-right text-slate-800 dark:text-slate-100">{formatCurrency(financials.netRevenue)}</td>
+                                                <td className="px-6 py-3 text-right text-[10px] text-slate-500 dark:text-slate-400 transition-colors">{formatPercent(financials.netRevenue / financials.monthlyValue)}</td>
+                                            </tr>
 
-                                    {/* 4 & 5. CUSTOS DIRETOS */}
-                                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Mão de Obra e Encargos</td>
-                                        <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalLaborCost)})</td>
-                                        <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
-                                    </tr>
-                                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Despesas Operacionais / Materiais</td>
-                                        <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalOperationalCost + financials.totalSafetyCost + financials.totalSupportCost)})</td>
-                                        <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
-                                    </tr>
+                                            {/* 4 & 5. CUSTOS DIRETOS */}
+                                            <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Mão de Obra e Encargos</td>
+                                                <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalLaborCost)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
+                                            </tr>
+                                            <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Despesas Operacionais / Materiais</td>
+                                                <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalOperationalCost + financials.totalSafetyCost + financials.totalSupportCost)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
+                                            </tr>
 
-                                    {/* 6. MARGEM OPERACIONAL (CONTRIBUTION) */}
-                                    <tr className="bg-blue-50 dark:bg-blue-900/10 print:bg-white border-l-4 border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors">
-                                        <td className="px-6 py-3 font-bold text-blue-900 dark:text-blue-200 flex items-center gap-2">
-                                            <Layers size={16} /> = 6. Margem Operacional
-                                        </td>
-                                        <td className="px-6 py-3 text-right font-bold text-blue-900 dark:text-blue-200">{formatCurrency(financials.contributionMarginAmount)}</td>
-                                        <td className="px-6 py-3 text-right">
-                                            <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 px-2 py-1 rounded-full transition-colors">
-                                                Mg. {formatPercent(financials.contributionMarginPercent / 100)}
-                                            </span>
-                                        </td>
-                                    </tr>
+                                            {/* 6. MARGEM OPERACIONAL (CONTRIBUTION) */}
+                                            <tr className="bg-blue-50 dark:bg-blue-900/10 print:bg-white border-l-4 border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors">
+                                                <td className="px-6 py-3 font-bold text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                                                    <Layers size={16} /> = 6. Margem Operacional
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-bold text-blue-900 dark:text-blue-200">{formatCurrency(financials.contributionMarginAmount)}</td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 px-2 py-1 rounded-full transition-colors">
+                                                        Mg. {formatPercent(financials.contributionMarginPercent / 100)}
+                                                    </span>
+                                                </td>
+                                            </tr>
 
-                                    {/* 7. CUSTOS INDIRETOS / RISCO */}
-                                    <tr className="hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors">
-                                        <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-orange-300 dark:hover:border-orange-800">(-) Contingência / Risco</td>
-                                        <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.contingencyAmount)})</td>
-                                        <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(data.contingencyRate)}</td>
-                                    </tr>
+                                            {/* 7. CUSTOS INDIRETOS / RISCO */}
+                                            <tr className="hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-orange-300 dark:hover:border-orange-800">(-) Contingência / Risco</td>
+                                                <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.contingencyAmount)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(data.contingencyRate)}</td>
+                                            </tr>
 
-                                    {/* 8. RESULTADO OPERACIONAL (EBITDA) */}
-                                    <tr className="bg-amber-50 dark:bg-amber-900/10 print:bg-white border-l-4 border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors">
-                                        <td className="px-6 py-3 font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
-                                            <BarChart4 size={16} /> = 8. Resultado Operacional
-                                        </td>
-                                        <td className="px-6 py-3 text-right font-bold text-amber-900 dark:text-amber-200">{formatCurrency(financials.operationalProfitAmount)}</td>
-                                        <td className="px-6 py-3 text-right">
-                                            <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 px-2 py-1 rounded-full transition-colors">
-                                                EBITDA {formatPercent(financials.operationalMarginPercent / 100)}
-                                            </span>
-                                        </td>
-                                    </tr>
+                                            {/* 8. RESULTADO OPERACIONAL (EBITDA) */}
+                                            <tr className="bg-amber-50 dark:bg-amber-900/10 print:bg-white border-l-4 border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors">
+                                                <td className="px-6 py-3 font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                                                    <BarChart4 size={16} /> = 8. Resultado Operacional
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-bold text-amber-900 dark:text-amber-200">{formatCurrency(financials.operationalProfitAmount)}</td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 px-2 py-1 rounded-full transition-colors">
+                                                        EBITDA {formatPercent(financials.operationalMarginPercent / 100)}
+                                                    </span>
+                                                </td>
+                                            </tr>
 
-                                    {/* 9. FINANCEIRO */}
-                                    <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
-                                        <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-red-300 dark:hover:border-red-800">
-                                            (-) Custos Financeiros
-                                            <InfoTooltip text="Custo de oportunidade e encargos pelo financiamento do capital de giro necessário até o recebimento da fatura pelo cliente." />
-                                        </td>
-                                        <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.financialCostAmount)})</td>
-                                        <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(data.financialCostRate)}</td>
-                                    </tr>
+                                            {/* 9. FINANCEIRO */}
+                                            <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-red-300 dark:hover:border-red-800">
+                                                    (-) Custos Financeiros
+                                                    <InfoTooltip text="Custo de oportunidade e encargos pelo financiamento do capital de giro necessário até o recebimento da fatura pelo cliente." />
+                                                </td>
+                                                <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.financialCostAmount)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(data.financialCostRate)}</td>
+                                            </tr>
 
-                                    {/* 10. IMPOSTO DE RENDA */}
-                                    <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
-                                        <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-red-300 dark:hover:border-red-800">
-                                            (-) Imposto de Renda (IRPJ/CSLL)
-                                            {data.taxConfig.calculationMode === 'NORMATIVE' && <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-1">(Normativo)</span>}
-                                        </td>
-                                        <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.incomeTaxAmount)})</td>
-                                        <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(activeIncomeRate)}</td>
-                                    </tr>
+                                            {/* 10. IMPOSTO DE RENDA */}
+                                            <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-red-300 dark:hover:border-red-800">
+                                                    (-) Imposto de Renda (IRPJ/CSLL)
+                                                    {data.taxConfig.calculationMode === 'NORMATIVE' && <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-1">(Normativo)</span>}
+                                                </td>
+                                                <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.incomeTaxAmount)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(activeIncomeRate)}</td>
+                                            </tr>
 
-                                    {/* 11. LUCRO LÍQUIDO */}
-                                    <tr className="bg-[#1e293b] dark:bg-slate-950 text-white print:bg-white print:text-slate-900 print:border-t-2 print:border-slate-900 transition-colors">
-                                        <td className="px-6 py-5 font-bold uppercase tracking-wider flex items-center gap-2">
-                                            <DollarSign size={20} className="text-[#fbbf24] dark:text-amber-400 print:text-slate-900 transition-colors" /> = 11. Resultado Líquido
-                                        </td>
-                                        <td className="px-6 py-5 text-right font-bold text-xl text-[#fbbf24] dark:text-amber-400 print:text-slate-900 transition-colors">{formatCurrency(financials.netProfitAmount)}</td>
-                                        <td className="px-6 py-5 text-right font-bold text-white dark:text-slate-100 print:text-slate-900 transition-colors">
-                                            {formatPercent(financials.netProfitPercent / 100)}
-                                        </td>
-                                    </tr>
+                                            {/* 11. LUCRO LÍQUIDO */}
+                                            <tr className="bg-[#1e293b] dark:bg-slate-950 text-white print:bg-white print:text-slate-900 print:border-t-2 print:border-slate-900 transition-colors">
+                                                <td className="px-6 py-5 font-bold uppercase tracking-wider flex items-center gap-2">
+                                                    <DollarSign size={20} className="text-[#fbbf24] dark:text-amber-400 print:text-slate-900 transition-colors" /> = 11. Resultado Líquido
+                                                </td>
+                                                <td className="px-6 py-5 text-right font-bold text-xl text-[#fbbf24] dark:text-amber-400 print:text-slate-900 transition-colors">{formatCurrency(financials.netProfitAmount)}</td>
+                                                <td className="px-6 py-5 text-right font-bold text-white dark:text-slate-100 print:text-slate-900 transition-colors">
+                                                    {formatPercent(financials.netProfitPercent / 100)}
+                                                </td>
+                                            </tr>
+                                        </>
+                                    )}
                                 </tbody>
                             </table>
                         </div>

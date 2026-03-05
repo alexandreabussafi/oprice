@@ -24,6 +24,34 @@ export interface Client {
   tradeName?: string;
   registrationStatus?: string;
   stateRegistration?: string;
+  businessUnit?: 'SERVICES' | 'PRODUCTS' | 'BOTH';
+  isProductClient?: boolean; // Novo: Para análise de cross-selling
+  isServiceClient?: boolean; // Novo: Para análise de cross-selling
+}
+
+export interface LetterheadConfig {
+  logoUrl?: string;
+  primaryColor: string; // Hex for borders/headers
+  secondaryColor: string;
+  companyName: string;
+  companySlogan?: string;
+  addressLine1: string; // Av. Industrial, 1000
+  addressLine2: string; // São Paulo/SP - CEP 00000-000
+  cnpj: string;
+  contactEmail: string;
+  contactPhone: string;
+  website: string;
+  // Generic Header/Footer for all types
+  headerUrl?: string;
+  footerUrl?: string;
+  // Overrides for specific types
+  productHeaderUrl?: string;
+  productFooterUrl?: string;
+  productLogoUrl?: string;
+  serviceHeaderUrl?: string;
+  serviceFooterUrl?: string;
+  serviceLogoUrl?: string;
+  productGeneralTerms?: string;
 }
 
 export interface Contact {
@@ -201,6 +229,19 @@ export interface AccountingMapping {
   depreciationAccount?: AccountingAccount; // CAPEX Depreciation
 }
 
+export const defaultAccounting: AccountingMapping = {
+  revenueAccount: { code: '3.1.01', name: 'Receita Bruta de Serviços', type: 'CREDIT' },
+  deductionTaxesAccount: { code: '3.2.01', name: 'Deduções s/ Venda (Impostos)', type: 'DEBIT' },
+  directLaborAccount: { code: '4.1.01', name: 'Salários e Ordenados', type: 'DEBIT' },
+  laborChargesAccount: { code: '4.1.02', name: 'Encargos Sociais', type: 'DEBIT' },
+  laborProvisionsAccount: { code: '4.1.03', name: 'Provisões Trabalhistas', type: 'DEBIT' },
+  operationalCostsAccount: { code: '4.2.01', name: 'Materiais e EPIs', type: 'DEBIT' },
+  safetyCostsAccount: { code: '4.2.02', name: 'Treinamentos e SMS', type: 'DEBIT' },
+  supportCostsAccount: { code: '4.3.01', name: 'Despesas de Viagem e Suporte', type: 'DEBIT' },
+  marginAccount: { code: '5.1.01', name: 'Lucro do Exercício', type: 'CREDIT' },
+  financialResultAccount: { code: '5.2.01', name: 'Despesas Financeiras', type: 'DEBIT' },
+};
+
 export interface TaxConfig {
   regime: 'Lucro Real' | 'Lucro Presumido';
   calculationMode: 'NORMATIVE' | 'COMMERCIAL'; // NORMATIVE = Sales Tax only in Gross Up; COMMERCIAL = Sales + Income in Gross Up
@@ -217,6 +258,9 @@ export interface TaxConfig {
   incomeTaxes: TaxItem[]; // IRPJ, CSLL
 
   revenueTaxesRate: number; // Deprecated/Read-only sum
+
+  // ICMS Rates por Estado (SP = origem padrão)
+  icmsStateRates?: Record<string, number>;
 }
 
 export interface ProposalDocuments {
@@ -224,8 +268,10 @@ export interface ProposalDocuments {
   deliverables: string; // O que será entregue (formal)
   clientBudget?: number; // Target Price do cliente para Gap Analysis
   technicalAssumptions: string; // Premissas técnicas
-  technicalNumber?: string; // Novo: Número da solicitação técnica
-  attachments: Attachment[]; // Novo: Arquivos anexados
+  technicalNumber?: string;
+  attachments: Attachment[];
+  executiveSummary?: string; // Novo: Para Proposta de Produtos
+  termsAndConditions?: string; // Novo: Para Proposta de Produtos
 }
 
 export type ContinuousStage = 'MQL' | 'Qualification' | 'SolutionDesign' | 'Pricing' | 'Sent' | 'Negotiation' | 'Review' | 'Won' | 'Lost';
@@ -237,13 +283,14 @@ export type OpportunityMotion = 'NewBusiness' | 'Renewal' | 'Expansion' | 'Adden
 
 export type ProposalVersionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 
-export type AppRole = 'ADMIN' | 'SELLER' | 'MANAGER';
+export type AppRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'SELLER' | 'ANALYST';
+export type BusinessUnitAccess = 'PRODUCTS' | 'SERVICES' | 'BOTH';
 
 export type ProposalStatus = OpportunityStage; // Alias for compatibility during migration
 
 export type PricingModel = 'MARKUP' | 'MARGIN';
 
-export type ProposalType = 'CONTINUOUS' | 'SPOT';
+export type ProposalType = 'CONTINUOUS' | 'SPOT' | 'PRODUCT'; // NOVO: PRODUCT added
 
 export const CONTINUOUS_STAGES: ContinuousStage[] = [
   'MQL',
@@ -338,6 +385,47 @@ export interface Milestone {
   notes?: string;
 }
 
+// --- PRODUCT SPECIFIC TYPES (CAPEX / PRODUTOS) ---
+export interface CatalogProduct {
+  id: string;
+  sku?: string; // NOVO: SKU do produto para impressão
+  ncm?: string; // NOVO Phase 8: NCM do produto
+  name: string;
+  description: string;
+  imageUrl?: string; // NOVO: URL da imagem do produto
+  costPrice: number; // Custo base Padrão ERP
+  standardMargin: number; // Margem (Lucro alvo padrão)
+  category: 'Equipment' | 'Software' | 'Consumable' | 'Other' | 'Peças';
+  unit?: string; // NOVO: Unidade de Medida (UN, KG, etc)
+  currency?: string;
+}
+
+export interface ProductLineItem {
+  id: string; // Internal ID for the line item
+  productId: string; // Referência ao CatalogProduct
+  name: string; // Snapshot do nome
+  sku?: string; // Snapshot do SKU
+  ncm?: string; // NOVO Phase 8: Snapshot do NCM
+  imageUrl?: string; // Snapshot da imagem
+  quantity: number;
+  unit?: string; // NOVO: Snapshot da Unidade
+  unitCost: number; // Snapshot do custo
+  ipiPercent?: number; // Novo: IPI do item
+  icmsPercent?: number; // Novo: ICMS do item
+  overrideMargin?: number; // Se redefinido pelo vendedor
+  finalPrice: number; // Calculado (Custo + Margem + Impostos)
+  total: number; // quantity * finalPrice
+}
+
+export interface TimelineEvent {
+  id: string;
+  date: string; // ISO date string
+  type: 'CREATED' | 'STAGE_CHANGE' | 'STATUS_CHANGE' | 'VERSION_CREATED';
+  title: string;
+  user: string;
+  metadata?: any;
+}
+
 export interface ProposalData {
   id: string; // Internal UUID
   proposalId: string; // Human readable ID (e.g. 180256)
@@ -348,6 +436,7 @@ export interface ProposalData {
   type: ProposalType; // NOVO: Tipo de Proposta
 
   milestones?: Milestone[]; // Prazos e eventos
+  timeline?: TimelineEvent[]; // NOVO: Histórico da oportunidade
 
   createdAt: string;
   updatedAt: string;
@@ -355,6 +444,21 @@ export interface ProposalData {
   // New CRM Fields
   expirationDate: string; // Data de validade da proposta
   responsible: string; // Quem fez a precificação
+
+  // Commercial Header for Products/Orders
+  salesOrderNumber?: string;
+  clientPO?: string;
+  deliveryDeadline?: string; // ex: "15 dias"
+  deliveryAddress?: string; // Novo: Local de entrega
+  billingAddress?: string; // NOVO Phase 8: Faturar para
+  shippingAddress?: string; // NOVO Phase 8: Enviar para
+  validity?: string; // ex: "30 dias"
+  destinationState?: string; // UF de destino (ex: 'SP', 'RJ')
+  stateRegistration?: string; // NOVO: Inscrição Estadual snapshot
+  deliveryIncoterm?: 'CIF' | 'FOB'; // NOVO: Modalidade do frete
+  freightValue?: number; // NOVO: Valor do frete
+  discountValue?: number; // NOVO: Desconto comercial
+  salesperson?: string; // NOVO: Nome do vendedor
 
   clientId?: string; // Link to Client Registry
   clientName: string; // Snapshot or fallback
@@ -422,20 +526,30 @@ export interface ProposalData {
   spotResources?: SpotResource[];
   spotExpenses?: SpotExpense[];
 
-  // CAPEX
+  // CAPEX (Depreciação em Serviços)
   capexItems?: CapexItem[];
   includeResidualValueInNPV?: boolean; // Se verdadeiro, o valor não depreciado do CAPEX retorna como caixa no VPL
+
+  // Venda de Produtos Direta (NOVO MÓDULO)
+  productLines?: ProductLineItem[];
 
   // Configuração de Kits (Geralmente preenchido apenas no GlobalConfig)
   kitTemplates?: KitTemplate[];
 
+  // Catálogo de Produtos da Empresa (Geralmente preenchido apenas no GlobalConfig para simular ERP)
+  productCatalog?: CatalogProduct[];
+
   taxConfig: TaxConfig;
 
   // Configuração Contábil Global (Injetada)
-  accountingConfig?: AccountingMapping;
+  accountingConfig?: AccountingMapping; // Serviços
+  productAccountingConfig?: AccountingMapping; // Produtos
 
   // Documentation & Analysis
   documents: ProposalDocuments;
+
+  // Visual Identity
+  letterheadConfig?: LetterheadConfig;
 }
 
 export interface CalculatedFinancials {

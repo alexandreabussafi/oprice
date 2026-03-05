@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Client, ProposalData } from '../types';
-import { Plus, Search, MapPin, Building2, User, Trash2, Edit3, Mail, Phone, XCircle, FileText, CheckCircle, TrendingUp, AlertCircle, LayoutList, LayoutGrid, Clock, Briefcase, Loader2, Network } from 'lucide-react';
+import { Plus, Search, MapPin, Building2, User, Trash2, Edit3, Mail, Phone, XCircle, FileText, CheckCircle, TrendingUp, AlertCircle, LayoutList, LayoutGrid, Clock, Briefcase, Loader2, Network, Package } from 'lucide-react';
 import { formatCurrency } from '../utils/pricingEngine';
 
 interface ClientsProps {
@@ -330,7 +330,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, proposals }) => 
                                     </div>
 
                                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1 leading-tight transition-colors">{client.name}</h3>
-                                    <div className="flex gap-2 items-center mb-4 flex-wrap">
+                                    <div className="flex gap-2 items-center mb-1 flex-wrap">
                                         <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider transition-colors">{client.segment || client.industry || 'Indústria Geral'}</p>
                                         {client.classification && (
                                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider
@@ -340,6 +340,19 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, proposals }) => 
                                             >
                                                 {client.classification}
                                             </span>
+                                        )}
+                                    </div>
+
+                                    {/* Cross-selling Indicators */}
+                                    <div className="flex items-center gap-1.5 mb-4">
+                                        <div className={`p-1 rounded bg-slate-100 dark:bg-slate-800 transition-all ${client.isServiceClient ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-300 dark:text-slate-700 opacity-40'}`} title="Cliente de Serviços">
+                                            <Briefcase size={12} />
+                                        </div>
+                                        <div className={`p-1 rounded bg-slate-100 dark:bg-slate-800 transition-all ${client.isProductClient ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-300 dark:text-slate-700 opacity-40'}`} title="Cliente de Produtos">
+                                            <Package size={12} />
+                                        </div>
+                                        {client.isServiceClient && client.isProductClient && (
+                                            <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 ml-1">✓ Cross-sell</span>
                                         )}
                                     </div>
 
@@ -383,6 +396,14 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, proposals }) => 
                                         {selectedClient.classification}
                                     </span>
                                 )}
+                                <div className="ml-2 flex gap-1">
+                                    <div className={`p-1 rounded ${selectedClient.isServiceClient ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800' : 'bg-slate-50 dark:bg-slate-800 text-slate-300 dark:text-slate-600 border border-slate-100 dark:border-slate-800'}`} title="Unidade de Serviços">
+                                        <Briefcase size={12} />
+                                    </div>
+                                    <div className={`p-1 rounded ${selectedClient.isProductClient ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-800 text-slate-300 dark:text-slate-600 border border-slate-100 dark:border-slate-800'}`} title="Unidade de Produtos">
+                                        <Package size={12} />
+                                    </div>
+                                </div>
                             </div>
                             <button onClick={() => setSelectedClientId(null)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-all"><XCircle size={20} /></button>
                         </div>

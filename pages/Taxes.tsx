@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ProposalData, ChargeComponent, TaxItem } from '../types';
 import { calculateFinancials, formatCurrency, formatPercent } from '../utils/pricingEngine';
-import { FileText, Percent, TrendingUp, DollarSign, Calculator, ChevronDown, CheckSquare, Square, Info, AlertTriangle } from 'lucide-react';
+import { FileText, Percent, TrendingUp, DollarSign, Calculator, ChevronDown, CheckSquare, Square, Info, AlertTriangle, Package } from 'lucide-react';
 
 interface TaxesProps {
     data: ProposalData;
@@ -160,6 +160,58 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData }) => {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* ICMS Interestadual (Produtos) */}
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden transition-colors mt-6">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 transition-colors">
+                            <div className="flex items-center gap-2">
+                                <Package size={18} className="text-emerald-500 dark:text-emerald-400" />
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">ICMS Interestadual (Produtos)</h3>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Origem Padrão: SP</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Configure as alíquotas base aplicadas automaticamente quando o estado de destino for selecionado na ordem de venda (Gross Up).</p>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                {['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'OUTROS'].map(state => {
+                                    const rate = data.taxConfig.icmsStateRates?.[state] ?? (state === 'SP' ? 0.18 : (state === 'OUTROS' ? 0.07 : 0.12));
+                                    return (
+                                        <div key={state} className="flex items-center justify-between">
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{state}</span>
+                                            <div className="flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md w-24 shadow-sm transition-colors">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={(rate * 100).toFixed(2)}
+                                                    onChange={(e) => {
+                                                        const newVal = (parseFloat(e.target.value) || 0) / 100;
+                                                        const currentRates = data.taxConfig.icmsStateRates || {
+                                                            SP: 0.18, RJ: 0.12, MG: 0.12, PR: 0.12, SC: 0.12, RS: 0.12, OUTROS: 0.07
+                                                        };
+                                                        updateData({
+                                                            taxConfig: {
+                                                                ...data.taxConfig,
+                                                                icmsStateRates: { ...currentRates, [state]: newVal }
+                                                            }
+                                                        });
+                                                    }}
+                                                    className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors"
+                                                />
+                                                <span className="pr-2 text-[10px] font-bold text-slate-400 select-none transition-colors">%</span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            <div className="mt-2 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded flex items-start gap-2">
+                                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                <p>Outros estados que não listados especificamente acima usarão a alíquota definida em "OUTROS" (Padrão 7% - Norte, Nordeste, Centro-Oeste e ES).</p>
+                            </div>
                         </div>
                     </div>
 

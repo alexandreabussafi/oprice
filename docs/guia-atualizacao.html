@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guia Fácil: Como Atualizar e Consertar o Sistema</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9fafb;
+        }
+
+        h1 {
+            color: #2563eb;
+            text-align: center;
+            border-bottom: 2px solid #bfdbfe;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #1e40af;
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-box {
+            background-color: white;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .alert-box {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .code-block {
+            background-color: #1e293b;
+            color: #38bdf8;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 10px 0;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .highlight {
+            background-color: #fef08a;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        .note {
+            font-size: 0.9em;
+            color: #64748b;
+            font-style: italic;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Guia Fácil: Como Atualizar e Consertar o Sistema</h1>
+    <p>Este é um passo a passo simples para você, mesmo sem conhecimento técnico, conseguir enviar as atualizações que
+        fizemos no código para o site que está no ar, ou consertar se algo der errado.</p>
+
+    <h2>🚀 Parte 1: Como colocar uma novidade no ar (Deploy)</h2>
+    <p>Toda vez que terminarmos de fazer uma alteração no código aqui no seu computador, precisamos avisar a "Nuvem"
+        (Vercel) para ela pegar esse novo código e atualizar o site oficial. Siga a ordem abaixo no terminal do VSCode
+        (a telinha preta embaixo):</p>
+
+    <div class="step-box">
+        <h3>Passo 1: Preparar as malas</h3>
+        <p>Digite o comando abaixo e aperte Enter. Ele avisa o sistema para embrulhar todos os arquivos que você
+            modificou hoje.</p>
+        <div class="code-block">git add .</div>
+        <p class="note">Atenção: tem um espaço e um ponto final ali no comando.</p>
+    </div>
+
+    <div class="step-box">
+        <h3>Passo 2: Colocar uma etiqueta na mala</h3>
+        <p>Agora você vai colocar um bilhete dizendo o que você fez, para lembrarmos depois.</p>
+        <div class="code-block">git commit -m "Coloquei o botao de deletar usuario"</div>
+        <p class="note">Dica: Escreva sempre dentro das aspas o que você acabou de mudar no sistema.</p>
+    </div>
+
+    <div class="step-box">
+        <h3>Passo 3: Enviar pelo correio (Para o Ar!)</h3>
+        <p>Por fim, esse comando pega a sua mala etiquetada e envia para a Vercel. Esse botão "Publica" o site.</p>
+        <div class="code-block">git push origin main</div>
+        <p><strong>Pronto!</strong> Agora é só esperar de 1 a 2 minutos e o seu site oficial estará atualizado com as
+            novas funções.</p>
+    </div>
+
+    <hr style="margin: 40px 0; border: 1px solid #e2e8f0;">
+
+    <h2>🚑 Parte 2: O botão de pânico (Rollback)</h2>
+    <p>Imagine que você seguiu os 3 passos acima, a atualização foi para o ar, mas <strong>o site quebrou ou os clientes
+            não conseguem usar</strong> por causa de um erro imprevisto.</p>
+    <p>A Vercel tem uma máquina do tempo super fácil de usar, onde você aperta um botão e o site volta a ser exatamente
+        a versão anterior que funcionava perfeitamente.</p>
+
+    <div class="alert-box">
+        <h3>Como usar a máquina do tempo no site Vercel (Jeito mais fácil)</h3>
+        <ol>
+            <li>Abra o seu navegador de internet e entre no site <a href="https://vercel.com"
+                    target="_blank">vercel.com</a>.</li>
+            <li>Faça login (geralmente com o seu GitHub ou e-mail).</li>
+            <li>Clique no quadradinho do seu projeto (chamado <strong>oprice</strong> ou <strong>opcapex</strong>).</li>
+            <li>Na barra que fica no topo, clique na palavra <span class="highlight">Deployments</span> (significa
+                Envios).</li>
+            <li>Você vai ver uma lista com todos os envios que você já fez na vida, com as datas. O primeiro lá em cima
+                (o mais recente) é o seu envio com erro.</li>
+            <li>Olhe para o envio <strong>logo abaixo</strong> dele (que era o de ontem ou do dia que funcionava).</li>
+            <li>No cantinho direito da linha desse envio antigo, clique nos <strong>Três Pontinhos (•••)</strong>.</li>
+            <li>No menu que abrir, clique na opção chamada <span class="highlight">Promote to Production</span> (algumas
+                vezes pode aparecer escrito apenas <span class="highlight">Rollback</span>).</li>
+            <li>Vai aparecer uma janelinha pedindo confirmação. Clique no botão de confirmar.</li>
+        </ol>
+        <p><strong>UFA! Em 2 segundos o seu site tira a versão "quebrada" do ar e coloca a versão "antiga que funciona"
+                de volta.</strong> Isso é excelente para não deixar o cliente na mão enquanto você e eu voltamos aqui no
+            VSCode para consertar o código com calma.</p>
+    </div>
+
+</body>
+
+</html>

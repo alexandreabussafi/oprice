@@ -45,10 +45,10 @@
         print-color-adjust: exact !important;
       }
 
-      /* 3. Paper Margins */
+      /* 3. Paper Margins - Zero to allow flush header/footer images */
       @page {
-        margin: 8mm;
-        size: auto;
+        margin: 0;
+        size: A4 portrait;
       }
 
       /* 4. Table Pagination */
@@ -68,16 +68,6 @@
       }
     }
   </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
-  }
-}
-</script>
 
 </head>
 
