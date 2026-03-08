@@ -15,19 +15,19 @@ Abra o seu terminal no VSCode, na pasta raiz do projeto, e execute os comandos e
 
 1. **Adicionar os arquivos modificados:**
    ```bash
-   git add .
+   & "C:\Program Files\Git\bin\git.exe" add .
    ```
    *(Isso avisa ao Git para preparar "todas" as suas edições locais para o commit).*
 
 2. **Registrar a alteração (Commit):**
    ```bash
-   git commit -m "feat: Adicionado novas funcionalidades de XYZ"
+   & "C:\Program Files\Git\bin\git.exe" commit -m "feat: descrição da mudança"
    ```
    *(Substitua a mensagem entre aspas por um resumo curto e claro das modificações. Isso ajuda muito a achar essa atualização depois, se precisar de um Rollback).*
 
 3. **Enviar para o GitHub (Push):**
    ```bash
-   git push origin main
+   & "C:\Program Files\Git\bin\git.exe" push origin main
    ```
    *(Esse comando é o que engatilha o Deploy. O código sai da sua máquina, vai para a nuvem da Microsoft (GitHub), e o GitHub avisa a Vercel).*
 
