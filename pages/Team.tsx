@@ -37,7 +37,16 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
     // UI State for Active Feedback (only for visuals)
     const [isDraggingUI, setIsDraggingUI] = useState(false);
-    const [connectingNodeId, setConnectingNodeId] = useState<string | null>(null);
+    const [connectingNodeIdState, setConnectingNodeIdState] = useState<string | null>(null);
+    const connectingNodeIdRef = useRef<string | null>(null);
+
+    // Wrapper to keep ref and state in sync
+    const connectingNodeId = connectingNodeIdState;
+    const setConnectingNodeId = useCallback((id: string | null) => {
+        connectingNodeIdRef.current = id;
+        setConnectingNodeIdState(id);
+    }, []);
+
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'node' | 'section' | 'decoration' | 'canvas', targetId?: string } | null>(null);
 
@@ -69,121 +78,115 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     scaleRef.current = scale;
 
     // --- ROBUST EVENT SYSTEM TO PREVENT "STICKY HAND" ---
-    // We use Refs to store the handlers so they can reference each other without circular dependencies
-    const moveHandlerRef = useRef<(e: MouseEvent) => void>(null);
-    const upHandlerRef = useRef<(e: MouseEvent) => void>(null);
+    // We use stable function refs that NEVER get recreated. All state is read via refs.
+    const activeCleanupRef = useRef<(() => void) | null>(null);
 
-    // 1. DEFINE UP HANDLER (Cleanup)
-    useEffect(() => {
-        upHandlerRef.current = (e: MouseEvent) => {
-            // Clean up Refs
-            isPanningRef.current = false;
-            dragInfoRef.current = null;
+    const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+        // Clean up Refs
+        isPanningRef.current = false;
+        dragInfoRef.current = null;
 
-            // Clean up UI State
-            setIsDraggingUI(false);
-            if (connectingNodeId) setConnectingNodeId(null);
+        // Clean up UI State
+        setIsDraggingUI(false);
+        if (connectingNodeIdRef.current) setConnectingNodeId(null);
 
-            // Remove Listeners immediately
-            if (moveHandlerRef.current) window.removeEventListener('mousemove', moveHandlerRef.current);
-            if (upHandlerRef.current) {
-                window.removeEventListener('mouseup', upHandlerRef.current);
-                window.removeEventListener('mouseleave', upHandlerRef.current); // Catch leaving window
-            }
-            document.body.style.cursor = 'default';
-        };
-    }, [connectingNodeId]); // Re-bind if dependencies change
+        // Remove Listeners using the stored cleanup
+        if (activeCleanupRef.current) {
+            activeCleanupRef.current();
+            activeCleanupRef.current = null;
+        }
+        document.body.style.cursor = 'default';
+    }, [setConnectingNodeId]);
 
-    // 2. DEFINE MOVE HANDLER (Logic)
-    useEffect(() => {
-        moveHandlerRef.current = (e: MouseEvent) => {
-            // --- SAFETY VALVE: THE "STICKY HAND" FIX ---
-            // If e.buttons is 0, it means no mouse button is pressed.
-            // If we still think we are dragging, we are wrong. Force release.
-            if (e.buttons === 0 && (isPanningRef.current || dragInfoRef.current)) {
-                upHandlerRef.current?.(e);
-                return;
-            }
+    const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+        // --- SAFETY VALVE: THE "STICKY HAND" FIX ---
+        if (e.buttons === 0 && (isPanningRef.current || dragInfoRef.current || connectingNodeIdRef.current)) {
+            handleGlobalMouseUp(e);
+            return;
+        }
 
-            // 1. Panning Logic
-            if (isPanningRef.current) {
-                e.preventDefault();
-                const dx = e.clientX - panStartRef.current.x;
-                const dy = e.clientY - panStartRef.current.y;
-                setPan({ x: dx, y: dy });
-                return;
-            }
+        // 1. Panning Logic
+        if (isPanningRef.current) {
+            e.preventDefault();
+            const dx = e.clientX - panStartRef.current.x;
+            const dy = e.clientY - panStartRef.current.y;
+            setPan({ x: dx, y: dy });
+            return;
+        }
 
-            // 2. Dragging Logic
-            if (dragInfoRef.current) {
-                e.preventDefault();
-                const { startX, startY, initialObjX, initialObjY, id, type, initialObjW, initialObjH } = dragInfoRef.current;
-                const currentScale = scaleRef.current;
-                const currentData = dataRef.current;
+        // 2. Dragging Logic
+        if (dragInfoRef.current) {
+            e.preventDefault();
+            const { startX, startY, initialObjX, initialObjY, id, type, initialObjW, initialObjH } = dragInfoRef.current;
+            const currentScale = scaleRef.current;
+            const currentData = dataRef.current;
 
-                const deltaX = (e.clientX - startX) / currentScale;
-                const deltaY = (e.clientY - startY) / currentScale;
+            const deltaX = (e.clientX - startX) / currentScale;
+            const deltaY = (e.clientY - startY) / currentScale;
 
-                if (type === 'role') {
-                    const initialRoles = dragInfoRef.current.initialRoles || currentData.roles;
-                    const getDescendants = (parentId: string): string[] => {
-                        const children = initialRoles.filter(r => r.parentId === parentId).map(r => r.id);
-                        return children.reduce((acc, childId) => [...acc, childId, ...getDescendants(childId)], [] as string[]);
-                    };
-                    const descendantIds = getDescendants(id);
+            if (type === 'role') {
+                const initialRoles = dragInfoRef.current.initialRoles || currentData.roles;
+                const getDescendants = (parentId: string): string[] => {
+                    const children = initialRoles.filter(r => r.parentId === parentId).map(r => r.id);
+                    return children.reduce((acc, childId) => [...acc, childId, ...getDescendants(childId)], [] as string[]);
+                };
+                const descendantIds = getDescendants(id);
 
-                    const updatedRoles = currentData.roles.map(r => {
-                        if (r.id === id) {
-                            return { ...r, x: initialObjX + deltaX, y: initialObjY + deltaY };
-                        } else if (descendantIds.includes(r.id)) {
-                            // Move children by the same exact delta relative to their own initial position
-                            const initR = initialRoles.find(ir => ir.id === r.id);
-                            if (initR) {
-                                return { ...r, x: (initR.x || 0) + deltaX, y: (initR.y || 0) + deltaY };
-                            }
+                const updatedRoles = currentData.roles.map(r => {
+                    if (r.id === id) {
+                        return { ...r, x: initialObjX + deltaX, y: initialObjY + deltaY };
+                    } else if (descendantIds.includes(r.id)) {
+                        const initR = initialRoles.find(ir => ir.id === r.id);
+                        if (initR) {
+                            return { ...r, x: (initR.x || 0) + deltaX, y: (initR.y || 0) + deltaY };
                         }
-                        return r;
-                    });
-                    updateData({ roles: updatedRoles });
-                } else if (type === 'section') {
-                    const updatedSections = (currentData.sections || []).map(s =>
-                        s.id === id ? { ...s, x: initialObjX + deltaX, y: initialObjY + deltaY } : s
-                    );
-                    updateData({ sections: updatedSections });
-                } else if (type === 'decoration') {
-                    const updatedDecos = (currentData.decorations || []).map(d =>
-                        d.id === id ? { ...d, x: initialObjX + deltaX, y: initialObjY + deltaY } : d
-                    );
-                    updateData({ decorations: updatedDecos });
-                } else if (type === 'resize-section') {
-                    const w = Math.max(100, (initialObjW || 0) + deltaX);
-                    const h = Math.max(100, (initialObjH || 0) + deltaY);
-                    const updatedSections = (currentData.sections || []).map(s =>
-                        s.id === id ? { ...s, width: w, height: h } : s
-                    );
-                    updateData({ sections: updatedSections });
-                }
+                    }
+                    return r;
+                });
+                updateData({ roles: updatedRoles });
+            } else if (type === 'section') {
+                const updatedSections = (currentData.sections || []).map(s =>
+                    s.id === id ? { ...s, x: initialObjX + deltaX, y: initialObjY + deltaY } : s
+                );
+                updateData({ sections: updatedSections });
+            } else if (type === 'decoration') {
+                const updatedDecos = (currentData.decorations || []).map(d =>
+                    d.id === id ? { ...d, x: initialObjX + deltaX, y: initialObjY + deltaY } : d
+                );
+                updateData({ decorations: updatedDecos });
+            } else if (type === 'resize-section') {
+                const w = Math.max(100, (initialObjW || 0) + deltaX);
+                const h = Math.max(100, (initialObjH || 0) + deltaY);
+                const updatedSections = (currentData.sections || []).map(s =>
+                    s.id === id ? { ...s, width: w, height: h } : s
+                );
+                updateData({ sections: updatedSections });
             }
+        }
 
-            // 3. Connecting Line Logic
-            if (connectingNodeId && canvasRef.current) {
-                const rect = canvasRef.current.getBoundingClientRect();
-                const worldX = (e.clientX - rect.left - panRef.current.x) / scaleRef.current;
-                const worldY = (e.clientY - rect.top - panRef.current.y) / scaleRef.current;
-                setMousePos({ x: worldX, y: worldY });
-            }
-        };
-    }, [updateData, connectingNodeId]);
+        // 3. Connecting Line Logic
+        if (connectingNodeIdRef.current && canvasRef.current) {
+            const rect = canvasRef.current.getBoundingClientRect();
+            const worldX = (e.clientX - rect.left - panRef.current.x) / scaleRef.current;
+            const worldY = (e.clientY - rect.top - panRef.current.y) / scaleRef.current;
+            setMousePos({ x: worldX, y: worldY });
+        }
+    }, [updateData, handleGlobalMouseUp]);
 
     // --- START LISTENERS ---
-
-    const startGlobalListeners = () => {
-        if (moveHandlerRef.current && upHandlerRef.current) {
-            window.addEventListener('mousemove', moveHandlerRef.current);
-            window.addEventListener('mouseup', upHandlerRef.current);
-            window.addEventListener('mouseleave', upHandlerRef.current);
-        }
-    };
+    // Uses the STABLE useCallback refs directly — no stale closure possible
+    const startGlobalListeners = useCallback(() => {
+        // Attach
+        window.addEventListener('mousemove', handleGlobalMouseMove);
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        window.addEventListener('mouseleave', handleGlobalMouseUp);
+        // Store cleanup so the up handler can remove the exact same references
+        activeCleanupRef.current = () => {
+            window.removeEventListener('mousemove', handleGlobalMouseMove);
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+            window.removeEventListener('mouseleave', handleGlobalMouseUp);
+        };
+    }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
         // Middle mouse or Space+Click to Pan
@@ -220,6 +223,23 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         startGlobalListeners();
     };
 
+    const handleConnectorMouseDown = (e: React.MouseEvent, roleId: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        setConnectingNodeId(roleId);
+
+        if (canvasRef.current) {
+            const rect = canvasRef.current.getBoundingClientRect();
+            const worldX = (e.clientX - rect.left - panRef.current.x) / scaleRef.current;
+            const worldY = (e.clientY - rect.top - panRef.current.y) / scaleRef.current;
+            setMousePos({ x: worldX, y: worldY });
+        }
+
+        setIsDraggingUI(true);
+        startGlobalListeners();
+    };
+
     // --- Helpers ---
     const getCenterViewCoords = () => {
         if (canvasRef.current) {
@@ -235,6 +255,16 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         const handleClickOutside = () => setContextMenu(null);
         window.addEventListener('mousedown', handleClickOutside);
         return () => window.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Cleanup on component unmount
+    useEffect(() => {
+        return () => {
+            if (activeCleanupRef.current) {
+                activeCleanupRef.current();
+                activeCleanupRef.current = null;
+            }
+        };
     }, []);
 
     // --- CRUD Actions ---
@@ -731,10 +761,10 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         onContextMenu={(e) => handleContextMenuCanvas(e, 'node', role.id)}
                                     >
                                         {/* Connectors (N/S/E/W) */}
-                                        <div className={`${connectorStyle} -top-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => { e.stopPropagation(); setConnectingNodeId(role.id); }} />
-                                        <div className={`${connectorStyle} -bottom-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => { e.stopPropagation(); setConnectingNodeId(role.id); }} />
-                                        <div className={`${connectorStyle} top-1/2 -left-2 -translate-y-1/2`} onMouseDown={(e) => { e.stopPropagation(); setConnectingNodeId(role.id); }} />
-                                        <div className={`${connectorStyle} top-1/2 -right-2 -translate-y-1/2`} onMouseDown={(e) => { e.stopPropagation(); setConnectingNodeId(role.id); }} />
+                                        <div className={`${connectorStyle} -top-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
+                                        <div className={`${connectorStyle} -bottom-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
+                                        <div className={`${connectorStyle} top-1/2 -left-2 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
+                                        <div className={`${connectorStyle} top-1/2 -right-2 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
 
                                         {/* Header */}
                                         <div className={`px-3 py-2 rounded-t-lg border-b flex justify-between items-center ${style.header} ${style.border}`}>
