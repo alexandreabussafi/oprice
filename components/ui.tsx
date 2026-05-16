@@ -1,6 +1,6 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Info } from 'lucide-react';
+import { Info, X } from 'lucide-react';
 import type { TenantTheme } from '../utils/theme';
 import { createTenantTheme, hexToRgba } from '../utils/theme';
 
@@ -222,24 +222,76 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, icon: I
     {...props}
     className={cn(
       surfaceClass,
-      'sticky top-0 z-30 flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5',
+      'sticky top-0 z-30 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-5',
       className
     )}
   >
     <div className="flex min-w-0 items-center gap-3">
       {Icon && (
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] sm:h-10 sm:w-10">
-          <Icon size={20} />
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] sm:h-10 sm:w-10">
+          <Icon size={18} />
         </span>
       )}
       <div className="min-w-0">
-        <h1 className="truncate text-xl font-black tracking-tight text-slate-950 dark:text-slate-100 sm:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">{subtitle}</p>}
+        <h1 className="truncate text-lg font-black tracking-tight text-slate-950 dark:text-slate-100 sm:text-2xl">{title}</h1>
+        {subtitle && <p className="mt-1 hidden text-sm font-medium text-slate-500 dark:text-slate-400 sm:block">{subtitle}</p>}
       </div>
     </div>
     {actions && <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center sm:justify-end">{actions}</div>}
   </header>
 );
+
+interface ResponsiveDrawerProps extends React.HTMLAttributes<HTMLDivElement> {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  panelClassName?: string;
+  mode?: 'static-md' | 'overlay';
+  closeLabel?: string;
+  showCloseButton?: boolean;
+}
+
+export const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = ({
+  open,
+  onClose,
+  children,
+  className,
+  panelClassName,
+  mode = 'static-md',
+  closeLabel = 'Fechar painel',
+  showCloseButton = false,
+  ...props
+}) => {
+  if (!open) return null;
+
+  const wrapperClass = mode === 'static-md'
+    ? 'fixed inset-0 z-[90] lg:static lg:inset-auto lg:z-20 lg:h-full lg:w-auto lg:shrink-0'
+    : 'fixed inset-0 z-[500]';
+
+  const panelClass = mode === 'static-md'
+    ? 'fixed inset-y-0 right-0 z-[91] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-slate-200 bg-white shadow-2xl animate-in slide-in-from-right duration-200 dark:border-slate-800 dark:bg-slate-900 sm:w-[50vw] sm:min-w-[360px] sm:max-w-[520px] lg:static lg:z-auto lg:h-full lg:w-[min(720px,calc(100vw_-_280px))] lg:max-w-none lg:shadow-xl'
+    : 'fixed inset-y-0 right-0 z-[501] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-slate-200 bg-white shadow-2xl animate-in slide-in-from-right duration-200 dark:border-slate-800 dark:bg-slate-900 sm:w-[50vw] sm:min-w-[360px] sm:max-w-[560px] lg:w-[min(640px,54vw)] lg:max-w-[680px]';
+
+  return (
+    <div {...props} className={cn(wrapperClass, className)} onClick={onClose}>
+      <div className={cn('absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]', mode === 'static-md' && 'lg:hidden')} />
+      <aside className={cn(panelClass, panelClassName)} onClick={event => event.stopPropagation()}>
+        {showCloseButton && (
+          <button
+            type="button"
+            onClick={onClose}
+            title={closeLabel}
+            aria-label={closeLabel}
+            className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white/90 text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <X size={18} />
+          </button>
+        )}
+        {children}
+      </aside>
+    </div>
+  );
+};
 
 interface StatCardProps extends React.HTMLAttributes<HTMLDivElement> {
   label: string;
@@ -262,15 +314,15 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, de
             : 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)]';
 
   return (
-    <div {...props} className={cn(surfaceClass, 'flex items-center justify-between gap-4 p-5 transition-shadow hover:shadow-md', className)}>
+    <div {...props} className={cn(surfaceClass, 'flex items-center justify-between gap-3 p-3 transition-shadow hover:shadow-md sm:gap-4 sm:p-5', className)}>
       <div className="min-w-0">
         <p className={labelClass}>{label}</p>
-        <p className="mt-2 truncate text-2xl font-black text-slate-950 dark:text-slate-100">{value}</p>
-        {detail && <div className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">{detail}</div>}
+        <p className="mt-1 truncate text-xl font-black text-slate-950 dark:text-slate-100 sm:mt-2 sm:text-2xl">{value}</p>
+        {detail && <div className="mt-1 hidden text-[11px] font-bold text-slate-500 dark:text-slate-400 sm:block">{detail}</div>}
       </div>
       {Icon && (
-        <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-md border', semanticClass)}>
-          <Icon size={21} />
+        <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-md border sm:h-11 sm:w-11', semanticClass)}>
+          <Icon size={19} />
         </span>
       )}
     </div>

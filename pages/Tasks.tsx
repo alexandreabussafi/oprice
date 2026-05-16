@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { CRMCommunication, CRMExternalEvent, CRMTask, Client, Contact, ProposalData, TaskAttachment, GoogleConnectionStatus, GoogleEmailDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft } from '../types';
 import { Plus, Search, Calendar, CheckSquare, Clock, ArrowRight, MessageSquare, PhoneCall, MailCheck, CalendarDays, MoreHorizontal, FileText, UserCircle2, Filter, LayoutList, LayoutGrid, AlertCircle, Calendar as CalendarIcon, CheckCircle2, Paperclip, UploadCloud, File as FileIcon, X, ExternalLink, Trash2, Loader2, Send } from 'lucide-react';
 import { CommunicationThread, getCommunicationDate, groupCommunicationThreads } from '../utils/crmTraceability';
-import { Button, PageHeader, PageShell } from '../components/ui';
+import { Button, PageHeader, PageShell, ResponsiveDrawer } from '../components/ui';
 
 interface TasksProps {
     tasks: CRMTask[];
@@ -482,7 +482,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                 openTaskPanel(task, 'details');
                             }
                         }}
-                        className={`group flex cursor-pointer gap-3 rounded-lg border px-3 py-3 shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-primary-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:hover:bg-slate-800/55 ${task.status === 'Done' ? 'border-emerald-200 bg-emerald-50/30 dark:border-emerald-900/50 dark:bg-emerald-950/10' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/70'}`}
+                        className={`group flex cursor-pointer gap-2.5 rounded-md border px-2.5 py-2 shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-primary-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:hover:bg-slate-800/55 sm:gap-3 sm:px-3 sm:py-3 ${task.status === 'Done' ? 'border-emerald-200 bg-emerald-50/30 dark:border-emerald-900/50 dark:bg-emerald-950/10' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/70'}`}
                     >
                         <button
                             type="button"
@@ -490,7 +490,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                 event.stopPropagation();
                                 toggleStatus(task);
                             }}
-                            className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${task.status === 'Done' ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 hover:border-[var(--tenant-primary)] dark:border-slate-600'}`}
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md border-2 transition-colors sm:mt-0.5 sm:h-8 sm:w-8 ${task.status === 'Done' ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 hover:border-[var(--tenant-primary)] dark:border-slate-600'}`}
                             title={task.status === 'Done' ? 'Reabrir tarefa' : 'Concluir tarefa'}
                             aria-label={task.status === 'Done' ? 'Reabrir tarefa' : 'Concluir tarefa'}
                         >
@@ -498,90 +498,26 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                         </button>
 
                         <div className="min-w-0 flex-1">
-                            <div className="flex flex-col gap-2 xl:flex-row xl:items-start xl:justify-between">
-                                <div className="min-w-0">
-                                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                        <h3 className={`max-w-full truncate text-[15px] font-black leading-5 ${task.status === 'Done' ? 'text-slate-500 line-through decoration-slate-300 dark:decoration-slate-600' : 'text-slate-800 dark:text-slate-100'}`}>
-                                            {task.title}
-                                        </h3>
+                            <div className="flex min-w-0 items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                    <h3 className={`truncate text-sm font-black leading-5 sm:text-[15px] ${task.status === 'Done' ? 'text-slate-500 line-through decoration-slate-300 dark:decoration-slate-600' : 'text-slate-800 dark:text-slate-100'}`}>
+                                        {task.title}
+                                    </h3>
+                                    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
                                         {clientName && (
-                                            <span className="inline-flex max-w-[220px] items-center truncate rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-0.5 text-[11px] font-black text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]">
+                                            <span className="inline-flex max-w-[58vw] truncate rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-1 text-[11px] font-black text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)] sm:max-w-[220px]">
                                                 {clientName}
                                             </span>
                                         )}
-                                    </div>
-
-                                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                                        <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 dark:border-slate-700 dark:bg-slate-800/60">
-                                            {getTypeIcon(task.type, 13)}
-                                            {task.type}
-                                        </span>
                                         <span className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 ${isTaskOverdue(task.dueDate, task.status) ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/60 dark:bg-red-950/25 dark:text-red-300' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60'}`}>
                                             <Calendar size={13} />
-                                            {new Date(task.dueDate).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                                            {new Date(task.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                                         </span>
-                                        {task.assignee && (
-                                            <span className="inline-flex h-7 max-w-[190px] items-center gap-1.5 truncate rounded-md border border-slate-200 bg-slate-50 px-2 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-                                                <UserCircle2 size={13} />
-                                                {task.assignee}
-                                            </span>
-                                        )}
-                                        {attachmentCount > 0 && (
-                                            <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
-                                                <Paperclip size={13} />
-                                                {attachmentCount}
-                                            </span>
-                                        )}
-                                        {taskCommunications.length > 0 && (
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    openTaskPanel(task, 'history');
-                                                }}
-                                                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]"
-                                                title="Abrir historico"
-                                            >
-                                                <MailCheck size={13} />
-                                                {taskCommunications.length} mensagens
-                                            </button>
-                                        )}
-                                        {lastInbound && (
-                                            <button
-                                                type="button"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    openTaskPanel(task, 'history');
-                                                }}
-                                                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300"
-                                                title="Abrir resposta recebida"
-                                            >
-                                                <MessageSquare size={13} />
-                                                resposta recebida
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {task.description && (
-                                        <p className="mt-2 line-clamp-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{task.description}</p>
-                                    )}
-
-                                    <div className="mt-2 flex flex-wrap gap-1.5">
-                                        {contactName && (
-                                            <span className="inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
-                                                <UserCircle2 size={12} className="text-slate-400" />
-                                                {contactName}
-                                            </span>
-                                        )}
-                                        {task.proposalId && (
-                                            <span className="inline-flex max-w-[260px] truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
-                                                {getProposalLabel(task.proposalId)}
-                                            </span>
-                                        )}
+                                        {getStatusBadge(task.status, task.dueDate)}
                                     </div>
                                 </div>
 
-                                <div className="flex shrink-0 items-center gap-2 xl:justify-end">
+                                <div className="flex shrink-0 items-center gap-1">
                                     {taskCommunications.length > 0 && (
                                         <button
                                             type="button"
@@ -589,21 +525,21 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                                 event.stopPropagation();
                                                 openTaskPanel(task, 'history');
                                             }}
-                                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2.5 text-[11px] font-black text-[var(--tenant-primary)] transition hover:brightness-95 dark:text-[var(--tenant-primary-on-dark)]"
-                                            title="Abrir historico de mensagens"
+                                            className="relative flex h-10 w-10 items-center justify-center rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] transition hover:brightness-95 dark:text-[var(--tenant-primary-on-dark)]"
+                                            title="Abrir historico"
+                                            aria-label="Abrir historico"
                                         >
-                                            <MailCheck size={13} />
-                                            Historico
+                                            <MailCheck size={15} />
+                                            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] font-black text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200">{taskCommunications.length}</span>
                                         </button>
                                     )}
-                                    {getStatusBadge(task.status, task.dueDate)}
                                     <button
                                         type="button"
                                         onClick={(event) => {
                                             event.stopPropagation();
                                             openModal(task);
                                         }}
-                                        className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-[var(--tenant-primary)] dark:hover:bg-slate-800 dark:hover:text-[var(--tenant-primary-on-dark)]"
+                                        className="flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-[var(--tenant-primary)] dark:hover:bg-slate-800 dark:hover:text-[var(--tenant-primary-on-dark)]"
                                         title="Editar tarefa"
                                         aria-label="Editar tarefa"
                                     >
@@ -611,16 +547,67 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                     </button>
                                 </div>
                             </div>
+
+                            <div className="mt-2 hidden flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 sm:flex">
+                                <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 dark:border-slate-700 dark:bg-slate-800/60">
+                                    {getTypeIcon(task.type, 13)}
+                                    {task.type}
+                                </span>
+                                {task.assignee && (
+                                    <span className="inline-flex h-7 max-w-[190px] items-center gap-1.5 truncate rounded-md border border-slate-200 bg-slate-50 px-2 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                                        <UserCircle2 size={13} />
+                                        {task.assignee}
+                                    </span>
+                                )}
+                                {attachmentCount > 0 && (
+                                    <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                                        <Paperclip size={13} />
+                                        {attachmentCount}
+                                    </span>
+                                )}
+                                {lastInbound && (
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            openTaskPanel(task, 'history');
+                                        }}
+                                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300"
+                                        title="Abrir resposta recebida"
+                                    >
+                                        <MessageSquare size={13} />
+                                        Resposta
+                                    </button>
+                                )}
+                            </div>
+
+                            {task.description && (
+                                <p className="mt-2 hidden line-clamp-1 text-xs leading-5 text-slate-600 dark:text-slate-400 sm:block">{task.description}</p>
+                            )}
+
+                            <div className="mt-2 hidden flex-wrap gap-1.5 sm:flex">
+                                {contactName && (
+                                    <span className="inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
+                                        <UserCircle2 size={12} className="text-slate-400" />
+                                        {contactName}
+                                    </span>
+                                )}
+                                {task.proposalId && (
+                                    <span className="inline-flex max-w-[260px] truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                                        {getProposalLabel(task.proposalId)}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 );
             })}
 
             {filteredTasks.length === 0 && (
-                <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50/50 py-16 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                    <CheckSquare className="mx-auto mb-4 h-16 w-16 text-slate-300 dark:text-slate-600" />
-                    <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">Nenhuma tarefa encontrada</h3>
-                    <p className="mt-2 text-slate-500">Crie uma nova acao ou ajuste seus filtros.</p>
+                <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50/50 px-4 py-10 text-center dark:border-slate-800 dark:bg-slate-900/50 sm:py-16">
+                    <CheckSquare className="mx-auto mb-3 h-10 w-10 text-slate-300 dark:text-slate-600 sm:h-16 sm:w-16" />
+                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-300 sm:text-xl">Nenhuma tarefa encontrada</h3>
+                    <p className="mt-2 hidden text-slate-500 sm:block">Crie uma nova acao ou ajuste seus filtros.</p>
                 </div>
             )}
         </div>
@@ -893,7 +880,12 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                 icon={CheckSquare}
                 title="Gestão de Tarefas"
                 subtitle="Planeje, execute e acompanhe o fluxo de interações comerciais."
-                actions={<Button type="button" onClick={() => openModal()} icon={Plus} className="w-full sm:w-auto">Nova Tarefa</Button>}
+                actions={
+                    <Button type="button" onClick={() => openModal()} icon={Plus} className="min-h-11 w-full sm:w-auto">
+                        <span className="sm:hidden">Nova</span>
+                        <span className="hidden sm:inline">Nova Tarefa</span>
+                    </Button>
+                }
             />
 
             <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
@@ -902,7 +894,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                     { id: 'today' as const, label: 'Hoje' },
                     { id: 'overdue' as const, label: 'Atrasadas' },
                     { id: 'mine' as const, label: 'Minhas' },
-                    { id: 'done' as const, label: 'Concluidas' }
+                    { id: 'done' as const, label: 'Concluídas' }
                 ].map(item => (
                     <button
                         key={item.id}
@@ -916,53 +908,53 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
             </div>
 
             {/* KPIs */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="grid grid-cols-4 gap-2 md:gap-4">
+                <div className="bg-white dark:bg-slate-900 p-3 rounded-md border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between sm:p-5 sm:rounded-lg">
                     <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Total Exibido</p>
-                        <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{kpis.total}</p>
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 sm:text-xs">Total</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100 sm:text-2xl">{kpis.total}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400">
+                    <div className="hidden w-12 h-12 rounded-md bg-slate-100 dark:bg-slate-800 sm:flex items-center justify-center text-slate-600 dark:text-slate-400">
                         <CheckSquare size={24} />
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-3 rounded-md border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between sm:p-5 sm:rounded-lg">
                     <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Atrasadas</p>
-                        <p className="text-2xl font-black text-red-600 dark:text-red-400">{kpis.delayed}</p>
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 sm:text-xs">Atraso</p>
+                        <p className="text-xl font-black text-red-600 dark:text-red-400 sm:text-2xl">{kpis.delayed}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-md bg-red-100 dark:bg-red-900/20 flex items-center justify-center text-red-600 dark:text-red-400">
+                    <div className="hidden w-12 h-12 rounded-md bg-red-100 dark:bg-red-900/20 sm:flex items-center justify-center text-red-600 dark:text-red-400">
                         <AlertCircle size={24} />
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-3 rounded-md border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between sm:p-5 sm:rounded-lg">
                     <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Em Dia / Prazo</p>
-                        <p className="text-2xl font-black text-[var(--tenant-primary)]">{kpis.onTime}</p>
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 sm:text-xs">Prazo</p>
+                        <p className="text-xl font-black text-[var(--tenant-primary)] sm:text-2xl">{kpis.onTime}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-md bg-[var(--tenant-primary-soft)] flex items-center justify-center text-[var(--tenant-primary)]">
+                    <div className="hidden w-12 h-12 rounded-md bg-[var(--tenant-primary-soft)] sm:flex items-center justify-center text-[var(--tenant-primary)]">
                         <Clock size={24} />
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                <div className="bg-white dark:bg-slate-900 p-3 rounded-md border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between sm:p-5 sm:rounded-lg">
                     <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Concluídas</p>
-                        <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{kpis.done}</p>
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 sm:text-xs">Feitas</p>
+                        <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 sm:text-2xl">{kpis.done}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-md bg-emerald-100 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                    <div className="hidden w-12 h-12 rounded-md bg-emerald-100 dark:bg-emerald-900/20 sm:flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 size={24} />
                     </div>
                 </div>
             </div>
 
             {/* Filters & View Controls */}
-            <div className="flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
-                <div className="flex-1 w-full flex flex-col md:flex-row gap-4">
+            <div className="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 sm:gap-4 sm:p-4">
+                <div className="flex-1 w-full flex flex-col md:flex-row gap-3 sm:gap-4">
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Buscar por título ou descrição..."
+                            placeholder="Buscar tarefa..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm transition-all"
@@ -975,8 +967,8 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md text-sm font-bold text-slate-600 dark:text-slate-300 cursor-pointer focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none sm:w-auto"
                         >
                             <option value="all">Tipos (Todos)</option>
-                            <option value="Meeting">Reuni?es</option>
-                            <option value="Call">Liga??es</option>
+                            <option value="Meeting">Reuniões</option>
+                            <option value="Call">Ligações</option>
                             <option value="Email">E-mails</option>
                             <option value="Follow-up">Follow-ups</option>
                             <option value="Other">Outros</option>
@@ -1037,9 +1029,12 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                 const panelClient = getClient(historyTask.clientId);
                 const panelContact = getContact(historyTask.contactId);
                 return (
-                    <div className="fixed inset-0 z-[500] bg-slate-950/35 backdrop-blur-sm" onClick={closeHistoryPanel}>
-                        <aside className="fixed inset-y-0 right-0 flex h-dvh w-[min(640px,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl animate-in slide-in-from-right duration-200 dark:border-slate-800 dark:bg-slate-900" onClick={(event) => event.stopPropagation()}>
-                            <div className="shrink-0 border-b border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-900/80">
+                    <ResponsiveDrawer
+                        open={Boolean(historyTask)}
+                        onClose={closeHistoryPanel}
+                        mode="overlay"
+                    >
+                            <div className="shrink-0 border-b border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/80 sm:p-5">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
                                         <p className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-1 text-[10px] font-black uppercase text-white">
@@ -1274,8 +1269,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                     </div>
                                 )}
                             </div>
-                        </aside>
-                    </div>
+                    </ResponsiveDrawer>
                 );
             })(), document.body)}
 
@@ -1288,7 +1282,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                 <span className="bg-[var(--tenant-primary-soft)] p-2 rounded-md text-[var(--tenant-primary)]">
                                     <CheckSquare size={20} />
                                 </span>
-                                <span className="truncate">{editingTask ? 'Editar Detalhes da Tarefa' : 'Programar Nova Tarefa'}</span>
+                                <span className="truncate">{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</span>
                             </h2>
                             <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1300,21 +1294,21 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
                                 <div className="space-y-5">
                             <div>
-                                <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">O que precisa ser feito?</label>
-                                <input type="text" name="title" required defaultValue={editingTask?.title || taskDraftDefaults?.title || ''} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md px-4 py-3.5 font-bold text-lg text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] focus:border-[var(--tenant-primary)] transition-all placeholder:text-slate-400 placeholder:font-medium" placeholder="Ex: Apresentar proposta comercial..." />
+                                <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Título</label>
+                                <input type="text" name="title" required defaultValue={editingTask?.title || taskDraftDefaults?.title || ''} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md px-4 py-3.5 font-bold text-lg text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] transition-all placeholder:text-slate-400 placeholder:font-medium" placeholder="Ex: Ligar para cliente" />
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1.5">
-                                        Tipo de A??o
+                                        Tipo
                                     </label>
                                     <div className="relative">
                                         <select name="type" required defaultValue={editingTask?.type || taskDraftDefaults?.type || 'Meeting'} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] cursor-pointer appearance-none transition-all">
-                                            <option value="Meeting">Reuni?o (Presencial / Online)</option>
-                                            <option value="Call">Liga??o / Fone</option>
-                                            <option value="Email">Envio de E-mail</option>
-                                            <option value="Follow-up">Acompanhamento / Follow-up</option>
+                                            <option value="Meeting">Reunião</option>
+                                            <option value="Call">Ligação</option>
+                                            <option value="Email">E-mail</option>
+                                            <option value="Follow-up">Follow-up</option>
                                             <option value="Other">Outro</option>
                                         </select>
                                         <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-slate-400">
@@ -1324,7 +1318,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1.5">
-                                        <CalendarDays size={12} /> Prazo Limite
+                                        <CalendarDays size={12} /> Prazo
                                     </label>
                                     <input type="date" name="dueDate" required defaultValue={editingTask?.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : taskDraftDefaults?.dueDate ? new Date(taskDraftDefaults.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] transition-all" />
                                 </div>
@@ -1346,9 +1340,9 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
 
                             <div>
                                 <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1.5">
-                                    <FileText size={12} /> Anota??es / Descri??o Interna
+                                    <FileText size={12} /> Notas
                                 </label>
-                                <textarea name="description" rows={6} defaultValue={editingTask?.description || taskDraftDefaults?.description || ''} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md px-4 py-3 font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] resize-none transition-all placeholder:text-slate-400/70" placeholder="Pauta da reuni?o, links importantes, detalhes sobre a liga??o..." />
+                                <textarea name="description" rows={4} defaultValue={editingTask?.description || taskDraftDefaults?.description || ''} className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md px-4 py-3 font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] resize-none transition-all placeholder:text-slate-400/70" placeholder="Notas internas" />
                             </div>
 
                                 </div>
@@ -1363,9 +1357,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
 
                                 <div className="relative overflow-hidden rounded-md border-2 border-dashed border-slate-200 bg-white p-4 text-center transition-colors hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-primary-soft)]/40 focus-within:border-[var(--tenant-primary-border)] focus-within:bg-[var(--tenant-primary-soft)]/40 dark:border-slate-700 dark:bg-slate-900/60 dark:hover:border-[var(--tenant-primary-border)] dark:hover:bg-[var(--tenant-primary-soft)] dark:focus-within:border-[var(--tenant-primary-border)] dark:focus-within:bg-[var(--tenant-primary-soft)]">
                                     <UploadCloud className="mx-auto mb-2 text-slate-400" size={24} />
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Anexar documentos ou prints</p>
-                                    <p className="mt-1 text-[11px] font-medium text-slate-400">Clique para anexar ou cole prints com Ctrl+V</p>
-                                    <p className="mt-0.5 text-[10px] font-medium text-slate-400">PDF, Office e imagens ate 20 MB</p>
+                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">Adicionar arquivos</p>
                                     <input
                                         type="file"
                                         multiple
@@ -1447,24 +1439,20 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                             </div>
 
                             <div className="bg-slate-50/80 dark:bg-slate-800/20 p-4 rounded-lg border border-slate-100 dark:border-slate-700/50 space-y-4">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <span className="flex-1 border-t border-slate-200 dark:border-slate-700"></span>
-                                    Contexto e V?nculos
-                                    <span className="flex-1 border-t border-slate-200 dark:border-slate-700"></span>
-                                </h4>
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contexto</h4>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Empresa / Conta</label>
+                                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Cliente</label>
                                         <select name="clientId" required defaultValue={editingTask?.clientId || taskDraftDefaults?.clientId || ''} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] cursor-pointer">
                                             <option value="">Selecione um cliente</option>
                                             {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Ponto de Contato</label>
+                                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Contato</label>
                                         <select name="contactId" defaultValue={editingTask?.contactId || taskDraftDefaults?.contactId || ''} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] cursor-pointer">
-                                            <option value="">(Sem v?nculo)</option>
+                                            <option value="">(Sem contato)</option>
                                             {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
                                     </div>
@@ -1486,8 +1474,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                     <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/30">
                                         <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
                                             <div>
-                                                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Rastreabilidade comercial</h4>
-                                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cliente, proposta, conversas e eventos conectados a esta acao.</p>
+                                                <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Rastreabilidade</h4>
                                             </div>
                                             <div className="flex flex-wrap gap-2 text-[10px] font-black text-slate-500">
                                                 <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">{taskCommunications.length} mensagens</span>
@@ -1579,7 +1566,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                     </button>
                                     <button type="submit" disabled={isSavingTask} className="px-6 py-2.5 bg-[var(--tenant-primary)] hover:brightness-95 text-white rounded-md font-bold shadow-lg shadow-indigo-200/50 dark:shadow-none transition-transform active:scale-95 flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">
                                         {isSavingTask ? <Loader2 size={18} className="animate-spin" /> : <CheckSquare size={18} />}
-                                        {isSavingTask ? 'Salvando...' : editingTask ? 'Salvar Altera??es' : 'Criar Tarefa'}
+                                        {isSavingTask ? 'Salvando...' : editingTask ? 'Salvar Alterações' : 'Criar Tarefa'}
                                     </button>
                                 </div>
                             </div>

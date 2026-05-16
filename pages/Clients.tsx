@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Client, Contact, ProposalData } from '../types';
 import { Plus, Search, MapPin, Building2, User, Trash2, Edit3, Mail, Phone, XCircle, TrendingUp, LayoutList, LayoutGrid, Clock, Briefcase, Loader2, Network, Package, Users, FileText, UserPlus } from 'lucide-react';
 import { formatCurrency } from '../utils/pricingEngine';
-import { Button, PageHeader } from '../components/ui';
+import { Button, PageHeader, ResponsiveDrawer } from '../components/ui';
 
 interface ClientsProps {
     clients: Client[];
@@ -267,7 +267,10 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                             <button onClick={() => setViewMode('list')} className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`} title="Lista"><LayoutList size={20} /></button>
                             <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300'}`} title="Grade"><LayoutGrid size={20} /></button>
                         </div>
-                        <Button type="button" onClick={() => handleOpenModal()} icon={Plus} className="w-full sm:w-auto">Novo Cliente</Button>
+                        <Button type="button" onClick={() => handleOpenModal()} icon={Plus} className="min-h-11 w-full sm:w-auto">
+                            <span className="sm:hidden">Cliente</span>
+                            <span className="hidden sm:inline">Novo Cliente</span>
+                        </Button>
                     </>
                     }
                 />
@@ -276,7 +279,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={20} />
                     <input
                         type="text"
-                        placeholder="Buscar por nome, segmento, contato ou CNPJ..."
+                        placeholder="Buscar cliente..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none shadow-sm"
@@ -284,7 +287,65 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                 </div>
 
                 {viewMode === 'list' ? (
-                    <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 overflow-x-auto">
+                    <div className="space-y-2">
+                        <div className="space-y-2 lg:hidden">
+                            {filteredClients.map(client => {
+                                const isSelected = selectedClientId === client.id;
+                                return (
+                                    <div
+                                        key={client.id}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); openClientDetail(client.id); }}
+                                        onKeyDown={(event) => {
+                                            const target = event.target as HTMLElement;
+                                            if (target.closest('button,a,input,select,textarea')) return;
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                openClientDetail(client.id);
+                                            }
+                                        }}
+                                        className={`rounded-md border bg-white px-3 py-2.5 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:bg-slate-900 ${isSelected ? 'border-[var(--tenant-primary-border)] ring-2 ring-[var(--tenant-primary-soft)]' : 'border-slate-200 dark:border-slate-800'}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${client.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}></span>
+                                                    <h3 className="truncate text-sm font-black text-slate-800 dark:text-slate-100">{client.name}</h3>
+                                                </div>
+                                                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                                    <span className="max-w-[52vw] truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 dark:border-slate-700 dark:bg-slate-800/60">
+                                                        {client.segment || client.industry || 'Geral'}
+                                                    </span>
+                                                    {client.cnpj && <span className="font-mono">{client.cnpj}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex shrink-0 items-center gap-1">
+                                                <button onClick={(e) => { e.stopPropagation(); handleOpenModal(client); }} className="flex h-10 w-10 items-center justify-center rounded-md text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20" title="Editar cliente" aria-label="Editar cliente"><Edit3 size={16} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }} className="flex h-10 w-10 items-center justify-center rounded-md text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20" title="Remover cliente" aria-label="Remover cliente"><Trash2 size={16} /></button>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 flex items-center gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                            <span className="flex min-w-0 items-center gap-1.5">
+                                                <User size={13} className="shrink-0 text-slate-400" />
+                                                <span className="truncate">{client.contactName || 'Sem contato'}</span>
+                                            </span>
+                                            <span className="flex min-w-0 items-center gap-1.5">
+                                                <MapPin size={13} className="shrink-0 text-slate-400" />
+                                                <span className="truncate">{client.location || 'Sem local'}</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {filteredClients.length === 0 && (
+                                <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-800 dark:bg-slate-900/50">
+                                    <Search className="mx-auto mb-3 text-slate-300" size={28} />
+                                    <p className="text-sm font-black text-slate-600 dark:text-slate-300">Nenhum cliente encontrado</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="hidden bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800 overflow-x-auto lg:block">
                         <table className="min-w-[980px] w-full text-sm text-left">
                             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 font-bold uppercase text-xs border-b border-slate-200 dark:border-slate-800">
                                 <tr>
@@ -337,6 +398,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                                 })}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -367,7 +429,11 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
             </div>
 
             {selectedClient && selectedClientStats && (
-                <div className="fixed inset-0 z-[90] flex h-dvh w-full shrink-0 flex-col border-l border-slate-200 bg-white shadow-2xl animate-in slide-in-from-right duration-300 dark:border-slate-800 dark:bg-slate-900 md:static md:z-50 md:h-full md:w-[460px] md:max-w-[calc(100vw-24px)]" onClick={(e) => e.stopPropagation()}>
+                <ResponsiveDrawer
+                    open={Boolean(selectedClient)}
+                    onClose={() => setSelectedClientId(null)}
+                    panelClassName="lg:w-[460px] lg:max-w-[calc(100vw-24px)]"
+                >
                     <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900">
                         <div className="flex justify-between items-start mb-4">
                             <div className="flex gap-2 items-center flex-wrap">
@@ -476,7 +542,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                         <button onClick={() => handleOpenModal(selectedClient)} className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center gap-2"><Edit3 size={14} /> Editar</button>
                         <button onClick={() => handleDelete(selectedClient.id)} className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center gap-2"><Trash2 size={14} /> Remover</button>
                     </div>
-                </div>
+                </ResponsiveDrawer>
             )}
 
             {isModalOpen && (
