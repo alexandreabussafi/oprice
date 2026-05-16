@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { LayoutDashboard, Users, Calculator, FileText, DollarSign, Settings, ArrowLeft, Briefcase, LayoutGrid, FolderOpen, BarChart3, Globe, HardHat, Truck, FileCheck, Zap, Sun, Moon, HelpCircle, PanelLeftClose, PanelLeftOpen, Building2, LogOut, UserCircle, MailCheck, CalendarDays, CheckCircle, Link as LinkIcon, Phone, Linkedin, Camera, X } from 'lucide-react';
+import { LayoutDashboard, Users, Calculator, FileText, DollarSign, Settings, ArrowLeft, Briefcase, LayoutGrid, FolderOpen, BarChart3, Globe, HardHat, Truck, FileCheck, Zap, Sun, Moon, HelpCircle, PanelLeftClose, PanelLeftOpen, Building2, LogOut, UserCircle, MailCheck, CalendarDays, Link as LinkIcon, Phone, Linkedin, Camera, X } from 'lucide-react';
 
 import { AppRole, BusinessUnitAccess, GoogleConnectionStatus, MicrosoftConnectionStatus, Tenant, TenantModule } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -145,8 +145,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
     { id: 'crm-analytics', label: 'KPIs', icon: BarChart3 },
   ];
   const mobileContextLabel = isCRMMode
-    ? (isProducts ? 'Produtos' : 'Servicos')
-    : (proposalType === 'PRODUCT' ? 'Cotacao' : proposalType === 'SPOT' ? 'Spot' : 'Contrato');
+    ? (isProducts ? 'Produtos' : 'Serviços')
+    : (proposalType === 'PRODUCT' ? 'Cotação' : proposalType === 'SPOT' ? 'Spot' : 'Contrato');
 
   return (
     // PRINT FIX: Reset min-h-screen and flex to allow natural document flow
@@ -379,7 +379,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-slate-900 dark:text-slate-100">{tenantName}</p>
-                <p className="truncate text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">{mobileContextLabel}</p>
+                <p className="hidden truncate text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 min-[360px]:block">{mobileContextLabel}</p>
               </div>
             </div>
 
@@ -495,10 +495,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                         )}
                       </div>
                     </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    <CheckCircle size={14} className="text-emerald-500" />
-                    <span>Preparado para novos canais como WhatsApp, Telegram e LinkedIn.</span>
                   </div>
                 </section>
               </div>

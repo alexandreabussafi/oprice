@@ -228,11 +228,11 @@ const CRM: React.FC<CRMProps> = ({
     const getTaskStatusLabel = (status: CRMTask['status']) => {
         if (status === 'To Do') return 'A fazer';
         if (status === 'In Progress') return 'Em andamento';
-        return 'Concluidas';
+        return 'Concluídas';
     };
     const getTaskTypeLabel = (type: CRMTask['type']) => {
-        if (type === 'Meeting') return 'Reuniao';
-        if (type === 'Call') return 'Ligacao';
+        if (type === 'Meeting') return 'Reunião';
+        if (type === 'Call') return 'Ligação';
         if (type === 'Email') return 'E-mail';
         if (type === 'Follow-up') return 'Follow-up';
         return 'Outro';
@@ -417,8 +417,8 @@ const CRM: React.FC<CRMProps> = ({
     };
 
     const openQuickActivityModal = (type: CRMTask['type'] = 'Call') => {
-        const defaultTitle = type === 'Meeting' ? 'Reuniao em campo' :
-            type === 'Call' ? 'Ligacao comercial' :
+        const defaultTitle = type === 'Meeting' ? 'Reunião em campo' :
+            type === 'Call' ? 'Ligação comercial' :
                 type === 'Email' ? 'Enviar e-mail' :
                     type === 'Other' ? 'Apontamento de campo' :
                         'Follow-up comercial';
@@ -492,7 +492,7 @@ const CRM: React.FC<CRMProps> = ({
         const proposal = proposalId ? proposals.find(p => p.id === proposalId) : undefined;
         const clientId = proposal?.clientId || activityModal.clientId || activityClientId;
         if (!clientId || !activityTitle.trim()) {
-            setActivityError('Selecione um cliente e informe um titulo para a atividade.');
+            setActivityError('Selecione um cliente e informe um título para a atividade.');
             return;
         }
         setActivityError(null);
@@ -979,9 +979,12 @@ const CRM: React.FC<CRMProps> = ({
                             </div>
                             <button
                                 onClick={() => setShowFrozen(!showFrozen)}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${showFrozen ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'}`}
+                                title={showFrozen ? 'Ocultar congelados' : 'Mostrar congelados'}
+                                aria-label={showFrozen ? 'Ocultar congelados' : 'Mostrar congelados'}
+                                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${showFrozen ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'}`}
                             >
-                                <Snowflake size={16} /> {showFrozen ? 'Ocultar Congelados' : 'Mostrar Congelados'}
+                                <Snowflake size={16} />
+                                <span className="hidden sm:inline">{showFrozen ? 'Ocultar Congelados' : 'Mostrar Congelados'}</span>
                             </button>
                             <div className="hidden h-10 w-px bg-slate-200 dark:bg-slate-800 mx-1 transition-colors sm:block"></div>
                             <Button
@@ -1015,7 +1018,8 @@ const CRM: React.FC<CRMProps> = ({
                                 setShowCreateModal(true);
                             }}
                         >
-                            Nova Cotação
+                            <span className="sm:hidden">Nova</span>
+                            <span className="hidden sm:inline">Nova Cotação</span>
                         </Button>
                         </>
                         }
@@ -1023,7 +1027,7 @@ const CRM: React.FC<CRMProps> = ({
                     <div className="grid grid-cols-4 gap-2 sm:hidden">
                         {[
                             { type: 'Call' as CRMTask['type'], label: 'Ligar', icon: PhoneCall },
-                            { type: 'Meeting' as CRMTask['type'], label: 'Reuniao', icon: CalendarDays },
+                            { type: 'Meeting' as CRMTask['type'], label: 'Reunião', icon: CalendarDays },
                             { type: 'Follow-up' as CRMTask['type'], label: 'Follow', icon: Activity },
                             { type: 'Other' as CRMTask['type'], label: 'Nota', icon: FileText }
                         ].map(item => {
@@ -1291,9 +1295,9 @@ const CRM: React.FC<CRMProps> = ({
                                     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
-                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Ações de workspace</h4>
-                                                <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                                                    {connectedProviders.length > 0 ? `Usando ${connectedProviders.map(getProviderLabel).join(' e ')}` : 'Conecte seu workspace no perfil do usuário.'}
+                                                <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Workspace</h4>
+                                                <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                    {connectedProviders.length > 0 ? connectedProviders.map(getProviderLabel).join(' + ') : 'Não conectado'}
                                                 </p>
                                             </div>
                                         </div>
@@ -2322,7 +2326,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                                                 Criar tarefa no Microsoft To Do
                                                 <span className="block pt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                                    Follow-up automatico com vencimento em {new Date(`${addDaysDateInput(2)}T12:00:00`).toLocaleDateString('pt-BR')}.
+                                                    Follow-up automático em {new Date(`${addDaysDateInput(2)}T12:00:00`).toLocaleDateString('pt-BR')}.
                                                 </span>
                                             </span>
                                         </label>
@@ -2335,7 +2339,7 @@ const CRM: React.FC<CRMProps> = ({
                                         onClick={submitEmail}
                                         className="px-5 py-2 bg-[var(--tenant-primary)] text-white rounded-lg text-sm font-bold hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                     >
-                                        {emailSentAfterError ? 'E-mail ja enviado' : workspaceLoading ? 'Enviando...' : 'Enviar'}
+                                        {emailSentAfterError ? 'E-mail já enviado' : workspaceLoading ? 'Enviando...' : 'Enviar'}
                                     </button>
                                 </div>
                             </div>

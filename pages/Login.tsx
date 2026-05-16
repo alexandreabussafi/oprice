@@ -1,6 +1,28 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+
+const loginParticles = [
+    { left: '8%', top: '18%', size: 5, color: '#67e8f9', delay: '0s', duration: '6.8s', drift: '18px' },
+    { left: '16%', top: '72%', size: 7, color: '#60a5fa', delay: '1.2s', duration: '7.5s', drift: '-12px' },
+    { left: '22%', top: '34%', size: 4, color: '#f59e0b', delay: '0.6s', duration: '6.1s', drift: '26px' },
+    { left: '30%', top: '88%', size: 6, color: '#a78bfa', delay: '2.1s', duration: '8.2s', drift: '-20px' },
+    { left: '40%', top: '22%', size: 5, color: '#22d3ee', delay: '1.8s', duration: '7.1s', drift: '16px' },
+    { left: '48%', top: '62%', size: 8, color: '#34d399', delay: '0.3s', duration: '6.5s', drift: '-16px' },
+    { left: '58%', top: '12%', size: 4, color: '#f472b6', delay: '2.8s', duration: '7.8s', drift: '22px' },
+    { left: '66%', top: '76%', size: 6, color: '#38bdf8', delay: '1.5s', duration: '6.9s', drift: '-24px' },
+    { left: '74%', top: '28%', size: 7, color: '#fbbf24', delay: '0.9s', duration: '7.4s', drift: '14px' },
+    { left: '86%', top: '54%', size: 5, color: '#818cf8', delay: '2.4s', duration: '8s', drift: '-18px' },
+    { left: '92%', top: '84%', size: 4, color: '#5eead4', delay: '3s', duration: '6.6s', drift: '20px' },
+    { left: '10%', top: '48%', size: 4, color: '#c084fc', delay: '3.4s', duration: '7.7s', drift: '-14px' },
+];
+
+const loginStreaks = [
+    { left: '6%', top: '26%', width: 96, color: '#38bdf8', angle: '-18deg', delay: '0.2s', duration: '6.2s' },
+    { left: '62%', top: '18%', width: 122, color: '#f59e0b', angle: '14deg', delay: '1.5s', duration: '7.2s' },
+    { left: '18%', top: '82%', width: 110, color: '#a78bfa', angle: '10deg', delay: '2.6s', duration: '6.8s' },
+    { left: '72%', top: '68%', width: 86, color: '#34d399', angle: '-22deg', delay: '3.2s', duration: '7.8s' },
+];
 
 export default function Login() {
     const [email, setEmail] = useState('');
@@ -26,7 +48,7 @@ export default function Login() {
                 if (data.session) {
                     // Successfully signed up and logged in
                 } else {
-                    setMessage('Conta criada! Se necessário, verifique seu email para confirmar (ou tente fazer login agora).');
+                    setMessage('Conta criada. Verifique seu e-mail.');
                 }
             } else {
                 const { error } = await supabase.auth.signInWithPassword({
@@ -43,118 +65,176 @@ export default function Login() {
     };
 
     return (
-        <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#0f172a] p-4">
-            {/* Animated Background Gradients */}
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse"></div>
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <>
+            <style>{`
+                html,
+                body,
+                #root {
+                    min-height: 100%;
+                    background: #08111f;
+                }
+                @keyframes loginParticleFloat {
+                    0% { transform: translate3d(0, 30px, 0) scale(0.72); opacity: 0; }
+                    18% { opacity: 0.95; }
+                    72% { opacity: 0.85; }
+                    100% { transform: translate3d(var(--particle-drift), -88px, 0) scale(1.25); opacity: 0; }
+                }
+                @keyframes loginStreakSweep {
+                    0% { transform: translate3d(-24px, 20px, 0) rotate(var(--streak-angle)); opacity: 0; }
+                    20% { opacity: 0.8; }
+                    70% { opacity: 0.55; }
+                    100% { transform: translate3d(46px, -54px, 0) rotate(var(--streak-angle)); opacity: 0; }
+                }
+                .login-particle {
+                    animation: loginParticleFloat var(--particle-duration) ease-in-out infinite;
+                    animation-delay: var(--particle-delay);
+                }
+                .login-streak {
+                    animation: loginStreakSweep var(--streak-duration) ease-in-out infinite;
+                    animation-delay: var(--streak-delay);
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .login-particle,
+                    .login-streak {
+                        animation: none !important;
+                        opacity: 0.45 !important;
+                    }
+                }
+            `}</style>
+            <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#08111f] px-4 py-5" style={{ minHeight: 'max(100vh, 100dvh)' }}>
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+                    <div
+                        className="absolute inset-0 opacity-35"
+                        style={{
+                            backgroundImage: 'linear-gradient(rgba(148, 163, 184, 0.11) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px)',
+                            backgroundSize: '42px 42px',
+                        }}
+                    />
+                    {loginStreaks.map((streak, index) => (
+                        <span
+                            key={`streak-${index}`}
+                            className="login-streak absolute h-px rounded-full opacity-0"
+                            style={{
+                                left: streak.left,
+                                top: streak.top,
+                                width: streak.width,
+                                background: `linear-gradient(90deg, transparent, ${streak.color}, transparent)`,
+                                boxShadow: `0 0 22px ${streak.color}`,
+                                '--streak-angle': streak.angle,
+                                '--streak-delay': streak.delay,
+                                '--streak-duration': streak.duration,
+                            } as React.CSSProperties}
+                        />
+                    ))}
+                    {loginParticles.map((particle, index) => (
+                        <span
+                            key={`particle-${index}`}
+                            className="login-particle absolute rounded-full opacity-0"
+                            style={{
+                                left: particle.left,
+                                top: particle.top,
+                                width: particle.size,
+                                height: particle.size,
+                                backgroundColor: particle.color,
+                                boxShadow: `0 0 24px ${particle.color}, 0 0 48px ${particle.color}`,
+                                '--particle-delay': particle.delay,
+                                '--particle-duration': particle.duration,
+                                '--particle-drift': particle.drift,
+                            } as React.CSSProperties}
+                        />
+                    ))}
+                </div>
 
-            <div className="z-10 w-full max-w-md" style={{ maxWidth: 'calc(100vw - 2rem)' }}>
-                <div className="mb-8 text-center sm:mb-10">
-                    <div className="inline-flex items-center justify-center p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg mb-4 ring-4 ring-white/5">
-                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
+                <div className="relative z-10 w-full" style={{ maxWidth: '22rem' }}>
+                    <div className="mb-6 text-center sm:mb-8">
+                        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white shadow-[0_18px_60px_rgba(56,189,248,0.32)] ring-1 ring-cyan-300/20 backdrop-blur-xl">
+                            <Zap size={30} />
+                        </div>
+                        <h1 className="text-3xl font-black tracking-normal text-white sm:text-4xl">
+                            OP<span className="text-cyan-300">CAPEX</span>
+                        </h1>
                     </div>
-                    <h1 className="mb-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-                        OP<span className="text-blue-500">CAPEX</span>
-                    </h1>
-                    <p className="text-slate-400 font-medium">
-                        Industrial Viability Engine
-                    </p>
-                </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-5 shadow-2xl backdrop-blur-xl sm:rounded-3xl sm:p-8">
-                    <form className="space-y-5" onSubmit={handleAuth}>
-                        <div>
-                            <label htmlFor="email" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">
-                                E-mail Institucional
-                            </label>
-                            <input
-                                id="email"
-                                type="email"
-                                required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-white/5 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                                placeholder="exemplo@lubrin.com.br"
-                            />
-                        </div>
-
-                        <div className="relative">
-                            <label htmlFor="password" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">
-                                Senha de Acesso
-                            </label>
-                            <input
-                                id="password"
-                                type={showPassword ? 'text' : 'password'}
-                                required
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-white/5 rounded-xl px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
-                                placeholder="••••••••"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(prev => !prev)}
-                                className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white"
-                                title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                            >
-                                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                            </button>
-                        </div>
-
-                        {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-xl flex items-center gap-3">
-                                <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                {error}
+                    <div className="rounded-lg border border-white/10 bg-slate-950/60 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:p-7">
+                        <form className="space-y-4" onSubmit={handleAuth}>
+                            <div>
+                                <label htmlFor="email" className="mb-2 block px-1 text-xs font-bold uppercase tracking-normal text-slate-300">
+                                    E-mail
+                                </label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-white/[0.07] px-4 py-3 text-white placeholder-slate-500 outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+                                    placeholder="email@empresa.com"
+                                />
                             </div>
-                        )}
 
-                        {message && (
-                            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm p-4 rounded-xl flex items-center gap-3">
-                                <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                {message}
+                            <div className="relative">
+                                <label htmlFor="password" className="mb-2 block px-1 text-xs font-bold uppercase tracking-normal text-slate-300">
+                                    Senha
+                                </label>
+                                <input
+                                    id="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-white/[0.07] px-4 py-3 pr-12 text-white placeholder-slate-500 outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+                                    placeholder="********"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(prev => !prev)}
+                                    className="absolute bottom-1.5 right-1.5 flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white"
+                                    title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                >
+                                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                </button>
                             </div>
-                        )}
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-                        >
-                            {loading ? (
-                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (isSignUp ? 'Criar Conta' : 'Entrar no Sistema')}
-                        </button>
+                            {error && (
+                                <div className="flex items-center gap-3 rounded-lg border border-red-400/20 bg-red-500/10 p-3 text-sm font-semibold text-red-200">
+                                    <AlertCircle size={18} className="shrink-0 text-red-300" />
+                                    <span className="min-w-0">{error}</span>
+                                </div>
+                            )}
 
-                        <div className="pt-4 text-center">
+                            {message && (
+                                <div className="flex items-center gap-3 rounded-lg border border-emerald-300/20 bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-100">
+                                    <CheckCircle2 size={18} className="shrink-0 text-emerald-300" />
+                                    <span className="min-w-0">{message}</span>
+                                </div>
+                            )}
+
                             <button
-                                type="button"
-                                onClick={() => {
-                                    setIsSignUp(!isSignUp);
-                                    setError(null);
-                                    setMessage(null);
-                                }}
-                                className="text-sm font-semibold text-slate-500 hover:text-white transition-colors"
+                                type="submit"
+                                disabled={loading}
+                                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 py-3 text-sm font-black text-slate-950 shadow-[0_18px_42px_rgba(34,211,238,0.28)] transition hover:bg-cyan-300 active:scale-[0.98] disabled:opacity-55 disabled:active:scale-100"
                             >
-                                {isSignUp ? 'Já tem uma conta? Faça login' : 'Ainda não tem conta? Cadastre-se'}
+                                {loading ? <Loader2 size={19} className="animate-spin" /> : (isSignUp ? 'Criar conta' : 'Entrar')}
                             </button>
-                        </div>
-                    </form>
-                </div>
 
-                <p className="mt-8 text-center text-xs text-slate-600 font-medium uppercase tracking-widest">
-                    &copy; {new Date().getFullYear()} Lubrin Grupo. Todos os direitos reservados.
-                </p>
+                            <div className="pt-1 text-center">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsSignUp(!isSignUp);
+                                        setError(null);
+                                        setMessage(null);
+                                    }}
+                                    className="min-h-11 rounded-md px-4 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
+                                >
+                                    {isSignUp ? 'Entrar' : 'Criar conta'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
-        </div>
+        </>
     );
 }
