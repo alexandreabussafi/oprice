@@ -2,6 +2,7 @@ export type AccountClassification = 'Lead' | 'Prospect' | 'Client';
 
 export interface Client {
   id: string;
+  tenantId?: string;
   name: string;
   cnpj?: string;
   industry?: string;
@@ -56,6 +57,7 @@ export interface LetterheadConfig {
 
 export interface Contact {
   id: string;
+  tenantId?: string;
   clientId: string;
   name: string;
   email: string;
@@ -67,6 +69,7 @@ export interface Contact {
 
 export interface CRMTask {
   id: string;
+  tenantId?: string;
   clientId?: string;
   proposalId?: string;
   contactId?: string;
@@ -76,6 +79,19 @@ export interface CRMTask {
   type: 'Meeting' | 'Call' | 'Email' | 'Follow-up' | 'Other';
   status: 'To Do' | 'In Progress' | 'Done';
   dueDate: string; // ISO date string
+  createdAt: string;
+}
+
+export interface TaskAttachment {
+  id: string;
+  tenantId: string;
+  taskId: string;
+  proposalId?: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  storagePath: string;
+  createdBy?: string;
   createdAt: string;
 }
 
@@ -284,7 +300,78 @@ export type OpportunityMotion = 'NewBusiness' | 'Renewal' | 'Expansion' | 'Adden
 export type ProposalVersionStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
 
 export type AppRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'SELLER' | 'ANALYST';
+export type PlatformRole = 'SUPER_ADMIN' | 'USER';
 export type BusinessUnitAccess = 'PRODUCTS' | 'SERVICES' | 'BOTH';
+export type TenantStatus = 'ACTIVE' | 'INACTIVE';
+export type TenantModule = 'CRM_CORE' | 'SERVICES_COMPLEX' | 'SAAS_SUBSCRIPTION' | 'IOT_SUBSCRIPTION' | 'PRODUCT_SALES';
+export type ProposalTemplateKind = 'PRODUCT_SALES' | 'SERVICES_CONTINUOUS' | 'SERVICES_SPOT' | 'SAAS_SUBSCRIPTION' | 'IOT_SUBSCRIPTION';
+
+export interface ProposalTemplateConfig {
+  kind: ProposalTemplateKind;
+  name: string;
+  emailSubject: string;
+  emailBody: string;
+  introduction: string;
+  scope: string;
+  commercialConditions: string;
+  terms: string;
+  closingNotes: string;
+}
+
+export type ProposalTemplatesConfig = Record<ProposalTemplateKind, ProposalTemplateConfig>;
+
+export interface EmailAttachment {
+  fileName: string;
+  contentType: string;
+  base64Content: string;
+}
+
+export interface TenantBranding {
+  logoUrl?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  backgroundLight?: string;
+  backgroundDark?: string;
+  sidebarLight?: string;
+  sidebarDark?: string;
+  surfaceLight?: string;
+  surfaceDark?: string;
+  textLight?: string;
+  textDark?: string;
+  borderLight?: string;
+  borderDark?: string;
+  companyName?: string;
+  displayName?: string;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  status: TenantStatus;
+  enabledModules: TenantModule[];
+  defaultBusinessUnit: 'SERVICES' | 'PRODUCTS';
+  branding?: TenantBranding;
+}
+
+export interface TenantMembership {
+  tenantId: string;
+  tenant?: Tenant;
+  role: AppRole;
+  allowed_types: BusinessUnitAccess[];
+  active: boolean;
+}
+
+export interface TenantMember {
+  tenantId: string;
+  userId: string;
+  email: string | null;
+  fullName: string | null;
+  role: AppRole;
+  allowed_types: BusinessUnitAccess[];
+  active: boolean;
+  platformRole?: PlatformRole;
+}
 
 export type ProposalStatus = OpportunityStage; // Alias for compatibility during migration
 
@@ -420,20 +507,166 @@ export interface ProductLineItem {
 export interface TimelineEvent {
   id: string;
   date: string; // ISO date string
-  type: 'CREATED' | 'STAGE_CHANGE' | 'STATUS_CHANGE' | 'VERSION_CREATED';
+  type: 'CREATED' | 'STAGE_CHANGE' | 'STATUS_CHANGE' | 'VERSION_CREATED' | 'COMMUNICATION' | 'CALENDAR_EVENT';
   title: string;
   user: string;
   metadata?: any;
 }
 
+export type WorkspaceProvider = 'google' | 'microsoft';
+
+export interface GoogleConnectionStatus {
+  connected: boolean;
+  account?: {
+    id: string;
+    google_email: string;
+    scopes: string[];
+    status: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+    sync_enabled: boolean;
+    last_synced_at?: string | null;
+    error_message?: string | null;
+  } | null;
+}
+
+export interface MicrosoftConnectionStatus {
+  connected: boolean;
+  account?: {
+    id: string;
+    microsoft_email: string;
+    microsoft_user_id?: string | null;
+    scopes: string[];
+    status: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+    sync_enabled: boolean;
+    last_synced_at?: string | null;
+    error_message?: string | null;
+  } | null;
+}
+
+export interface CRMCommunication {
+  id: string;
+  tenantId: string;
+  clientId?: string;
+  contactId?: string;
+  proposalId?: string;
+  taskId?: string;
+  userId?: string;
+  provider: WorkspaceProvider | 'manual';
+  channel: 'email' | 'calendar';
+  direction: 'outbound' | 'inbound';
+  subject?: string;
+  bodyPreview?: string;
+  fromEmail?: string;
+  toEmails: string[];
+  ccEmails: string[];
+  gmailMessageId?: string;
+  gmailThreadId?: string;
+  gmailHistoryId?: string;
+  microsoftMessageId?: string;
+  microsoftConversationId?: string;
+  microsoftInternetMessageId?: string;
+  externalUrl?: string;
+  sentAt?: string;
+  receivedAt?: string;
+  createdAt: string;
+}
+
+export interface CRMExternalEvent {
+  id: string;
+  tenantId: string;
+  clientId?: string;
+  contactId?: string;
+  proposalId?: string;
+  taskId?: string;
+  userId?: string;
+  provider: WorkspaceProvider;
+  eventType: 'calendar_event';
+  externalEventId: string;
+  title: string;
+  description?: string;
+  startsAt: string;
+  endsAt: string;
+  attendeeEmails: string[];
+  meetLink?: string;
+  htmlLink?: string;
+  syncStatus: 'CREATED' | 'SYNCED' | 'ERROR' | 'CANCELLED';
+  createdAt: string;
+}
+
+export interface GoogleEmailDraft {
+  tenantId: string;
+  clientId?: string;
+  contactId?: string;
+  proposalId?: string;
+  to: string[];
+  cc?: string[];
+  subject: string;
+  bodyText: string;
+  gmailThreadId?: string;
+  attachments?: EmailAttachment[];
+}
+
+export interface GoogleMeetingDraft {
+  tenantId: string;
+  clientId?: string;
+  contactId?: string;
+  proposalId?: string;
+  title: string;
+  description?: string;
+  startsAt: string;
+  endsAt: string;
+  attendeeEmails: string[];
+}
+
+export interface MicrosoftEmailDraft {
+  tenantId: string;
+  clientId?: string;
+  contactId?: string;
+  proposalId?: string;
+  to: string[];
+  cc?: string[];
+  subject: string;
+  bodyText: string;
+  microsoftConversationId?: string;
+  createMicrosoftTodo?: boolean;
+  todoDueDate?: string;
+  todoTitle?: string;
+  todoDescription?: string;
+  attachments?: EmailAttachment[];
+}
+
+export interface MicrosoftMeetingDraft {
+  tenantId: string;
+  clientId?: string;
+  contactId?: string;
+  proposalId?: string;
+  title: string;
+  description?: string;
+  startsAt: string;
+  endsAt: string;
+  attendeeEmails: string[];
+}
+
+export interface MicrosoftTodoDraft {
+  tenantId: string;
+  clientId?: string;
+  contactId?: string;
+  proposalId?: string;
+  title: string;
+  description?: string;
+  type: CRMTask['type'];
+  dueDate: string;
+}
+
 export interface ProposalData {
   id: string; // Internal UUID
+  tenantId?: string;
   proposalId: string; // Human readable ID (e.g. 180256)
   version: number; // 1, 2, 3...
   versionNotes?: string; // Motivo da nova versão
   versionStatus: ProposalVersionStatus; // Controle de edição/envio
   isCurrentVersion: boolean; // Histórico no Kanban
   type: ProposalType; // NOVO: Tipo de Proposta
+  pricingModule?: TenantModule;
 
   milestones?: Milestone[]; // Prazos e eventos
   timeline?: TimelineEvent[]; // NOVO: Histórico da oportunidade
@@ -533,6 +766,15 @@ export interface ProposalData {
   // Venda de Produtos Direta (NOVO MÓDULO)
   productLines?: ProductLineItem[];
 
+  // SaaS Subscription
+  saasPlanName?: string;
+  saasUnitPrice?: number;
+  saasQuantity?: number;
+  saasMonthlyDiscount?: number;
+  saasSetupFee?: number;
+  saasContractMonths?: number;
+  saasNotes?: string;
+
   // Configuração de Kits (Geralmente preenchido apenas no GlobalConfig)
   kitTemplates?: KitTemplate[];
 
@@ -550,6 +792,7 @@ export interface ProposalData {
 
   // Visual Identity
   letterheadConfig?: LetterheadConfig;
+  proposalTemplates?: ProposalTemplatesConfig;
 }
 
 export interface CalculatedFinancials {

@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ProposalData, CatalogProduct, ProductLineItem } from '../types';
-import { Settings, Plus, Search, Trash2, Edit2, Check, X, Package, DollarSign, Calculator, AlertTriangle, Target, FileText, TrendingUp, Globe, CreditCard, Truck } from 'lucide-react';
+import { Settings, Plus, Search, Trash2, Edit2, Check, X, Package, DollarSign, Calculator, AlertTriangle, Target, FileText, TrendingUp, Globe, CreditCard, Truck, Download } from 'lucide-react';
+import { downloadProposalPdf } from '../services/proposalPdf';
+import { getProposalTemplateKind, mergeProposalTemplates } from '../utils/proposalTemplates';
 
 interface ProductEditorProps {
     data: ProposalData;
@@ -12,9 +14,25 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
     const [searchTerm, setSearchTerm] = useState('');
     const [editingLineId, setEditingLineId] = useState<string | null>(null);
     const [tempMargin, setTempMargin] = useState<number>(0);
+    const [pdfLoading, setPdfLoading] = useState(false);
 
     const productLines = data.productLines || [];
     const catalog = globalConfig?.productCatalog || [];
+    const proposalForPdf = {
+        ...data,
+        letterheadConfig: globalConfig?.letterheadConfig || data.letterheadConfig,
+        proposalTemplates: globalConfig?.proposalTemplates || data.proposalTemplates
+    };
+    const proposalTemplate = mergeProposalTemplates(proposalForPdf.proposalTemplates, proposalForPdf.letterheadConfig?.companyName)[getProposalTemplateKind(proposalForPdf)];
+
+    const handleDownloadPdf = async () => {
+        setPdfLoading(true);
+        try {
+            await downloadProposalPdf(proposalForPdf, proposalTemplate);
+        } finally {
+            setPdfLoading(false);
+        }
+    };
 
     // Filter Catalog
     const filteredCatalog = catalog.filter(p =>
@@ -773,6 +791,14 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                             >
                                 <FileText size={18} />
                                 Imprimir Proposta
+                            </button>
+                            <button
+                                onClick={handleDownloadPdf}
+                                disabled={pdfLoading}
+                                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-xl hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <Download size={18} />
+                                {pdfLoading ? 'Gerando PDF' : 'Baixar PDF'}
                             </button>
                         </div>
                     </div>

@@ -77,6 +77,50 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const scaleRef = useRef(scale);
     scaleRef.current = scale;
 
+    const getDescendantIds = (roles: Role[], parentId: string): string[] => {
+        const descendants: string[] = [];
+        const visited = new Set<string>();
+        const stack = roles.filter(r => r.parentId === parentId).map(r => r.id);
+
+        while (stack.length > 0) {
+            const childId = stack.pop();
+            if (!childId || visited.has(childId)) continue;
+            visited.add(childId);
+            descendants.push(childId);
+            roles
+                .filter(r => r.parentId === childId && !visited.has(r.id))
+                .forEach(r => stack.push(r.id));
+        }
+
+        return descendants;
+    };
+
+    const wouldCreateRoleCycle = (roles: Role[], roleId: string, parentId?: string) => {
+        if (!parentId) return false;
+        if (roleId === parentId) return true;
+        return getDescendantIds(roles, roleId).includes(parentId);
+    };
+
+    const sanitizeRoleHierarchy = (roles: Role[]) => {
+        const existingIds = new Set(roles.map(r => r.id));
+        const sanitized = roles.map(role => {
+            if (!role.parentId || !existingIds.has(role.parentId) || role.parentId === role.id) {
+                return { ...role, parentId: undefined };
+            }
+            return role;
+        });
+
+        return sanitized.map(role => (
+            role.parentId && wouldCreateRoleCycle(sanitized, role.id, role.parentId)
+                ? { ...role, parentId: undefined }
+                : role
+        ));
+    };
+
+    const updateRoles = (roles: Role[]) => {
+        updateData({ roles: sanitizeRoleHierarchy(roles) });
+    };
+
     // --- ROBUST EVENT SYSTEM TO PREVENT "STICKY HAND" ---
     // We use stable function refs that NEVER get recreated. All state is read via refs.
     const activeCleanupRef = useRef<(() => void) | null>(null);
@@ -126,11 +170,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
             if (type === 'role') {
                 const initialRoles = dragInfoRef.current.initialRoles || currentData.roles;
-                const getDescendants = (parentId: string): string[] => {
-                    const children = initialRoles.filter(r => r.parentId === parentId).map(r => r.id);
-                    return children.reduce((acc, childId) => [...acc, childId, ...getDescendants(childId)], [] as string[]);
-                };
-                const descendantIds = getDescendants(id);
+                const descendantIds = getDescendantIds(initialRoles, id);
 
                 const updatedRoles = currentData.roles.map(r => {
                     if (r.id === id) {
@@ -143,7 +183,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     }
                     return r;
                 });
-                updateData({ roles: updatedRoles });
+                updateRoles(updatedRoles);
             } else if (type === 'section') {
                 const updatedSections = (currentData.sections || []).map(s =>
                     s.id === id ? { ...s, x: initialObjX + deltaX, y: initialObjY + deltaY } : s
@@ -283,7 +323,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             y: y,
             color: 'slate'
         };
-        updateData({ roles: [...data.roles, newRole] });
+        updateRoles([...data.roles, newRole]);
     };
 
     const addSection = () => {
@@ -323,11 +363,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             y: (source.y || 0) + 50,
             parentId: source.parentId
         };
-        updateData({ roles: [...data.roles, newRole] });
+        updateRoles([...data.roles, newRole]);
     };
 
     const updateRole = (id: string, field: keyof Role, value: any) => {
-        updateData({ roles: data.roles.map(r => r.id === id ? { ...r, [field]: value } : r) });
+        const updatedRoles = data.roles.map(r => r.id === id ? { ...r, [field]: value } : r);
+        if (field === 'parentId' && wouldCreateRoleCycle(data.roles, id, value)) return;
+        updateRoles(updatedRoles);
     };
 
     const updateSection = (id: string, field: keyof CanvasSection, value: any) => {
@@ -340,7 +382,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             const updatedRoles = data.roles
                 .filter(r => r.id !== id)
                 .map(r => r.parentId === id ? { ...r, parentId: undefined } : r);
-            updateData({ roles: updatedRoles });
+            updateRoles(updatedRoles);
         }
         if (type === 'section') {
             updateData({ sections: (data.sections || []).filter(s => s.id !== id) });
@@ -386,6 +428,10 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const onConnectorMouseUp = (e: React.MouseEvent, targetId: string) => {
         e.stopPropagation();
         if (connectingNodeId && connectingNodeId !== targetId) {
+            if (wouldCreateRoleCycle(data.roles, targetId, connectingNodeId)) {
+                setConnectingNodeId(null);
+                return;
+            }
             updateRole(targetId, 'parentId', connectingNodeId);
         }
         setConnectingNodeId(null);
@@ -488,14 +534,17 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     };
 
     const applyAutoLayout = () => {
-        const rootNodes = data.roles.filter(r => !r.parentId);
+        const cleanRoles = sanitizeRoleHierarchy(data.roles);
+        const rootNodes = cleanRoles.filter(r => !r.parentId);
         if (rootNodes.length === 0) return;
 
         const xSpacing = 320;
         const ySpacing = 200;
-        const newRoles = [...data.roles];
+        const newRoles = [...cleanRoles];
 
-        const layoutSubtree = (nodeId: string, level: number, currentX: number) => {
+        const layoutSubtree = (nodeId: string, level: number, currentX: number, visited = new Set<string>()) => {
+            if (visited.has(nodeId)) return currentX;
+            visited.add(nodeId);
             const children = newRoles.filter(r => r.parentId === nodeId);
             const nodeIndex = newRoles.findIndex(r => r.id === nodeId);
 
@@ -508,7 +557,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
             let nextX = currentX;
             children.forEach(child => {
-                nextX = layoutSubtree(child.id, level + 1, nextX);
+                nextX = layoutSubtree(child.id, level + 1, nextX, new Set(visited));
             });
 
             // Center parent over children
@@ -530,7 +579,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             startX = layoutSubtree(root.id, 0, startX);
         });
 
-        updateData({ roles: newRoles });
+        updateRoles(newRoles);
     };
 
     const fitToView = useCallback(() => {
@@ -569,6 +618,11 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     useEffect(() => {
         // Initial Layout: assign coordinates when entering organogram if roles lack them
         if (viewMode === 'organogram' && data.roles.length > 0) {
+            const cleanRoles = sanitizeRoleHierarchy(data.roles);
+            if (JSON.stringify(cleanRoles) !== JSON.stringify(data.roles)) {
+                updateData({ roles: cleanRoles });
+                return;
+            }
             const hasCoords = data.roles.some(r => r.x !== undefined && r.x !== null && r.x !== 0);
             if (!hasCoords) {
                 const cols = Math.max(3, Math.ceil(Math.sqrt(data.roles.length)));
@@ -577,7 +631,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     x: (i % cols) * 320 + 100,
                     y: Math.floor(i / cols) * 220 + 80
                 }));
-                updateData({ roles: updatedRoles });
+                updateRoles(updatedRoles);
             }
             // Always center the view when entering organogram
             setTimeout(() => fitToView(), 100);

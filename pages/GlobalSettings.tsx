@@ -1,12 +1,13 @@
-
-import React, { useState, useEffect } from 'react';
-import { ProposalData, KitTemplate, KitItemTemplate, ExpenseItem, AccountingMapping, AccountingAccount, defaultAccounting, BusinessUnitAccess } from '../types';
+﻿
+import React, { useEffect, useState } from 'react';
+import { ProposalData, KitTemplate, KitItemTemplate, AccountingMapping, AccountingAccount, defaultAccounting, AppRole, BusinessUnitAccess, TenantMember, ProposalTemplateConfig, ProposalTemplateKind } from '../types';
 import Taxes from './Taxes'; // Reusing the Taxes component logic for global settings
-import { Globe, Save, Package, Plus, Trash2, Edit2, Check, X, Box, Info, ShieldAlert, TrendingUp, Landmark, Wrench, Truck, Monitor, HardHat, Wand2, BookOpen, AlertCircle, Palette, Upload, Image as ImageIcon, Loader2, Users, UserPlus, Shield } from 'lucide-react';
+import { Settings, Package, Plus, Trash2, Box, Info, ShieldAlert, TrendingUp, Landmark, Wrench, Truck, Monitor, HardHat, BookOpen, Palette, Image as ImageIcon, Loader2, Users, UserPlus, Shield, Save, X, Edit2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { UserProfile } from '../contexts/AuthContext';
-import { formatCurrency } from '../utils/pricingEngine';
 import InfoTooltip from '../components/InfoTooltip';
+import { useTenant } from '../contexts/TenantContext';
+import { mergeProposalTemplates, PROPOSAL_TEMPLATE_KINDS, PROPOSAL_TEMPLATE_LABELS } from '../utils/proposalTemplates';
+import { PageHeader, PageShell } from '../components/ui';
 
 interface GlobalSettingsProps {
     globalConfig: ProposalData; // Using ProposalData structure to hold global configs
@@ -14,29 +15,27 @@ interface GlobalSettingsProps {
 }
 
 const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobalConfig }) => {
-    const [mainGroup, setMainGroup] = useState<'gerais' | 'servicos' | 'produtos' | 'usuarios'>('gerais');
-    const [activeTab, setActiveTab] = useState<'finance' | 'taxes' | 'accounting' | 'letterhead' | 'kits' | 'products' | 'product_layout' | 'user_list'>('finance');
+    const [mainGroup, setMainGroup] = useState<'gerais' | 'servicos' | 'produtos' | 'propostas' | 'usuarios'>('gerais');
+    const [activeTab, setActiveTab] = useState<'finance' | 'taxes' | 'accounting' | 'letterhead' | 'kits' | 'products' | 'product_layout' | 'proposal_templates' | 'user_list'>('finance');
+    const { activeTenant, activeTenantId, tenantMembers, refreshTenantMembers, createPlatformUser, updateTenantUser, removeUserFromTenant } = useTenant();
 
-    // --- USER MANAGEMENT STATE ---
-    const [profiles, setProfiles] = useState<UserProfile[]>([]);
     const [loadingProfiles, setLoadingProfiles] = useState(false);
-    const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
-
-    // --- USER REGISTRATION STATE ---
+    const [editingUser, setEditingUser] = useState<TenantMember | null>(null);
     const [isCreatingUser, setIsCreatingUser] = useState(false);
     const [newUserName, setNewUserName] = useState('');
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserPassword, setNewUserPassword] = useState('');
-    const [newUserRole, setNewUserRole] = useState<'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'SELLER' | 'ANALYST'>('SELLER');
+    const [showNewUserPassword, setShowNewUserPassword] = useState(false);
+    const [newUserRole, setNewUserRole] = useState<AppRole>('SELLER');
     const [newUserServices, setNewUserServices] = useState(false);
     const [newUserProducts, setNewUserProducts] = useState(false);
-
-
-
     // --- KITS MANAGER STATE ---
     const [selectedKitId, setSelectedKitId] = useState<string | null>(null);
+    const [selectedTemplateKind, setSelectedTemplateKind] = useState<ProposalTemplateKind>('SAAS_SUBSCRIPTION');
 
     const selectedKit = globalConfig.kitTemplates?.find(k => k.id === selectedKitId);
+    const proposalTemplates = mergeProposalTemplates(globalConfig.proposalTemplates, globalConfig.letterheadConfig?.companyName);
+    const selectedProposalTemplate = proposalTemplates[selectedTemplateKind];
 
     // Wrapper to match Taxes component signature
     const updateGlobalData = (newData: Partial<ProposalData>) => {
@@ -63,6 +62,20 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
         setGlobalConfig({
             ...globalConfig,
             [isProduct ? 'productAccountingConfig' : 'accountingConfig']: newConfig
+        });
+    };
+
+    const updateProposalTemplate = (field: keyof ProposalTemplateConfig, value: string) => {
+        setGlobalConfig({
+            ...globalConfig,
+            proposalTemplates: {
+                ...proposalTemplates,
+                [selectedTemplateKind]: {
+                    ...selectedProposalTemplate,
+                    [field]: value,
+                    kind: selectedTemplateKind
+                }
+            }
         });
     };
 
@@ -235,171 +248,118 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                     </div>
                 </div>
                 {tip && <p className="text-[9px] text-slate-400 italic mt-1 leading-tight">{tip}</p>}
-            </div>
-        );
-    };
+        </div>
+    );
+};
 
-    // --- USER MANAGEMENT LOGIC ---
-    const fetchUsers = async () => {
+    const roleOptions: AppRole[] = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'SELLER', 'ANALYST'];
+
+    const refreshUsers = async () => {
+        if (!activeTenantId) return;
         setLoadingProfiles(true);
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .order('full_name');
-            if (error) throw error;
-            setProfiles(data || []);
+            await refreshTenantMembers(activeTenantId);
         } catch (error: any) {
-            console.error('Error fetching users:', error);
+            console.error('Error fetching tenant users:', error);
             alert('Erro ao carregar usuários: ' + error.message);
         } finally {
             setLoadingProfiles(false);
         }
     };
 
-    React.useEffect(() => {
-        if (mainGroup === 'usuarios') {
-            fetchUsers();
+    useEffect(() => {
+        if (mainGroup === 'usuarios' && activeTenantId) {
+            refreshUsers();
         }
-    }, [mainGroup]);
+    }, [mainGroup, activeTenantId]);
 
-    const handleUpdateUser = async (userId: string, updates: Partial<UserProfile>) => {
+    const updateMember = async (userId: string, updates: Partial<Pick<TenantMember, 'role' | 'allowed_types' | 'active'>>) => {
+        if (!activeTenantId) return;
+        const member = tenantMembers.find(item => item.userId === userId);
+        if (!member) return;
+
         try {
-            const { id, email, ...safeUpdates } = updates as any;
-
-            if (Object.keys(safeUpdates).length > 0) {
-                const { error } = await supabase
-                    .from('profiles')
-                    .update(safeUpdates)
-                    .eq('id', userId);
-                if (error) throw error;
-            }
-
-            // Local update
-            setProfiles(prev => prev.map(p => p.id === userId ? { ...p, ...updates } : p));
-            if (editingUser?.id === userId) {
-                setEditingUser(prev => prev ? { ...prev, ...updates } : null);
-            }
-            alert('Usuário atualizado com sucesso!');
+            await updateTenantUser({
+                tenantId: activeTenantId,
+                userId,
+                role: updates.role || member.role,
+                allowed_types: updates.allowed_types || member.allowed_types,
+                active: updates.active ?? member.active
+            });
         } catch (error: any) {
-            console.error('Error updating user:', error);
+            console.error('Error updating tenant user:', error);
             alert('Erro ao atualizar usuário: ' + error.message);
         }
     };
 
-    const handleToggleUnitAccess = async (user: UserProfile, unit: BusinessUnitAccess) => {
-        const currentAccess = user.allowed_types || [];
-        const newAccess = currentAccess.includes(unit)
-            ? currentAccess.filter(t => t !== unit)
-            : [...currentAccess, unit];
-
-        await handleUpdateUser(user.id, { allowed_types: newAccess });
+    const toggleMemberAccess = async (member: TenantMember, access: BusinessUnitAccess) => {
+        const current = member.allowed_types || [];
+        const next = current.includes(access)
+            ? current.filter(item => item !== access)
+            : [...current.filter(item => item !== 'BOTH'), access];
+        await updateMember(member.userId, { allowed_types: next.length > 0 ? next : ['BOTH'] });
     };
 
-    const handleDeleteUser = async (userId: string) => {
-        if (!confirm('Tem certeza que deseja excluir este usuário? Esta ação removerá o perfil do banco de dados e não pode ser desfeita.')) return;
+    const handleRemoveMember = async (userId: string) => {
+        if (!activeTenantId) return;
+        if (!window.confirm('Remover este usuário do tenant ativo? A conta global não será excluída.')) return;
 
         try {
-            // Usa a procedure PostgreSQL criada no Supabase para deletar de auth.users usando permissão root (cascade automático para o profile)
-            const { error } = await supabase.rpc('delete_user_by_admin', { target_user_id: userId });
-
-            if (error) throw error;
-
-            setProfiles(prev => prev.filter(p => p.id !== userId));
-            alert('Usuário removido com sucesso!');
+            await removeUserFromTenant(activeTenantId, userId);
         } catch (error: any) {
-            console.error('Error deleting user:', error);
+            console.error('Error removing tenant user:', error);
             alert('Erro ao remover usuário: ' + error.message);
         }
     };
 
-    const handleCreateUser = async (e: React.FormEvent) => {
-        e.preventDefault();
-
+    const handleCreateUser = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!activeTenantId) return;
         if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
-            alert('Por favor, preencha todos os campos obrigatórios.');
+            alert('Preencha nome, e-mail e senha.');
             return;
         }
-
         if (newUserPassword.length < 6) {
             alert('A senha deve ter pelo menos 6 caracteres.');
             return;
         }
 
+        const allowedTypes: BusinessUnitAccess[] = [];
+        if (newUserServices) allowedTypes.push('SERVICES');
+        if (newUserProducts) allowedTypes.push('PRODUCTS');
+
         try {
-            // Instantiate secondary local client to create user without overriding current active admin session
-            const { createClient } = await import('@supabase/supabase-js');
-            const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
-            const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
-
-            if (!supabaseUrl || !supabaseAnonKey) {
-                throw new Error("Missing Supabase env vars");
-            }
-
-            const tempSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-                auth: { autoRefreshToken: false, persistSession: false }
-            });
-
-            // signUp generates the user in auth.users and triggers handle_new_user to make profile
-            const { data, error: signUpError } = await tempSupabase.auth.signUp({
+            await createPlatformUser({
+                tenantId: activeTenantId,
                 email: newUserEmail,
                 password: newUserPassword,
-                options: {
-                    data: {
-                        full_name: newUserName,
-                    }
-                }
+                fullName: newUserName,
+                role: newUserRole,
+                allowed_types: allowedTypes.length > 0 ? allowedTypes : ['BOTH'],
+                platformRole: 'USER'
             });
-
-            if (signUpError) throw signUpError;
-
-            const newUserId = data.user?.id;
-
-            if (newUserId) {
-                // Wait briefly for the trigger to execute
-                await new Promise(r => setTimeout(r, 1000));
-
-                // Now, using current primary logged-in supervisor session, update the profile created by trigger
-                const allowedTypes: BusinessUnitAccess[] = [];
-                if (newUserServices) allowedTypes.push('SERVICES');
-                if (newUserProducts) allowedTypes.push('PRODUCTS');
-
-                await handleUpdateUser(newUserId, {
-                    role: newUserRole,
-                    allowed_types: allowedTypes,
-                    full_name: newUserName
-                });
-
-                // Clear form
-                setIsCreatingUser(false);
-                setNewUserName('');
-                setNewUserEmail('');
-                setNewUserPassword('');
-                setNewUserRole('SELLER');
-                setNewUserServices(false);
-                setNewUserProducts(false);
-                alert('Usuário criado com sucesso!');
-                fetchUsers();
-            }
-
+            setIsCreatingUser(false);
+            setNewUserName('');
+            setNewUserEmail('');
+            setNewUserPassword('');
+            setShowNewUserPassword(false);
+            setNewUserRole('SELLER');
+            setNewUserServices(false);
+            setNewUserProducts(false);
+            await refreshUsers();
         } catch (error: any) {
-            console.error('Error creating user:', error);
+            console.error('Error creating tenant user:', error);
             alert('Erro ao criar usuário: ' + error.message);
         }
     };
 
-
-
     return (
-        <div className="p-8 space-y-8 max-w-[1600px] mx-auto">
-            <header className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-6 transition-colors">
-                <div>
-                    <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 transition-colors">
-                        <Globe size={28} className="text-[#0f172a] dark:text-indigo-500" />
-                        Configurações Globais do Sistema
-                    </h2>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1 transition-colors">Central de parametrização para novos projetos (Padrões).</p>
-                </div>
+        <PageShell className="max-w-[1600px]">
+            <PageHeader
+                icon={Settings}
+                title="Configurações do Tenant"
+                subtitle="Padrões e parâmetros do tenant ativo para novas propostas."
+                actions={
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg transition-colors">
                     <button
                         onClick={() => { setMainGroup('gerais'); setActiveTab('finance'); }}
@@ -420,13 +380,14 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                         Produtos
                     </button>
                     <button
-                        onClick={() => { setMainGroup('usuarios'); setActiveTab('user_list'); }}
-                        className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${mainGroup === 'usuarios' ? 'bg-white dark:bg-slate-900 shadow text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                        onClick={() => { setMainGroup('propostas'); setActiveTab('proposal_templates'); }}
+                        className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${mainGroup === 'propostas' ? 'bg-white dark:bg-slate-900 shadow text-[#0f172a] dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                     >
-                        Usuários
+                        Propostas
                     </button>
                 </div>
-            </header>
+                }
+            />
 
             {/* SUB-MENU SELECTION */}
             <div className="flex justify-center -mt-2 mb-6">
@@ -450,6 +411,9 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                             <button onClick={() => setActiveTab('product_layout')} className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeTab === 'product_layout' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>Layout do Orçamento</button>
                         </>
                     )}
+                    {mainGroup === 'propostas' && (
+                        <button onClick={() => setActiveTab('proposal_templates')} className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeTab === 'proposal_templates' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>Templates de Proposta</button>
+                    )}
                 </div>
             </div>
 
@@ -463,7 +427,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-2xl transition-colors">
                             Estes valores serão carregados automaticamente ao criar uma nova proposta.
-                            Eles podem ser ajustados individualmente dentro de cada projeto, mas aqui você define a política global da empresa.
+                            Eles podem ser ajustados individualmente dentro de cada projeto, mas aqui você define a política do tenant.
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -825,7 +789,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/50 rounded-lg flex items-start gap-2 transition-colors">
                                         <div className="text-blue-500 dark:text-blue-400 mt-0.5 transition-colors"><Info size={16} /></div>
                                         <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed transition-colors">
-                                            <strong>Nota:</strong> As alterações feitas aqui serão salvas automaticamente nos Padrões Globais.
+                                            <strong>Nota:</strong> As alterações feitas aqui serão salvas automaticamente nos padrões do tenant.
                                             Elas não afetam propostas que já utilizaram este kit anteriormente (os itens são copiados).
                                         </p>
                                     </div>
@@ -854,7 +818,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                             {/* CABEÇALHO E RODAPÉ GERAIS */}
                             <div className="col-span-2 space-y-4">
                                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-2">
-                                    <ImageIcon size={14} /> Padrões Globais (Serviços)
+                                    <ImageIcon size={14} /> Padrões do Tenant (Serviços)
                                 </h4>
                                 <div className="grid grid-cols-2 gap-6">
                                     <LogoUploader
@@ -1275,398 +1239,261 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                 </div>
             )}
 
-            {/* TAB: USER MANAGEMENT */}
-            {activeTab === 'user_list' && (
-                <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors relative overflow-hidden">
-                        {/* Background Decoration */}
-                        <div className="absolute top-0 right-0 p-8 opacity-[0.03] dark:opacity-[0.05] pointer-events-none">
-                            <Users size={200} />
+            {activeTab === 'proposal_templates' && (
+                <div className="mx-auto max-w-6xl space-y-6">
+                    <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div className="mb-6 flex flex-col gap-2 border-b border-slate-200 pb-5 dark:border-slate-800">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Templates de Proposta</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                Configure os textos e e-mails usados na proposta tecnico-comercial de cada modalidade do tenant ativo.
+                            </p>
                         </div>
 
-                        <div className="flex justify-between items-start mb-8 relative z-10">
-                            <div>
-                                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-xl flex items-center gap-3 mb-2 transition-colors">
-                                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                                        <Users size={24} />
-                                    </div>
-                                    Gestão de Acessos e Usuários
-                                </h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 max-w-2xl transition-colors">
-                                    Controle quem pode acessar o sistema, quais são seus níveis de permissão e a quais unidades de negócio eles pertencem.
+                        <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+                            <nav className="space-y-2">
+                                {PROPOSAL_TEMPLATE_KINDS.map(kind => (
+                                    <button
+                                        key={kind}
+                                        type="button"
+                                        onClick={() => setSelectedTemplateKind(kind)}
+                                        className={`w-full rounded-md border px-4 py-3 text-left text-sm font-bold transition-colors ${selectedTemplateKind === kind ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300' : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                                    >
+                                        {PROPOSAL_TEMPLATE_LABELS[kind]}
+                                    </button>
+                                ))}
+                            </nav>
+
+                            <div className="space-y-5">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <label className="space-y-2">
+                                        <span className="text-xs font-black uppercase text-slate-500">Nome do template</span>
+                                        <input value={selectedProposalTemplate.name} onChange={event => updateProposalTemplate('name', event.target.value)} className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                                    </label>
+                                    <label className="space-y-2">
+                                        <span className="text-xs font-black uppercase text-slate-500">Assunto do e-mail</span>
+                                        <input value={selectedProposalTemplate.emailSubject} onChange={event => updateProposalTemplate('emailSubject', event.target.value)} className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                                    </label>
+                                </div>
+
+                                <label className="space-y-2 block">
+                                    <span className="text-xs font-black uppercase text-slate-500">Corpo do e-mail</span>
+                                    <textarea rows={5} value={selectedProposalTemplate.emailBody} onChange={event => updateProposalTemplate('emailBody', event.target.value)} className="w-full resize-y rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                                </label>
+
+                                {[
+                                    ['introduction', 'Introducao'],
+                                    ['scope', 'Escopo'],
+                                    ['commercialConditions', 'Condicoes comerciais'],
+                                    ['terms', 'Termos'],
+                                    ['closingNotes', 'Observacoes finais']
+                                ].map(([field, label]) => (
+                                    <label key={field} className="space-y-2 block">
+                                        <span className="text-xs font-black uppercase text-slate-500">{label}</span>
+                                        <textarea rows={4} value={selectedProposalTemplate[field as keyof ProposalTemplateConfig] as string} onChange={event => updateProposalTemplate(field as keyof ProposalTemplateConfig, event.target.value)} className="w-full resize-y rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                                    </label>
+                                ))}
+
+                                <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+                                    Variaveis disponiveis: {'{{cliente}}'}, {'{{proposta}}'}, {'{{modalidade}}'}, {'{{empresa}}'}, {'{{valor}}'} e {'{{validade}}'}.
                                 </p>
                             </div>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setIsCreatingUser(prev => !prev)}
-                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${isCreatingUser
-                                        ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/20'
-                                        }`}
-                                >
-                                    {isCreatingUser ? <X size={18} /> : <UserPlus size={18} />}
-                                    {isCreatingUser ? 'Cancelar' : 'Convidar Usuário'}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'user_list' && (
+                <div className="mx-auto max-w-6xl space-y-6">
+                    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div className="mb-6 flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="flex items-center gap-3 text-xl font-bold text-slate-800 dark:text-slate-100">
+                                    <span className="rounded-lg bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                                        <Users size={22} />
+                                    </span>
+                                    Propostas do tenant
+                                </h3>
+                                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                                    Gerencie somente os membros de {activeTenant?.branding?.displayName || activeTenant?.name || 'este tenant'}.
+                                </p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button type="button" onClick={() => setIsCreatingUser(prev => !prev)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${isCreatingUser ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                                    {isCreatingUser ? <X size={17} /> : <UserPlus size={17} />}
+                                    {isCreatingUser ? 'Cancelar' : 'Convidar usuário'}
                                 </button>
-                                <button
-                                    onClick={fetchUsers}
-                                    className="p-2.5 text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
-                                    title="Atualizar Lista"
-                                >
+                                <button type="button" onClick={refreshUsers} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-slate-800" title="Atualizar lista">
                                     <Loader2 size={18} className={loadingProfiles ? 'animate-spin' : ''} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Inline User Creation Form */}
                         {isCreatingUser && (
-                            <form onSubmit={handleCreateUser} className="mb-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                                <h4 className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200 mb-4">
-                                    <Shield size={16} className="text-indigo-500" />
-                                    Novo Usuário
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500">Nome Completo</label>
-                                        <input
-                                            type="text"
-                                            value={newUserName}
-                                            onChange={e => setNewUserName(e.target.value)}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
-                                            placeholder="Ex: João Silva"
-                                            required
-                                        />
+                            <form onSubmit={handleCreateUser} className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    <input value={newUserName} onChange={event => setNewUserName(event.target.value)} required placeholder="Nome completo" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900" />
+                                    <input type="email" value={newUserEmail} onChange={event => setNewUserEmail(event.target.value)} required placeholder="email@empresa.com" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900" />
+                                    <div className="relative">
+                                        <input type={showNewUserPassword ? 'text' : 'password'} value={newUserPassword} onChange={event => setNewUserPassword(event.target.value)} required minLength={6} placeholder="Senha temporária" className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 pr-10 text-sm font-semibold outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900" />
+                                        <button type="button" onClick={() => setShowNewUserPassword(prev => !prev)} className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800">
+                                            {showNewUserPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500">E-mail</label>
-                                        <input
-                                            type="email"
-                                            value={newUserEmail}
-                                            onChange={e => setNewUserEmail(e.target.value)}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
-                                            placeholder="Ex: joao@empresa.com"
-                                            required
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500">Senha</label>
-                                        <input
-                                            type="password"
-                                            value={newUserPassword}
-                                            onChange={e => setNewUserPassword(e.target.value)}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
-                                            placeholder="Mínimo 6 caracteres"
-                                            required
-                                            minLength={6}
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500">Nível de Acesso (Cargo)</label>
-                                        <select
-                                            value={newUserRole}
-                                            onChange={e => setNewUserRole(e.target.value as any)}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
-                                        >
-                                            <option value="SUPER_ADMIN">SUPER_ADMIN (Acesso Total)</option>
-                                            <option value="ADMIN">ADMIN (Configurações)</option>
-                                            <option value="MANAGER">GERENTE (Todas as Cotações)</option>
-                                            <option value="SELLER">VENDEDOR (Suas Cotações)</option>
-                                            <option value="ANALYST">ANALISTA (Apenas Leitura)</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-2 md:col-span-2 mt-2">
-                                        <label className="text-xs font-bold text-slate-500">Unidades Disponíveis</label>
-                                        <div className="flex gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer group">
-                                                <div className="relative flex items-center justify-center w-5 h-5">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={newUserServices}
-                                                        onChange={e => setNewUserServices(e.target.checked)}
-                                                        className="peer sr-only"
-                                                    />
-                                                    <div className="w-5 h-5 border-2 border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-all"></div>
-                                                    <Check size={14} className="absolute text-white stroke-[3] opacity-0 peer-checked:opacity-100 transition-opacity" />
-                                                </div>
-                                                <span className="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-blue-500 transition-colors">SERVIÇOS</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer group">
-                                                <div className="relative flex items-center justify-center w-5 h-5">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={newUserProducts}
-                                                        onChange={e => setNewUserProducts(e.target.checked)}
-                                                        className="peer sr-only"
-                                                    />
-                                                    <div className="w-5 h-5 border-2 border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-all"></div>
-                                                    <Check size={14} className="absolute text-white stroke-[3] opacity-0 peer-checked:opacity-100 transition-opacity" />
-                                                </div>
-                                                <span className="text-sm font-bold text-slate-600 dark:text-slate-300 group-hover:text-emerald-500 transition-colors">PRODUTOS</span>
-                                            </label>
-                                        </div>
-                                    </div>
+                                    <select value={newUserRole} onChange={event => setNewUserRole(event.target.value as AppRole)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-900">
+                                        <option value="ADMIN">ADMIN</option>
+                                        <option value="MANAGER">GERENTE</option>
+                                        <option value="SELLER">VENDEDOR</option>
+                                        <option value="ANALYST">ANALISTA</option>
+                                    </select>
                                 </div>
-                                <div className="mt-6 flex justify-end gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsCreatingUser(false)}
-                                        className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-md shadow-indigo-500/20 transition-all active:scale-95"
-                                    >
+                                <div className="mt-4 flex items-center justify-between gap-4">
+                                    <div className="flex gap-3">
+                                        <label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+                                            <input type="checkbox" checked={newUserServices} onChange={event => setNewUserServices(event.target.checked)} className="h-4 w-4" />
+                                            SERVIÇOS
+                                        </label>
+                                        <label className="flex cursor-pointer items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+                                            <input type="checkbox" checked={newUserProducts} onChange={event => setNewUserProducts(event.target.checked)} className="h-4 w-4" />
+                                            PRODUTOS
+                                        </label>
+                                    </div>
+                                    <button type="submit" className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">
                                         <Save size={16} />
-                                        Criar Cadastro
+                                        Criar cadastro
                                     </button>
                                 </div>
                             </form>
                         )}
 
-                        <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800 transition-colors">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest transition-colors">
-                                        <th className="px-6 py-4">Usuário</th>
-                                        <th className="px-6 py-4">Nível de Acesso</th>
-                                        <th className="px-6 py-4">Unidades Disponíveis</th>
-                                        <th className="px-6 py-4 text-right">Ações</th>
+                        <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-slate-800/60">
+                                    <tr>
+                                        <th className="px-4 py-3">Usuário</th>
+                                        <th className="px-4 py-3">Papel</th>
+                                        <th className="px-4 py-3">Unidades</th>
+                                        <th className="px-4 py-3">Status</th>
+                                        <th className="px-4 py-3 text-right">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 transition-colors">
-                                    {loadingProfiles && profiles.length === 0 ? (
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                    {loadingProfiles && tenantMembers.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic text-sm">
-                                                <div className="flex flex-col items-center gap-3">
-                                                    <Loader2 size={32} className="animate-spin text-indigo-500" />
-                                                    Carregando base de usuários...
-                                                </div>
+                                            <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                                                <Loader2 size={28} className="mx-auto mb-2 animate-spin text-indigo-500" />
+                                                Carregando usuários do tenant...
                                             </td>
                                         </tr>
-                                    ) : profiles.map(u => (
-                                        <tr key={u.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all">
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
-                                                        {u.full_name?.[0] || u.email?.[0]?.toUpperCase() || '?'}
+                                    ) : tenantMembers.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-4 py-10 text-center text-slate-400">Nenhum usuário vinculado a este tenant.</td>
+                                        </tr>
+                                    ) : tenantMembers.map(member => (
+                                        <tr key={member.userId} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+                                            <td className="px-4 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-black text-white">
+                                                        {member.fullName?.[0] || member.email?.[0]?.toUpperCase() || '?'}
                                                     </div>
                                                     <div>
-                                                        <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">{u.full_name || 'Usuário sem nome'}</p>
-                                                        <p className="text-xs text-slate-400 dark:text-slate-500">{u.email}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-bold text-slate-800 dark:text-slate-100">{member.fullName || 'Usuário sem nome'}</p>
+                                                            {member.platformRole === 'SUPER_ADMIN' && <Shield size={14} className="text-purple-500" />}
+                                                        </div>
+                                                        <p className="text-xs text-slate-500">{member.email}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2">
-                                                    <select
-                                                        value={u.role}
-                                                        onChange={(e) => handleUpdateUser(u.id, { role: e.target.value as any })}
-                                                        className={`text-xs font-bold px-3 py-1.5 rounded-lg bg-transparent border transition-all cursor-pointer outline-none
-                                                            ${u.role === 'SUPER_ADMIN' ? 'text-purple-600 border-purple-200 dark:border-purple-800/50 bg-purple-50 dark:bg-purple-900/20' :
-                                                                u.role === 'ADMIN' ? 'text-indigo-600 border-indigo-200 dark:border-indigo-800/50 bg-indigo-50 dark:bg-indigo-900/20' :
-                                                                    'text-slate-600 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'}
-                                                        `}
-                                                    >
-                                                        <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                                                        <option value="ADMIN">ADMIN</option>
-                                                        <option value="MANAGER">GERENTE</option>
-                                                        <option value="SELLER">VENDEDOR</option>
-                                                        <option value="ANALYST">ANALISTA</option>
-                                                    </select>
-                                                    {u.role === 'SUPER_ADMIN' && <Shield size={14} className="text-purple-500" />}
-                                                </div>
+                                            <td className="px-4 py-4">
+                                                <select value={member.role} onChange={event => updateMember(member.userId, { role: event.target.value as AppRole })} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-bold dark:border-slate-700 dark:bg-slate-800">
+                                                    {roleOptions.map(role => <option key={role} value={role}>{role}</option>)}
+                                                </select>
                                             </td>
-                                            <td className="px-6 py-5">
+                                            <td className="px-4 py-4">
                                                 <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleToggleUnitAccess(u, 'SERVICES')}
-                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all border
-                                                            ${u.allowed_types?.includes('SERVICES')
-                                                                ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
-                                                                : 'bg-transparent border-slate-200 dark:border-slate-700 text-slate-400 hover:border-blue-400 hover:text-blue-500'}
-                                                        `}
-                                                    >
-                                                        SERVIÇOS
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleToggleUnitAccess(u, 'PRODUCTS')}
-                                                        className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all border
-                                                            ${u.allowed_types?.includes('PRODUCTS')
-                                                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                                                                : 'bg-transparent border-slate-200 dark:border-slate-700 text-slate-400 hover:border-emerald-400 hover:text-emerald-500'}
-                                                        `}
-                                                    >
-                                                        PRODUTOS
-                                                    </button>
+                                                    {(['SERVICES', 'PRODUCTS'] as BusinessUnitAccess[]).map(access => (
+                                                        <button type="button" key={access} onClick={() => toggleMemberAccess(member, access)} className={`rounded-md border px-2 py-1 text-[10px] font-black ${member.allowed_types.includes(access) || member.allowed_types.includes('BOTH') ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200' : 'border-slate-200 text-slate-500 dark:border-slate-700'}`}>
+                                                            {access}
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-5 text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    <button
-                                                        onClick={() => setEditingUser(u)}
-                                                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-all opacity-0 group-hover:opacity-100 shadow-sm border border-transparent hover:border-slate-100 dark:hover:border-slate-700"
-                                                        title="Editar Detalhes"
-                                                    >
-                                                        <Edit2 size={16} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteUser(u.id)}
-                                                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-all opacity-0 group-hover:opacity-100 shadow-sm border border-transparent hover:border-slate-100 dark:hover:border-slate-700"
-                                                        title="Excluir Usuário"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
+                                            <td className="px-4 py-4">
+                                                <button type="button" onClick={() => updateMember(member.userId, { active: !member.active })} className={`rounded-full px-3 py-1 text-[10px] font-black ${member.active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                                    {member.active ? 'ATIVO' : 'INATIVO'}
+                                                </button>
+                                            </td>
+                                            <td className="px-4 py-4 text-right">
+                                                <button type="button" onClick={() => setEditingUser(member)} className="rounded-lg p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/10">
+                                                    <Edit2 size={15} />
+                                                </button>
+                                                <button type="button" onClick={() => handleRemoveMember(member.userId)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10">
+                                                    <Trash2 size={15} />
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
+                    </div>
 
-                        {/* User Edit Modal / Sidebar Overlay */}
-                        {editingUser && (
-                            <div className="fixed inset-0 z-[1000] flex items-center justify-end bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-                                <div className="w-full max-w-md h-full bg-white dark:bg-slate-900 shadow-2xl p-8 animate-in slide-in-from-right duration-300 relative overflow-y-auto">
-                                    <button
-                                        onClick={() => setEditingUser(null)}
-                                        className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all"
-                                    >
-                                        <X size={20} />
+                    <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300">
+                        <AlertCircle size={18} />
+                        A lista acima é limitada ao tenant ativo. Permissões de acesso são gravadas em tenant_users, não no perfil global.
+                    </div>
+
+                    {editingUser && (
+                        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4">
+                            <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900">
+                                <div className="mb-5 flex items-start justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">{editingUser.fullName || 'Usuário sem nome'}</h3>
+                                        <p className="text-sm text-slate-500">{editingUser.email}</p>
+                                    </div>
+                                    <button type="button" onClick={() => setEditingUser(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                        <X size={18} />
                                     </button>
-
-                                    <div className="mt-8 space-y-8">
-                                        <div className="flex flex-col items-center gap-4">
-                                            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-3xl shadow-xl shadow-indigo-500/20">
-                                                {editingUser.full_name?.[0] || editingUser.email?.[0]?.toUpperCase()}
-                                            </div>
-                                            <div className="text-center">
-                                                <h4 className="text-xl font-bold text-slate-800 dark:text-slate-100">{editingUser.full_name || 'Usuário'}</h4>
-                                                <p className="text-sm text-slate-400 dark:text-slate-500">{editingUser.email}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-6">
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 transition-colors">Nome Completo</label>
-                                                <input
-                                                    type="text"
-                                                    value={editingUser.full_name || ''}
-                                                    onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })}
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 transition-colors">Nível de Acesso (Cargo)</label>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'SELLER', 'ANALYST'] as const).map(role => (
-                                                        <button
-                                                            key={role}
-                                                            onClick={() => setEditingUser({ ...editingUser, role })}
-                                                            className={`px-3 py-2 rounded-xl text-[10px] font-bold transition-all border flex items-center justify-center gap-2
-                                                                ${editingUser.role === role
-                                                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                                                                    : 'bg-transparent border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'}
-                                                            `}
-                                                        >
-                                                            {role === 'SUPER_ADMIN' && <Shield size={12} />}
-                                                            {role}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 transition-colors">Acesso às Unidades</label>
-                                                <div className="flex gap-4">
-                                                    <label className="flex-1 cursor-pointer group">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="sr-only"
-                                                            checked={editingUser.allowed_types?.includes('SERVICES')}
-                                                            onChange={() => {
-                                                                const types = editingUser.allowed_types || [];
-                                                                setEditingUser({
-                                                                    ...editingUser,
-                                                                    allowed_types: types.includes('SERVICES') ? types.filter(t => t !== 'SERVICES') : [...types, 'SERVICES']
-                                                                });
-                                                            }}
-                                                        />
-                                                        <div className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 shadow-sm
-                                                            ${editingUser.allowed_types?.includes('SERVICES')
-                                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                                                : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 hover:border-slate-200 dark:hover:border-slate-700'}
-                                                        `}>
-                                                            <Wrench size={24} className={editingUser.allowed_types?.includes('SERVICES') ? 'text-blue-500' : 'text-slate-400'} />
-                                                            <span className={`text-[10px] font-bold ${editingUser.allowed_types?.includes('SERVICES') ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>SERVIÇOS</span>
-                                                        </div>
-                                                    </label>
-
-                                                    <label className="flex-1 cursor-pointer group">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="sr-only"
-                                                            checked={editingUser.allowed_types?.includes('PRODUCTS')}
-                                                            onChange={() => {
-                                                                const types = editingUser.allowed_types || [];
-                                                                setEditingUser({
-                                                                    ...editingUser,
-                                                                    allowed_types: types.includes('PRODUCTS') ? types.filter(t => t !== 'PRODUCTS') : [...types, 'PRODUCTS']
-                                                                });
-                                                            }}
-                                                        />
-                                                        <div className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 shadow-sm
-                                                            ${editingUser.allowed_types?.includes('PRODUCTS')
-                                                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                                                                : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 hover:border-slate-200 dark:hover:border-slate-700'}
-                                                        `}>
-                                                            <Package size={24} className={editingUser.allowed_types?.includes('PRODUCTS') ? 'text-emerald-500' : 'text-slate-400'} />
-                                                            <span className={`text-[10px] font-bold ${editingUser.allowed_types?.includes('PRODUCTS') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>PRODUTOS</span>
-                                                        </div>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3">
-                                            <button
-                                                onClick={() => {
-                                                    handleUpdateUser(editingUser.id, editingUser);
-                                                    setEditingUser(null);
-                                                }}
-                                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2"
-                                            >
-                                                <Save size={18} />
-                                                Salvar Alterações
-                                            </button>
-                                            <button
-                                                onClick={() => setEditingUser(null)}
-                                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 py-4 rounded-2xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-                                            >
-                                                Cancelar
-                                            </button>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">Papel no tenant</label>
+                                        <select value={editingUser.role} onChange={event => setEditingUser({ ...editingUser, role: event.target.value as AppRole })} className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-bold dark:border-slate-700 dark:bg-slate-800">
+                                            {roleOptions.map(role => <option key={role} value={role}>{role}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-slate-400">Unidades</label>
+                                        <div className="flex gap-2">
+                                            {(['SERVICES', 'PRODUCTS'] as BusinessUnitAccess[]).map(access => (
+                                                <button type="button" key={access} onClick={() => {
+                                                    const current = editingUser.allowed_types || [];
+                                                    const next = current.includes(access) ? current.filter(item => item !== access) : [...current.filter(item => item !== 'BOTH'), access];
+                                                    setEditingUser({ ...editingUser, allowed_types: next.length > 0 ? next : ['BOTH'] });
+                                                }} className={`flex-1 rounded-md border px-3 py-2 text-xs font-black ${editingUser.allowed_types.includes(access) || editingUser.allowed_types.includes('BOTH') ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200' : 'border-slate-200 text-slate-500 dark:border-slate-700'}`}>
+                                                    {access}
+                                                </button>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
+                                <div className="mt-6 flex justify-end gap-2">
+                                    <button type="button" onClick={() => setEditingUser(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">Cancelar</button>
+                                    <button type="button" onClick={async () => { await updateMember(editingUser.userId, { role: editingUser.role, allowed_types: editingUser.allowed_types, active: editingUser.active }); setEditingUser(null); }} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700">
+                                        <Save size={16} />
+                                        Salvar
+                                    </button>
+                                </div>
                             </div>
-                        )}
-                    </div>
-
-                    {/* RLS Informative Banner */}
-                    <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 p-4 rounded-xl flex gap-3 items-center transition-colors">
-                        <AlertCircle className="text-amber-500 shrink-0" size={20} />
-                        <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed font-medium">
-                            <strong>Aviso de Segurança:</strong> Somente usuários com cargos de <strong>ADMIN</strong> ou <strong>SUPER_ADMIN</strong> têm permissão para editar outros perfis.
-                            As políticas de RLS do Supabase garantem que vendedores ou analistas não visualizem ou alterem esta lista.
-                        </p>
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
-        </div>
+
+        </PageShell>
 
     );
 };
 
 export default GlobalSettings;
+

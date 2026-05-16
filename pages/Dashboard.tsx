@@ -10,7 +10,7 @@ interface DashboardProps {
     setActiveTab: (tab: string) => void;
     initialSnapshot?: ProposalData | null;
     allVersions?: ProposalData[];
-    onSaveVersion?: (notes: string) => void;
+    onSaveVersion?: (notes: string) => void | Promise<void>;
     onSelectVersion?: (id: string) => void;
     onUpdateVersionStatus?: (id: string, status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXPIRED') => void;
     onUpdateProposal?: (id: string, updates: Partial<ProposalData>) => void;
@@ -64,12 +64,47 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
     // --- VERSIONING MODAL STATE ---
     const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
     const [versionNotes, setVersionNotes] = useState('');
+    const [isSavingVersion, setIsSavingVersion] = useState(false);
+    const [versionError, setVersionError] = useState<string | null>(null);
 
-    const handleSaveVersion = () => {
-        if (onSaveVersion) {
-            onSaveVersion(versionNotes);
+    const normalizeVersionComparison = (proposal: ProposalData) => {
+        const { updatedAt, timeline, versionNotes: _versionNotes, ...comparable } = proposal;
+        return comparable;
+    };
+
+    const hasVersionChanges = initialSnapshot
+        ? JSON.stringify(normalizeVersionComparison(initialSnapshot)) !== JSON.stringify(normalizeVersionComparison(data))
+        : false;
+    const nextVersionPreview = initialSnapshot
+        ? Math.max(initialSnapshot.version, ...allVersions.filter(v => v.proposalId === data.proposalId).map(v => v.version || 0)) + 1
+        : data.version + 1;
+    const canSaveVersion = Boolean(onSaveVersion && data.isCurrentVersion);
+    const canConfirmVersion = canSaveVersion && !isSavingVersion && (hasVersionChanges || versionNotes.trim().length > 0);
+
+    const openVersionModal = () => {
+        setVersionError(null);
+        setIsDiffModalOpen(true);
+    };
+
+    const closeVersionModal = () => {
+        if (isSavingVersion) return;
+        setIsDiffModalOpen(false);
+        setVersionError(null);
+    };
+
+    const handleSaveVersion = async () => {
+        if (!onSaveVersion || !data.isCurrentVersion || isSavingVersion) return;
+
+        setIsSavingVersion(true);
+        setVersionError(null);
+        try {
+            await onSaveVersion(versionNotes);
             setIsDiffModalOpen(false);
             setVersionNotes('');
+        } catch (error: any) {
+            setVersionError(error?.message || 'Erro ao salvar nova versao.');
+        } finally {
+            setIsSavingVersion(false);
         }
     };
 
@@ -110,25 +145,25 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
 
         return (
             <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl shadow-sm flex items-start gap-4">
-                    <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+                <div className="flex items-start gap-4 rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm dark:border-red-900/50 dark:bg-red-950/25">
+                    <div className="rounded-md bg-red-100 p-2 text-red-600 dark:bg-red-500/10 dark:text-red-300">
                         <AlertCircle size={20} />
                     </div>
                     <div className="flex-1">
-                        <h4 className="text-sm font-bold text-red-800 uppercase tracking-tight">Alerta de Viabilidade Financeira</h4>
-                        <div className="mt-1 flex flex-wrap gap-4 text-[11px] text-red-700">
+                        <h4 className="text-sm font-bold uppercase tracking-tight text-red-800 dark:text-red-200">Alerta de Viabilidade Financeira</h4>
+                        <div className="mt-1 flex flex-wrap gap-4 text-[11px] text-red-700 dark:text-red-300">
                             {!isProfitViable && <span className="flex items-center gap-1 font-bold">● Lucro Líquido Negativo</span>}
                             {!isNpvViable && <span className="flex items-center gap-1 font-bold">● VPL Negativo (Destruição de Valor)</span>}
                             {!isIrrViable && <span className="flex items-center gap-1 font-bold">● TIR abaixo da TMA ({formatPercent(wacc)})</span>}
                         </div>
-                        <p className="mt-2 text-xs text-red-600 max-w-2xl">
+                        <p className="mt-2 max-w-2xl text-xs text-red-600 dark:text-red-300/80">
                             A estrutura de custos atual ou o preço de venda configurado não garantem a saúde econômica deste projeto.
                             Considere aumentar a margem ou revisar os custos operacionais.
                         </p>
                     </div>
                     <button
                         onClick={() => setActiveTab('pricing')}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors shadow-sm"
+                        className="rounded-md bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-red-700"
                     >
                         Ajustar Precificação
                     </button>
@@ -142,9 +177,9 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
             {/* KPI Cards Strategy: Price -> Ops Margin -> Contribution -> Net Result -> HC */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 {/* Card 1: Revenue (Top Line) */}
-                <div className="bg-emerald-50/50 p-6 rounded-xl shadow-sm border border-emerald-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-emerald-200">
+                <div className="group relative rounded-lg border border-emerald-100 bg-emerald-50/50 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md dark:border-emerald-900/45 dark:bg-slate-900/65 dark:hover:border-emerald-800/70">
                     <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                        <DollarSign className="absolute -bottom-6 -right-6 w-36 h-36 text-emerald-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
+                        <DollarSign className="absolute -bottom-6 -right-6 w-36 h-36 text-emerald-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 dark:hidden" />
                     </div>
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
@@ -154,20 +189,20 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                 </p>
                                 <p className="text-[10px] text-emerald-600/70 font-bold">Com Impostos (Gross Up)</p>
                             </div>
-                            <span className="p-2.5 bg-white shadow-sm text-emerald-600 rounded-xl"><DollarSign size={22} /></span>
+                            <span className="rounded-lg bg-white p-2.5 text-emerald-600 shadow-sm dark:bg-emerald-500/10 dark:text-emerald-300"><DollarSign size={22} /></span>
                         </div>
-                        <p className="text-3xl font-black text-emerald-900 tracking-tight">{formatCurrency(financials.monthlyValue)}</p>
-                        <div className="mt-4 pt-3 border-t border-emerald-200/50 flex justify-between items-center text-xs">
+                        <p className="text-3xl font-black tracking-tight text-emerald-900 dark:text-emerald-300">{formatCurrency(financials.monthlyValue)}</p>
+                        <div className="mt-4 pt-3 border-t border-emerald-200/50 flex justify-between items-center text-xs dark:border-slate-700">
                             <span className="text-emerald-700/80 font-bold">Anual:</span>
-                            <span className="font-extrabold text-emerald-800 bg-white/60 px-2 py-0.5 rounded-md">{formatCurrency(financials.annualValue)}</span>
+                            <span className="font-extrabold text-emerald-800 bg-white/60 px-2 py-0.5 rounded-md dark:bg-emerald-500/10 dark:text-emerald-200">{formatCurrency(financials.annualValue)}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Card 2: Contribution Margin */}
-                <div className="bg-sky-50/50 p-6 rounded-xl shadow-sm border border-sky-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-sky-200">
+                <div className="group relative rounded-lg border border-sky-100 bg-sky-50/50 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-200 hover:shadow-md dark:border-sky-900/45 dark:bg-slate-900/65 dark:hover:border-sky-800/70">
                     <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                        <BarChart4 className="absolute -bottom-6 -right-6 w-36 h-36 text-sky-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
+                        <BarChart4 className="absolute -bottom-6 -right-6 w-36 h-36 text-sky-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 dark:hidden" />
                     </div>
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
@@ -178,20 +213,20 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                 </div>
                                 <p className="text-[10px] text-sky-600/70 font-bold">Margem de Contribuição</p>
                             </div>
-                            <span className="p-2.5 bg-white shadow-sm text-sky-600 rounded-xl"><BarChart4 size={22} /></span>
+                            <span className="rounded-lg bg-white p-2.5 text-sky-600 shadow-sm dark:bg-sky-500/10 dark:text-sky-300"><BarChart4 size={22} /></span>
                         </div>
-                        <p className="text-3xl font-black text-sky-900 tracking-tight">{formatCurrency(financials.contributionMarginAmount)}</p>
-                        <div className="mt-4 pt-3 border-t border-sky-200/50 flex justify-between items-center text-xs">
+                        <p className="text-3xl font-black tracking-tight text-sky-900 dark:text-sky-300">{formatCurrency(financials.contributionMarginAmount)}</p>
+                        <div className="mt-4 pt-3 border-t border-sky-200/50 flex justify-between items-center text-xs dark:border-slate-700">
                             <span className="text-sky-700/80 font-bold">Margem %:</span>
-                            <span className="font-extrabold text-sky-800 bg-white/60 px-2 py-0.5 rounded-md">{formatPercent(financials.contributionMarginPercent / 100)}</span>
+                            <span className="font-extrabold text-sky-800 bg-white/60 px-2 py-0.5 rounded-md dark:bg-sky-500/10 dark:text-sky-200">{formatPercent(financials.contributionMarginPercent / 100)}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Card 3: Operating Profit (EBITDA) */}
-                <div className="bg-amber-50/50 p-6 rounded-xl shadow-sm border border-amber-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-amber-200">
+                <div className="group relative rounded-lg border border-amber-100 bg-amber-50/50 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-amber-200 hover:shadow-md dark:border-amber-900/45 dark:bg-slate-900/65 dark:hover:border-amber-800/70">
                     <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                        <TrendingUp className="absolute -bottom-6 -right-6 w-36 h-36 text-amber-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
+                        <TrendingUp className="absolute -bottom-6 -right-6 w-36 h-36 text-amber-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 dark:hidden" />
                     </div>
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
@@ -202,20 +237,20 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                 </div>
                                 <p className="text-[10px] text-amber-600/70 font-bold">EBITDA (Pré-Financeiro)</p>
                             </div>
-                            <span className="p-2.5 bg-white shadow-sm text-amber-600 rounded-xl"><TrendingUp size={22} /></span>
+                            <span className="rounded-lg bg-white p-2.5 text-amber-600 shadow-sm dark:bg-amber-500/10 dark:text-amber-300"><TrendingUp size={22} /></span>
                         </div>
-                        <p className="text-3xl font-black text-amber-900 tracking-tight">{formatCurrency(financials.operationalProfitAmount)}</p>
-                        <div className="mt-4 pt-3 border-t border-amber-200/50 flex justify-between items-center text-xs">
+                        <p className="text-3xl font-black tracking-tight text-amber-900 dark:text-amber-300">{formatCurrency(financials.operationalProfitAmount)}</p>
+                        <div className="mt-4 pt-3 border-t border-amber-200/50 flex justify-between items-center text-xs dark:border-slate-700">
                             <span className="text-amber-700/80 font-bold">Margem EBITDA:</span>
-                            <span className="font-extrabold text-amber-800 bg-white/60 px-2 py-0.5 rounded-md">{formatPercent(financials.operationalMarginPercent / 100)}</span>
+                            <span className="font-extrabold text-amber-800 bg-white/60 px-2 py-0.5 rounded-md dark:bg-amber-500/10 dark:text-amber-200">{formatPercent(financials.operationalMarginPercent / 100)}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Card 4: Net Profit (Bottom Line) */}
-                <div className="bg-indigo-50/50 p-6 rounded-xl shadow-sm border border-indigo-100 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-indigo-200">
+                <div className="group relative rounded-lg border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-md dark:border-indigo-900/45 dark:bg-slate-900/65 dark:hover:border-indigo-800/70">
                     <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                        <PieChart className="absolute -bottom-6 -right-6 w-36 h-36 text-indigo-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
+                        <PieChart className="absolute -bottom-6 -right-6 w-36 h-36 text-indigo-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 dark:hidden" />
                     </div>
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
@@ -226,20 +261,20 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                 </div>
                                 <p className="text-[10px] text-indigo-600/70 font-bold">Pós-IRPJ/CSLL</p>
                             </div>
-                            <span className="p-2.5 bg-white shadow-sm text-indigo-600 rounded-xl"><Calculator size={22} /></span>
+                            <span className="rounded-lg bg-white p-2.5 text-indigo-600 shadow-sm dark:bg-indigo-500/10 dark:text-indigo-300"><Calculator size={22} /></span>
                         </div>
-                        <p className="text-3xl font-black text-indigo-900 tracking-tight">{formatCurrency(financials.netProfitAmount)}</p>
-                        <div className="mt-4 pt-3 border-t border-indigo-200/50 flex justify-between items-center text-xs">
+                        <p className="text-3xl font-black tracking-tight text-indigo-900 dark:text-indigo-300">{formatCurrency(financials.netProfitAmount)}</p>
+                        <div className="mt-4 pt-3 border-t border-indigo-200/50 flex justify-between items-center text-xs dark:border-slate-700">
                             <span className="text-indigo-700/80 font-bold">Margem Líquida:</span>
-                            <span className="font-extrabold text-indigo-800 bg-white/60 px-2 py-0.5 rounded-md">{formatPercent(financials.netProfitPercent / 100)}</span>
+                            <span className="font-extrabold text-indigo-800 bg-white/60 px-2 py-0.5 rounded-md dark:bg-indigo-500/10 dark:text-indigo-200">{formatPercent(financials.netProfitPercent / 100)}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Card 5: Headcount */}
-                <div className="bg-slate-50 p-6 rounded-xl shadow-sm border border-slate-200 relative group transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-slate-300">
+                <div className="group relative rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-md dark:border-slate-700/70 dark:bg-slate-900/65 dark:hover:border-slate-600">
                     <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                        <Users className="absolute -bottom-6 -right-6 w-36 h-36 text-slate-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
+                        <Users className="absolute -bottom-6 -right-6 w-36 h-36 text-slate-100/50 -rotate-12 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3 dark:hidden" />
                     </div>
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
@@ -247,12 +282,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                 <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Efetivo Acumulado</p>
                                 <p className="text-[10px] text-slate-500 font-bold">Total de Vidas</p>
                             </div>
-                            <span className="p-2.5 bg-white shadow-sm text-slate-600 rounded-xl"><Users size={22} /></span>
+                            <span className="rounded-lg bg-white p-2.5 text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-300"><Users size={22} /></span>
                         </div>
-                        <p className="text-3xl font-black text-slate-900 tracking-tight">{totalHeadcount}</p>
-                        <div className="mt-4 pt-3 border-t border-slate-200/50 flex justify-between items-center text-xs">
+                        <p className="text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">{totalHeadcount}</p>
+                        <div className="mt-4 pt-3 border-t border-slate-200/50 flex justify-between items-center text-xs dark:border-slate-700">
                             <span className="text-slate-600 font-bold">Ticket Médio/Vida:</span>
-                            <span className="font-extrabold text-slate-700 bg-white/60 px-2 py-0.5 rounded-md">{totalHeadcount > 0 ? formatCurrency(financials.monthlyValue / totalHeadcount) : 'R$ 0'}</span>
+                            <span className="font-extrabold text-slate-700 bg-white/60 px-2 py-0.5 rounded-md dark:bg-slate-800 dark:text-slate-200">{totalHeadcount > 0 ? formatCurrency(financials.monthlyValue / totalHeadcount) : 'R$ 0'}</span>
                         </div>
                     </div>
                 </div>
@@ -261,8 +296,8 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
             {/* Main Analysis Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
                 {/* Waterfall Chart */}
-                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <div className="lg:col-span-2 rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/55">
+                    <h3 className="mb-6 flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
                         Composição do Preço (DRE)
                         <InfoTooltip text="Estrutura de formação de preço (Gross Up) demonstrando como cada componente (custos, impostos e lucro) compõe a nota fiscal final." />
                     </h3>
@@ -363,7 +398,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                         </div>
 
                         {/* TOTAL FINAL LINE */}
-                        <div className="bg-[#0f172a] rounded-xl p-4 flex justify-between items-center shadow-lg shadow-slate-900/10">
+                        <div className="flex items-center justify-between rounded-lg bg-slate-900 p-4 shadow-lg shadow-slate-900/10 dark:border dark:border-slate-700 dark:bg-slate-800/80">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-white/10 rounded-lg text-[#fbbf24]">
                                     <DollarSign size={20} />
@@ -382,7 +417,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
 
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-slate-100 bg-slate-50 rounded-lg p-3">
+                    <div className="mt-6 rounded-lg border-t border-slate-100 bg-slate-50 p-3 pt-4 dark:border-slate-700 dark:bg-slate-800/45">
                         <div className="flex items-start gap-2">
                             <AlertCircle size={14} className="text-slate-400 mt-0.5 shrink-0" />
                             <p className="text-[11px] text-slate-500 leading-relaxed">
@@ -394,7 +429,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                 </div>
 
                 {/* Tax Info Card */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col">
+                <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/55">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="font-bold text-slate-800">Parâmetros Fiscais</h3>
                         <button onClick={() => setActiveTab('taxes')} className="text-xs font-bold text-blue-600 hover:underline bg-blue-50 px-2 py-1 rounded">
@@ -402,7 +437,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                         </button>
                     </div>
 
-                    <div className="bg-[#0f172a] text-white p-5 rounded-xl mb-6 shadow-md relative overflow-hidden">
+                    <div className="relative mb-6 overflow-hidden rounded-lg bg-slate-900 p-5 text-white shadow-md dark:border dark:border-slate-700 dark:bg-slate-800/80">
                         <div className="relative z-10">
                             <p className="text-[10px] opacity-70 uppercase font-bold tracking-wider mb-1">Regime Ativo</p>
                             <p className="text-xl font-bold">{data.taxConfig.regime}</p>
@@ -463,27 +498,27 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
             </div>
 
             {/* Break-even Analysis Card */}
-            <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-6">
+            <div className="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-6 dark:border-slate-700/70 dark:bg-slate-900/55">
                 <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                     <Activity size={18} className="text-blue-600" />
                     Análise do Ponto de Equilíbrio (Break-even)
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                    <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/45">
                         <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Preço Mínimo (Equilíbrio)</p>
                         <p className="text-xl font-black text-slate-900">
                             {formatCurrency(financials.monthlyValue - (financials.netProfitAmount / (1 - effectiveTaxBurden)))}
                         </p>
                         <p className="text-[10px] text-slate-400 mt-1 italic">Preço para Lucro Zero</p>
                     </div>
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                    <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/45">
                         <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Margem de Segurança</p>
                         <p className={`text-xl font-black ${financials.netProfitAmount > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {formatPercent(financials.monthlyValue > 0 ? financials.netProfitAmount / financials.monthlyValue : 0)}
                         </p>
                         <p className="text-[10px] text-slate-400 mt-1">Sua folga atual sobre a venda</p>
                     </div>
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                    <div className="rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/45">
                         <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Status de Viabilidade</p>
                         <div className="flex items-center gap-2 mt-1">
                             {isNpvViable && isIrrViable ? (
@@ -800,21 +835,24 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
     return (
         <div className="p-8 space-y-8 max-w-[1600px] mx-auto">
             {/* Header */}
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h2 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
-                        <PieChart size={28} className="text-[#0f172a]" />
+            <header className="sticky top-0 z-30 rounded-xl border border-slate-200 bg-white/95 p-5 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/80">
+                <div className="flex flex-col gap-4">
+                  <div className="min-w-0">
+                    <h2 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-slate-100">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70">
+                          <PieChart size={22} className="text-slate-800 dark:text-slate-100" />
+                        </span>
                         Dashboard Financeiro
                     </h2>
                     <div className="flex flex-col gap-2 mt-1">
-                        <div className="flex items-center gap-2">
-                            <p className="text-slate-500 font-medium">Análise de viabilidade: {data.clientName} (#{data.proposalId})</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Analise de viabilidade: {data.clientName} (#{data.proposalId})</p>
 
                             {/* VERSION SELECTOR */}
                             {allVersions.length > 0 && onSelectVersion && (
                                 <div className="relative group ml-2">
                                     <select
-                                        className="appearance-none bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold py-1 pl-2 pr-6 rounded-md shadow-sm outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500/50"
+                                        className="appearance-none rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-2.5 pr-7 text-xs font-black text-slate-700 outline-none transition focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200"
                                         value={data.id}
                                         onChange={(e) => onSelectVersion(e.target.value)}
                                     >
@@ -824,7 +862,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                             </option>
                                         ))}
                                     </select>
-                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-indigo-700">
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
                                         <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                                     </div>
                                 </div>
@@ -884,42 +922,45 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                         )}
                     </div>
                 </div>
-                <div className="flex bg-slate-100 p-1 rounded-lg">
+                <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700/70 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800/55">
                     <button
                         onClick={() => setActiveView('summary')}
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeView === 'summary' ? 'bg-white shadow text-[#0f172a]' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeView === 'summary' ? 'bg-white text-[var(--tenant-primary)] shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     >
                         Resumo Executivo
                     </button>
                     <button
                         onClick={() => setActiveView('cashflow')}
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeView === 'cashflow' ? 'bg-white shadow text-[#0f172a]' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeView === 'cashflow' ? 'bg-white text-[var(--tenant-primary)] shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     >
                         Fluxo de Caixa
                     </button>
                     <button
                         onClick={() => setActiveView('dre')}
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeView === 'dre' ? 'bg-white shadow text-[#0f172a]' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeView === 'dre' ? 'bg-white text-[var(--tenant-primary)] shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     >
                         DRE / Orçamento
                     </button>
                     <button
                         onClick={() => setActiveView('feasibility')}
-                        className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeView === 'feasibility' ? 'bg-white shadow text-[#0f172a]' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeView === 'feasibility' ? 'bg-white text-[var(--tenant-primary)] shadow-sm dark:bg-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     >
                         Viabilidade Econômica
                     </button>
+                  </div>
 
-                    {onSaveVersion && (
+                    {canSaveVersion && (
                         <button
-                            onClick={() => setIsDiffModalOpen(true)}
-                            className="ml-4 px-4 py-2 bg-[#0f172a] hover:bg-slate-800 text-white rounded-md text-sm font-bold shadow-md transition-all flex items-center gap-2"
+                            onClick={openVersionModal}
+                            className="flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
                         >
                             <Copy size={16} />
                             Salvar Versionando
                         </button>
                     )}
                 </div>
+              </div>
             </header>
 
             {/* Dynamic Content */}
@@ -938,9 +979,13 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                         <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                             <div>
                                 <h3 className="text-xl font-bold text-slate-800">Formalizar Nova Versão</h3>
-                                <p className="text-sm text-slate-500 mt-1">A versão atual será salva no histórico e uma nova versão (v{initialSnapshot.version + 1}) será criada.</p>
+                                <p className="text-sm text-slate-500 mt-1">A versão atual será salva no histórico e uma nova versão (v{nextVersionPreview}) será criada.</p>
                             </div>
-                            <button onClick={() => setIsDiffModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                            <button
+                                onClick={closeVersionModal}
+                                disabled={isSavingVersion}
+                                className="text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
                                 <XCircle size={24} />
                             </button>
                         </div>
@@ -1012,28 +1057,41 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                             <div className="mt-6">
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Notas da Versão</label>
                                 <textarea
-                                    className="w-full text-sm rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3"
+                                    disabled={isSavingVersion}
+                                    className="w-full text-sm rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
                                     rows={3}
                                     placeholder="Descreva brevemente o motivo desta nova versão (ex: 'Ajuste de margem após negociação')"
                                     value={versionNotes}
                                     onChange={(e) => setVersionNotes(e.target.value)}
                                 ></textarea>
                             </div>
+                            {!hasVersionChanges && versionNotes.trim().length === 0 && (
+                                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                                    Nenhuma alteracao relevante foi detectada. Informe uma nota para registrar uma nova versao mesmo assim.
+                                </div>
+                            )}
+                            {versionError && (
+                                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                                    {versionError}
+                                </div>
+                            )}
                         </div>
 
                         <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
                             <button
-                                onClick={() => setIsDiffModalOpen(false)}
-                                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800"
+                                onClick={closeVersionModal}
+                                disabled={isSavingVersion}
+                                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={handleSaveVersion}
-                                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-100 text-white rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-2"
+                                disabled={!canConfirmVersion}
+                                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-100 text-white rounded-lg text-sm font-bold transition-all shadow-sm flex items-center gap-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
                             >
                                 <CheckCircle size={16} />
-                                Confirmar Versão {initialSnapshot.version + 1}
+                                {isSavingVersion ? 'Salvando...' : `Confirmar Versão ${nextVersionPreview}`}
                             </button>
                         </div>
                     </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function Login() {
@@ -8,6 +9,7 @@ export default function Login() {
     const [error, setError] = useState<string | null>(null);
     const [isSignUp, setIsSignUp] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,19 +43,19 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#0f172a] p-4">
             {/* Animated Background Gradients */}
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] animate-pulse"></div>
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
 
-            <div className="w-full max-w-md z-10">
-                <div className="text-center mb-10">
+            <div className="z-10 w-full max-w-md" style={{ maxWidth: 'calc(100vw - 2rem)' }}>
+                <div className="mb-8 text-center sm:mb-10">
                     <div className="inline-flex items-center justify-center p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg mb-4 ring-4 ring-white/5">
                         <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                     </div>
-                    <h1 className="text-4xl font-black text-white tracking-tight mb-2">
+                    <h1 className="mb-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
                         OP<span className="text-blue-500">CAPEX</span>
                     </h1>
                     <p className="text-slate-400 font-medium">
@@ -61,7 +63,7 @@ export default function Login() {
                     </p>
                 </div>
 
-                <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-5 shadow-2xl backdrop-blur-xl sm:rounded-3xl sm:p-8">
                     <form className="space-y-5" onSubmit={handleAuth}>
                         <div>
                             <label htmlFor="email" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">
@@ -78,19 +80,28 @@ export default function Login() {
                             />
                         </div>
 
-                        <div>
+                        <div className="relative">
                             <label htmlFor="password" className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">
                                 Senha de Acesso
                             </label>
                             <input
                                 id="password"
-                                type="password"
+                                type={showPassword ? 'text' : 'password'}
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full bg-slate-800/50 border border-white/5 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                                className="w-full bg-slate-800/50 border border-white/5 rounded-xl px-4 py-3 pr-11 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                                 placeholder="••••••••"
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(prev => !prev)}
+                                className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/5 hover:text-white"
+                                title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                            >
+                                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                            </button>
                         </div>
 
                         {error && (

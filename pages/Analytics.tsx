@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { ProposalData } from '../types';
-import { calculateFinancials, formatCurrency } from '../utils/pricingEngine';
-import { DollarSign, Zap, Repeat, TrendingUp, XCircle, Package } from 'lucide-react';
+import { formatCurrency } from '../utils/pricingEngine';
+import { BarChart3, DollarSign, Zap, Repeat, TrendingUp, Package } from 'lucide-react';
+import { PageHeader, PageShell } from '../components/ui';
 
 interface AnalyticsProps {
     proposals: ProposalData[];
@@ -53,27 +54,28 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
     const filteredForFunnel = kpiProposals.filter(p => isDateInRange(p.createdAt));
 
     return (
-        <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div>
-                <h1 className="text-3xl font-black text-[#0f172a] dark:text-slate-100 tracking-tight">Analytics & KPIs</h1>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">Visão estratégica do pipeline comercial e saúde financeira.</p>
-            </div>
+        <PageShell>
+            <PageHeader
+                icon={BarChart3}
+                title="Analytics & KPIs"
+                subtitle="Visão estratégica do pipeline comercial e saúde financeira."
+            />
 
             {/* Top Mix Cards */}
             <div className={`grid grid-cols-1 md:grid-cols-2 ${businessUnit === 'SERVICES' ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
-                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
+                <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
                     <div>
                         <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Receita Total</p>
-                        <p className="text-2xl font-black text-indigo-700 dark:text-indigo-400">{formatCurrency(totalValue)}</p>
+                        <p className="text-2xl font-black text-[var(--tenant-primary)]">{formatCurrency(totalValue)}</p>
                     </div>
-                    <div className="h-12 w-12 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
+                    <div className="h-12 w-12 bg-[var(--tenant-primary-soft)] rounded-md flex items-center justify-center text-[var(--tenant-primary)] shadow-inner">
                         <DollarSign size={24} />
                     </div>
                 </div>
 
                 {businessUnit === 'SERVICES' && (
                     <>
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
                             <div>
                                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Projetos Spot</p>
                                 <p className="text-2xl font-black text-amber-600 dark:text-amber-500">{formatCurrency(spotValue)}</p>
@@ -81,11 +83,11 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
                                     {spotProposals.length} propostas ({totalValue > 0 ? ((spotValue / totalValue) * 100).toFixed(0) : 0}%)
                                 </p>
                             </div>
-                            <div className="h-12 w-12 bg-amber-50 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 dark:text-amber-500 shadow-inner">
+                            <div className="h-12 w-12 bg-amber-50 dark:bg-amber-900/40 rounded-md flex items-center justify-center text-amber-600 dark:text-amber-500 shadow-inner">
                                 <Zap size={24} />
                             </div>
                         </div>
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
                             <div>
                                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Contratos Mensais</p>
                                 <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{formatCurrency(continuousValue)}</p>
@@ -93,7 +95,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
                                     {continuousProposals.length} propostas ({totalValue > 0 ? ((continuousValue / totalValue) * 100).toFixed(0) : 0}%)
                                 </p>
                             </div>
-                            <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
+                            <div className="h-12 w-12 bg-blue-50 dark:bg-blue-900/40 rounded-md flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
                                 <Repeat size={24} />
                             </div>
                         </div>
@@ -101,7 +103,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
                 )}
 
                 {businessUnit === 'PRODUCTS' && (
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between transition-colors">
                         <div>
                             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Produtos</p>
                             <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(productValue)}</p>
@@ -109,7 +111,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
                                 {productProposals.length} propostas ({totalValue > 0 ? ((productValue / totalValue) * 100).toFixed(0) : 0}%)
                             </p>
                         </div>
-                        <div className="h-12 w-12 bg-emerald-50 dark:bg-emerald-900/40 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-inner">
+                        <div className="h-12 w-12 bg-emerald-50 dark:bg-emerald-900/40 rounded-md flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-inner">
                             <Package size={24} />
                         </div>
                     </div>
@@ -120,10 +122,10 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start pb-12">
 
                 {/* Visual Sales Funnel Card */}
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col relative overflow-hidden h-[540px] transition-colors">
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col relative overflow-hidden h-[540px] transition-colors">
                     <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-6 flex flex-wrap items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                            <TrendingUp size={18} className="text-indigo-600" /> Funil de Conversão
+                            <TrendingUp size={18} className="text-[var(--tenant-primary)]" /> Funil de Conversão
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -147,7 +149,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
                             <select
                                 value={dateFilter}
                                 onChange={(e) => setDateFilter(e.target.value as any)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-[10px] font-black uppercase outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
                             >
                                 <option value="ALL">Total</option>
                                 <option value="THIS_MONTH">Mês</option>
@@ -192,11 +194,11 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
 
                                     {/* Funnel Level 2 */}
                                     <div className="relative flex items-center justify-center w-[75%] transition-all duration-700" style={{ height: getLevelHeight(negoValSum) }}>
-                                        <div className="absolute inset-0 bg-indigo-500 dark:bg-indigo-600 border-t-2 border-indigo-400 dark:border-indigo-500" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 20% 100%)' }}></div>
+                                        <div className="absolute inset-0 bg-[var(--tenant-primary)] border-t-2 border-[var(--tenant-primary-border)]" style={{ clipPath: 'polygon(0 0, 100% 0, 80% 100%, 20% 100%)' }}></div>
                                         <div className="relative z-10 text-center text-white">
                                             <p className="text-2xl font-black">{negoCount}</p>
                                             <p className="text-[10px] font-bold uppercase tracking-tighter opacity-80">Em Negociação</p>
-                                            <p className="text-xs font-mono font-bold mt-1 text-indigo-100">{formatCurrency(negoValSum)}</p>
+                                            <p className="text-xs font-mono font-bold mt-1 text-white/75">{formatCurrency(negoValSum)}</p>
                                         </div>
                                     </div>
 
@@ -225,7 +227,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
 
                 {/* Top Opps List Column */}
                 <div className="space-y-6 flex flex-col h-[540px]">
-                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col flex-1 overflow-hidden transition-colors">
+                    <div className="bg-white dark:bg-slate-900 p-8 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col flex-1 overflow-hidden transition-colors">
                         <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2 px-1">
                             <Repeat size={18} className="text-amber-500" /> Maiores Alvos
                         </h3>
@@ -234,13 +236,13 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
                                 .sort((a, b) => b.value - a.value)
                                 .slice(0, 10)
                                 .map((p, idx) => (
-                                    <div key={p.id} onClick={() => onSelectProposal(p.id)} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-transparent hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-white dark:hover:bg-slate-800 cursor-pointer group transition-all">
+                                    <div key={p.id} onClick={() => onSelectProposal(p.id)} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-transparent hover:border-[var(--tenant-primary-border)] hover:bg-white dark:hover:bg-slate-800 cursor-pointer group transition-all">
                                         <div className="flex items-center gap-4">
-                                            <div className="h-8 w-8 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center text-xs font-black text-slate-400 group-hover:text-indigo-600 transition-colors shadow-sm">
+                                            <div className="h-8 w-8 rounded-md bg-white dark:bg-slate-900 flex items-center justify-center text-xs font-black text-slate-400 group-hover:text-[var(--tenant-primary)] transition-colors shadow-sm">
                                                 {idx + 1}
                                             </div>
                                             <div>
-                                                <p className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-tight group-hover:text-indigo-600 transition-colors uppercase">{p.clientName}</p>
+                                                <p className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-tight group-hover:text-[var(--tenant-primary)] transition-colors uppercase">{p.clientName}</p>
                                                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold tracking-tight">VENDEDOR: {p.responsible.toUpperCase()}</p>
                                             </div>
                                         </div>
@@ -255,18 +257,18 @@ const Analytics: React.FC<AnalyticsProps> = ({ proposals, onSelectProposal, busi
 
                     {/* Secondary Metrics Bar */}
                     <div className="grid grid-cols-2 gap-4 h-24 shrink-0">
-                        <div className="bg-[#0f172a] rounded-2xl p-4 flex flex-col justify-center text-white">
+                        <div className="bg-[var(--tenant-primary)] rounded-md p-4 flex flex-col justify-center text-white">
                             <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Ticket Médio</p>
                             <p className="text-lg font-black">{formatCurrency(totalValue / (activeProposals.length || 1))}</p>
                         </div>
-                        <div className="bg-emerald-600 rounded-2xl p-4 flex flex-col justify-center text-white">
+                        <div className="bg-emerald-600 rounded-md p-4 flex flex-col justify-center text-white">
                             <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Ganhos Reais (Won)</p>
                             <p className="text-lg font-black">{formatCurrency(activeProposals.filter(p => p.stage === 'Won').reduce((s, p) => s + p.value, 0))}</p>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </PageShell>
     );
 };
 
