@@ -147,15 +147,15 @@ export default function Login() {
 
                 <div className="relative z-10 w-full" style={{ maxWidth: '22rem' }}>
                     <div className="mb-6 text-center sm:mb-8">
-                        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white shadow-[0_18px_60px_rgba(56,189,248,0.32)] ring-1 ring-cyan-300/20 backdrop-blur-xl">
+                        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-[var(--tenant-panel)] text-white shadow-[0_18px_60px_rgba(56,189,248,0.32)] ring-1 ring-[var(--tenant-primary-soft)] backdrop-blur-xl">
                             <Zap size={30} />
                         </div>
                         <h1 className="text-3xl font-black tracking-normal text-white sm:text-4xl">
-                            OP<span className="text-cyan-300">CAPEX</span>
+                            OP<span className="text-[var(--tenant-secondary)]">CAPEX</span>
                         </h1>
                     </div>
 
-                    <div className="rounded-lg border border-white/10 bg-slate-950/60 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:p-7">
+                    <div className="rounded-lg border border-white/10 bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] p-5 shadow-[0_24px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:p-7">
                         <form className="space-y-4" onSubmit={handleAuth}>
                             <div>
                                 <label htmlFor="email" className="mb-2 block px-1 text-xs font-bold uppercase tracking-normal text-slate-300">
@@ -167,7 +167,7 @@ export default function Login() {
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-white/[0.07] px-4 py-3 text-white placeholder-slate-500 outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-[var(--tenant-panel)]/[0.07] px-4 py-3 text-white placeholder-slate-500 outline-none transition focus:border-[var(--tenant-secondary-border)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
                                     placeholder="email@empresa.com"
                                 />
                             </div>
@@ -182,13 +182,13 @@ export default function Login() {
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-white/[0.07] px-4 py-3 pr-12 text-white placeholder-slate-500 outline-none transition focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-300/20"
+                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-[var(--tenant-panel)]/[0.07] px-4 py-3 pr-12 text-white placeholder-slate-500 outline-none transition focus:border-[var(--tenant-secondary-border)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
                                     placeholder="********"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(prev => !prev)}
-                                    className="absolute bottom-1.5 right-1.5 flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white"
+                                    className="absolute bottom-1.5 right-1.5 flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--tenant-panel)] hover:text-white"
                                     title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                                     aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                                 >
@@ -213,7 +213,7 @@ export default function Login() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-cyan-400 px-4 py-3 text-sm font-black text-slate-950 shadow-[0_18px_42px_rgba(34,211,238,0.28)] transition hover:bg-cyan-300 active:scale-[0.98] disabled:opacity-55 disabled:active:scale-100"
+                                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--tenant-secondary-soft)] px-4 py-3 text-sm font-black text-slate-950 shadow-[0_18px_42px_rgba(34,211,238,0.28)] transition hover:bg-[var(--tenant-secondary-soft)] active:scale-[0.98] disabled:opacity-55 disabled:active:scale-100"
                             >
                                 {loading ? <Loader2 size={19} className="animate-spin" /> : (isSignUp ? 'Criar conta' : 'Entrar')}
                             </button>
@@ -226,7 +226,7 @@ export default function Login() {
                                         setError(null);
                                         setMessage(null);
                                     }}
-                                    className="min-h-11 rounded-md px-4 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
+                                    className="min-h-11 rounded-md px-4 text-sm font-bold text-slate-300 transition hover:bg-[var(--tenant-panel)] hover:text-white"
                                 >
                                     {isSignUp ? 'Entrar' : 'Criar conta'}
                                 </button>

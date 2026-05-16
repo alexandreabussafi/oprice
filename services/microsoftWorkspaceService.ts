@@ -1,6 +1,8 @@
-import { MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft } from '../types';
+import { AttachmentAudit, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft } from '../types';
 import { supabase } from '../lib/supabase';
 import { fromCommunicationRow, fromExternalEventRow, fromTaskRow } from './crmRepository';
+import { ensureProposalPdfAttachment, ensureProviderAttachmentAudit } from './emailAttachmentValidation';
+import { runSupabaseRequest } from './supabaseRequest';
 
 const readFunctionError = async (error: any) => {
   const fallbackMessage = error?.message || 'Erro na funcao Microsoft.';
@@ -24,7 +26,10 @@ const readFunctionError = async (error: any) => {
 };
 
 const invokeMicrosoftFunction = async <T>(name: string, body: Record<string, any>): Promise<T> => {
-  const { data, error } = await supabase.functions.invoke(name, { body });
+  const { data, error } = await runSupabaseRequest(
+    signal => supabase.functions.invoke(name, { body, signal } as any),
+    { label: `Microsoft ${name}`, resource: `functions/${name}`, tenantId: body.tenantId, timeoutMs: 15000 }
+  );
   if (error) {
     const details = await readFunctionError(error);
     const enhanced = new Error(details.message);
@@ -56,13 +61,17 @@ export const microsoftWorkspaceService = {
   },
 
   async sendEmail(draft: MicrosoftEmailDraft) {
+    ensureProposalPdfAttachment(draft);
     const result = await invokeMicrosoftFunction<any>('microsoft-send-email', draft);
+    const attachmentAudit = result.attachmentAudit as AttachmentAudit | undefined;
+    ensureProviderAttachmentAudit(draft, attachmentAudit);
     return {
       task: fromTaskRow(result.task),
       communication: fromCommunicationRow(result.communication),
       todoTask: result.todoTask ? fromTaskRow(result.todoTask) : undefined,
       externalTask: result.externalTask,
-      todoError: result.todoError
+      todoError: result.todoError,
+      attachmentAudit
     };
   },
 

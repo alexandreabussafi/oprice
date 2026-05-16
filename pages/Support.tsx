@@ -37,10 +37,10 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
 
   return (
     <div className="p-8 space-y-6 max-w-[1600px] mx-auto">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-6">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[var(--tenant-border)] pb-6">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <Truck size={28} className="text-[#0f172a]" />
+                    <Truck size={28} className="text-[var(--tenant-primary)]" />
                     Suporte & Gestão Operacional
                 </h2>
                 <p className="text-slate-500 text-sm mt-1">
@@ -57,13 +57,13 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
             
             {/* MAIN CONTENT AREA */}
             <div className="flex-1 w-full space-y-6">
-                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                 <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                            <Briefcase size={20} className="text-indigo-600" />
+                            <Briefcase size={20} className="text-[var(--tenant-secondary)]" />
                             Estrutura de Apoio (Overhead)
                         </h3>
-                        <button onClick={addSupportItem} className="text-xs font-bold bg-[#0f172a] text-white px-3 py-1.5 rounded-lg flex items-center gap-2 hover:bg-[#1e293b]">
+                        <button onClick={addSupportItem} className="text-xs font-bold bg-[var(--tenant-primary)] text-white px-3 py-1.5 rounded-lg flex items-center gap-2 hover:brightness-95">
                             <Plus size={14} /> Novo Item
                         </button>
                     </div>
@@ -72,7 +72,7 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
                     </p>
 
                     <div className="space-y-2">
-                        <div className="grid grid-cols-12 gap-4 bg-slate-50 p-3 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <div className="grid grid-cols-12 gap-4 bg-[var(--tenant-control)] p-3 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             <div className="col-span-5">Descrição / Item</div>
                             <div className="col-span-2">Frequência</div>
                             <div className="col-span-2">Qtd/Mês</div>
@@ -80,7 +80,7 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
                             <div className="col-span-1"></div>
                         </div>
                         {(data.supportCosts || []).map(item => (
-                            <div key={item.id} className="grid grid-cols-12 gap-4 p-3 border-b border-slate-100 items-center hover:bg-slate-50 transition-colors">
+                            <div key={item.id} className="grid grid-cols-12 gap-4 p-3 border-b border-[var(--tenant-border)] items-center hover:bg-[var(--tenant-control)] transition-colors">
                                 <div className="col-span-5">
                                     <input 
                                         type="text" 
@@ -94,7 +94,7 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
                                      <select 
                                         value={item.frequency}
                                         onChange={e => updateSupportItem(item.id, 'frequency', e.target.value)}
-                                        className="w-full text-xs bg-slate-100 rounded border-none py-1 cursor-pointer focus:ring-0"
+                                        className="w-full text-xs bg-[var(--tenant-control)] rounded border-none py-1 cursor-pointer focus:ring-0"
                                      >
                                         <option value="Weekly">Semanal</option>
                                         <option value="Biweekly">Quinzenal</option>
@@ -107,7 +107,7 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
                                         type="number" 
                                         value={item.quantity} 
                                         onChange={e => updateSupportItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded text-center font-bold text-sm py-1 focus:ring-0 focus:border-indigo-500"
+                                        className="w-full bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded text-center font-bold text-sm py-1 focus:ring-0 focus:border-[var(--tenant-secondary-border)]"
                                     />
                                 </div>
                                 <div className="col-span-2 text-right flex items-center justify-end gap-1">
@@ -116,7 +116,7 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
                                         type="number" 
                                         value={item.costPerVisit} 
                                         onChange={e => updateSupportItem(item.id, 'costPerVisit', parseFloat(e.target.value) || 0)}
-                                        className="w-20 bg-transparent text-right font-bold text-slate-700 outline-none border-b border-transparent hover:border-slate-300 focus:border-indigo-500 p-0"
+                                        className="w-20 bg-transparent text-right font-bold text-slate-700 outline-none border-b border-transparent hover:border-[var(--tenant-border)] focus:border-[var(--tenant-secondary-border)] p-0"
                                     />
                                 </div>
                                 <div className="col-span-1 text-center">
@@ -125,10 +125,10 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
                             </div>
                         ))}
                         {(data.supportCosts || []).length === 0 && (
-                            <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-lg">
+                            <div className="text-center py-12 border-2 border-dashed border-[var(--tenant-border)] rounded-lg">
                                 <Truck size={32} className="mx-auto text-slate-200 mb-2" />
                                 <p className="text-slate-400 italic text-sm">Nenhum custo de suporte lançado.</p>
-                                <button onClick={addSupportItem} className="mt-3 text-xs font-bold text-indigo-600 hover:underline">
+                                <button onClick={addSupportItem} className="mt-3 text-xs font-bold text-[var(--tenant-secondary)] hover:underline">
                                     Adicionar Item
                                 </button>
                             </div>
@@ -139,12 +139,12 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
 
             {/* RIGHT SUMMARY */}
             <div className="w-full xl:w-80 space-y-4 shrink-0">
-                 <div className="bg-[#0f172a] rounded-xl p-6 text-white shadow-xl shadow-slate-900/10 relative overflow-hidden">
+                 <div className="bg-[var(--tenant-primary)] rounded-lg p-6 text-white shadow-xl relative overflow-hidden">
                     <div className="relative z-10">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Custo Overhead Mensal</p>
                         <h3 className="text-3xl font-bold text-[#fbbf24] mb-4">{formatCurrency(totalSupport)}</h3>
                         
-                        <div className="h-px bg-white/10 w-full mb-4"></div>
+                        <div className="h-px bg-[var(--tenant-panel)] w-full mb-4"></div>
                         <div className="flex items-center gap-2 text-xs text-slate-400">
                              <TrendingUp size={14} />
                              Impacto direto no Custo Direto (CD)
@@ -152,9 +152,9 @@ const Support: React.FC<SupportProps> = ({ data, updateData }) => {
                     </div>
                  </div>
 
-                 <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                 <div className="bg-[var(--tenant-panel)] rounded-lg border border-[var(--tenant-border)] p-4 shadow-sm">
                       <div className="flex items-start gap-2">
-                         <AlertCircle size={16} className="text-indigo-500 mt-0.5 shrink-0" />
+                         <AlertCircle size={16} className="text-[var(--tenant-secondary)] mt-0.5 shrink-0" />
                          <p className="text-xs text-slate-500 leading-relaxed">
                              O <strong>Suporte Operacional</strong> é essencial para garantir a qualidade da entrega. Contratos sem previsão de visitas de gestão tendem a ter maior churn (cancelamento).
                          </p>

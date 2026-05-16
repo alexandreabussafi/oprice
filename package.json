@@ -6,8 +6,14 @@
   "scripts": {
     "dev": "vite",
     "check:encoding": "node scripts/check-encoding.mjs",
-    "build": "npm run check:encoding && vite build",
-    "preview": "vite preview"
+    "check:theme": "node scripts/check-theme-hardcodes.mjs",
+    "build": "npm run check:encoding && npm run check:theme && vite build",
+    "preview": "vite preview",
+    "check:supabase": "node scripts/supabase-smoke.mjs",
+    "provision:lubcore-users": "node scripts/provision-lubcore-users.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
@@ -17,6 +23,7 @@
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",

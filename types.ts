@@ -293,7 +293,8 @@ export interface ProposalDocuments {
 export type ContinuousStage = 'MQL' | 'Qualification' | 'SolutionDesign' | 'Pricing' | 'Sent' | 'Negotiation' | 'Review' | 'Won' | 'Lost';
 export type SpotStage = 'MQL' | 'Diagnosis' | 'Pricing' | 'Sent' | 'FinalAdjustments' | 'AwaitingPO' | 'Won' | 'Lost';
 
-export type OpportunityStage = ContinuousStage | SpotStage;
+export type PipelineStageId = string;
+export type OpportunityStage = PipelineStageId;
 export type OpportunityStatus = 'Active' | 'Frozen' | 'Archived';
 export type OpportunityMotion = 'NewBusiness' | 'Renewal' | 'Expansion' | 'Addendum' | 'Reactivation';
 
@@ -305,6 +306,55 @@ export type BusinessUnitAccess = 'PRODUCTS' | 'SERVICES' | 'BOTH';
 export type TenantStatus = 'ACTIVE' | 'INACTIVE';
 export type TenantModule = 'CRM_CORE' | 'SERVICES_COMPLEX' | 'SAAS_SUBSCRIPTION' | 'IOT_SUBSCRIPTION' | 'PRODUCT_SALES';
 export type ProposalTemplateKind = 'PRODUCT_SALES' | 'SERVICES_CONTINUOUS' | 'SERVICES_SPOT' | 'SAAS_SUBSCRIPTION' | 'IOT_SUBSCRIPTION';
+export type PricingModuleId = Exclude<TenantModule, 'CRM_CORE'>;
+export type SaasSlaPlanId = 'essential' | 'professional' | 'enterprise';
+export type PricingModuleBusinessUnit = 'SERVICES' | 'PRODUCTS';
+export type PipelineVariant = 'DEFAULT' | 'CONTINUOUS' | 'SPOT';
+export type PipelineStageCategory = 'intake' | 'diagnosis' | 'solution' | 'pricing' | 'proposal' | 'negotiation' | 'closing' | 'won' | 'lost';
+
+export interface SalesPipelineStageConfig {
+  id: PipelineStageId;
+  label: string;
+  category: PipelineStageCategory;
+  order: number;
+  active: boolean;
+  visibleInKanban: boolean;
+  locked?: boolean;
+  colorToken: string;
+  probability: number;
+}
+
+export interface SalesPipelineConfig {
+  pricingModule: PricingModuleId;
+  variant: PipelineVariant;
+  stages: SalesPipelineStageConfig[];
+  defaultStageId: PipelineStageId;
+  wonStageId: PipelineStageId;
+  lostStageId: PipelineStageId;
+}
+
+export interface PricingModuleCapabilities {
+  socialCharges?: boolean;
+  serviceLabor?: boolean;
+  safetyAndSupport?: boolean;
+  productCatalog?: boolean;
+  productTaxes?: boolean;
+  subscription?: boolean;
+  iot?: boolean;
+}
+
+export interface PricingModuleDefinition {
+  id: PricingModuleId;
+  label: string;
+  shortLabel: string;
+  description: string;
+  businessUnit: PricingModuleBusinessUnit;
+  proposalType: ProposalType;
+  defaultTemplateKind: ProposalTemplateKind;
+  defaultEditorTab: string;
+  includes: string[];
+  capabilities: PricingModuleCapabilities;
+}
 
 export interface ProposalTemplateConfig {
   kind: ProposalTemplateKind;
@@ -320,10 +370,45 @@ export interface ProposalTemplateConfig {
 
 export type ProposalTemplatesConfig = Record<ProposalTemplateKind, ProposalTemplateConfig>;
 
+export interface ProposalSendAutomationTemplate {
+  id: string;
+  name: string;
+  delayDays: number;
+  titleTemplate: string;
+  descriptionTemplate: string;
+  syncMicrosoftTodo?: boolean;
+}
+
+export interface ProposalSendAutomationConfig {
+  enabled: boolean;
+  defaultTemplateId?: string;
+  templates: ProposalSendAutomationTemplate[];
+}
+
+export interface SaasProposalConfig {
+  profile?: 'SaaS industrial / CMMS' | 'SaaS Lubit' | 'CMMS industrial' | 'SaaS + GLPI/ITSM';
+  slaPlan?: SaasSlaPlanId;
+  selectedModuleIds?: string[];
+  selectedAddonIds?: string[];
+  includedItems?: string[];
+  excludedItems?: string[];
+  technicalAnnexes?: string[];
+  providerResponsibilities?: string[];
+  clientResponsibilities?: string[];
+  implementationTime?: string;
+  adjustment?: string;
+}
+
 export interface EmailAttachment {
   fileName: string;
   contentType: string;
   base64Content: string;
+}
+
+export interface AttachmentAudit {
+  expected: number;
+  delivered: number;
+  names: string[];
 }
 
 export interface TenantBranding {
@@ -334,6 +419,12 @@ export interface TenantBranding {
   backgroundDark?: string;
   sidebarLight?: string;
   sidebarDark?: string;
+  panelLight?: string;
+  panelDark?: string;
+  controlLight?: string;
+  controlDark?: string;
+  controlActiveLight?: string;
+  controlActiveDark?: string;
   surfaceLight?: string;
   surfaceDark?: string;
   textLight?: string;
@@ -342,6 +433,8 @@ export interface TenantBranding {
   borderDark?: string;
   companyName?: string;
   displayName?: string;
+  slogan?: string;
+  faviconUrl?: string;
 }
 
 export interface Tenant {
@@ -402,7 +495,7 @@ export const SPOT_STAGES: SpotStage[] = [
   'Lost'
 ];
 
-export const STAGE_LABELS: Record<OpportunityStage, string> = {
+export const STAGE_LABELS: Record<string, string> = {
   MQL: 'MQL/Lead',
   Qualification: 'Qualificação',
   SolutionDesign: 'Desenho de Solução',
@@ -504,6 +597,51 @@ export interface ProductLineItem {
   total: number; // quantity * finalPrice
 }
 
+export interface ServicesComplexPricingConfig {
+  taxConfig?: Partial<TaxConfig>;
+  benefitsConfig?: BenefitsConfig;
+  kitTemplates?: KitTemplate[];
+  accountingConfig?: AccountingMapping;
+  pipelines?: Partial<Record<PipelineVariant, SalesPipelineConfig>>;
+}
+
+export interface ProductSalesPricingConfig {
+  productCatalog?: CatalogProduct[];
+  productAccountingConfig?: AccountingMapping;
+  icmsStateRates?: Record<string, number>;
+  productHeaderUrl?: string;
+  productFooterUrl?: string;
+  productLogoUrl?: string;
+  productGeneralTerms?: string;
+  pipelines?: Partial<Record<PipelineVariant, SalesPipelineConfig>>;
+}
+
+export interface SaasSubscriptionPricingConfig {
+  defaultPlanName?: string;
+  defaultUnitPrice?: number;
+  defaultQuantity?: number;
+  defaultMonthlyDiscount?: number;
+  defaultSetupFee?: number;
+  defaultContractMonths?: number;
+  notesTemplate?: string;
+  pipelines?: Partial<Record<PipelineVariant, SalesPipelineConfig>>;
+}
+
+export interface IotSubscriptionPricingConfig {
+  productCatalog?: CatalogProduct[];
+  defaultContractMonths?: number;
+  hardwareCommercialModel?: 'SALE' | 'COMODATO' | 'BOTH';
+  recurringServiceLabel?: string;
+  pipelines?: Partial<Record<PipelineVariant, SalesPipelineConfig>>;
+}
+
+export interface TenantPricingModulesConfig {
+  SERVICES_COMPLEX?: ServicesComplexPricingConfig;
+  PRODUCT_SALES?: ProductSalesPricingConfig;
+  SAAS_SUBSCRIPTION?: SaasSubscriptionPricingConfig;
+  IOT_SUBSCRIPTION?: IotSubscriptionPricingConfig;
+}
+
 export interface TimelineEvent {
   id: string;
   date: string; // ISO date string
@@ -561,6 +699,9 @@ export interface CRMCommunication {
   gmailMessageId?: string;
   gmailThreadId?: string;
   gmailHistoryId?: string;
+  gmailInternetMessageId?: string;
+  emailInReplyTo?: string;
+  emailReferences?: string;
   microsoftMessageId?: string;
   microsoftConversationId?: string;
   microsoftInternetMessageId?: string;
@@ -602,7 +743,10 @@ export interface GoogleEmailDraft {
   subject: string;
   bodyText: string;
   gmailThreadId?: string;
+  inReplyTo?: string;
+  references?: string;
   attachments?: EmailAttachment[];
+  markProposalSent?: boolean;
 }
 
 export interface GoogleMeetingDraft {
@@ -632,6 +776,7 @@ export interface MicrosoftEmailDraft {
   todoTitle?: string;
   todoDescription?: string;
   attachments?: EmailAttachment[];
+  markProposalSent?: boolean;
 }
 
 export interface MicrosoftMeetingDraft {
@@ -774,6 +919,7 @@ export interface ProposalData {
   saasSetupFee?: number;
   saasContractMonths?: number;
   saasNotes?: string;
+  saasProposalConfig?: SaasProposalConfig;
 
   // Configuração de Kits (Geralmente preenchido apenas no GlobalConfig)
   kitTemplates?: KitTemplate[];
@@ -793,6 +939,10 @@ export interface ProposalData {
   // Visual Identity
   letterheadConfig?: LetterheadConfig;
   proposalTemplates?: ProposalTemplatesConfig;
+  proposalSendAutomation?: ProposalSendAutomationConfig;
+
+  // Tenant-level modular pricing settings. Kept alongside legacy fields during migration.
+  pricingModules?: TenantPricingModulesConfig;
 }
 
 export interface CalculatedFinancials {

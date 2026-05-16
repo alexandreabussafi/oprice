@@ -1,5 +1,6 @@
 import { ProposalData, ProposalTemplateConfig, ProposalTemplateKind, ProposalTemplatesConfig } from '../types';
 import { calculateFinancials, formatCurrency } from './pricingEngine';
+import { getProposalTemplateKindForPricing } from './pricingModules';
 
 export const PROPOSAL_TEMPLATE_KINDS: ProposalTemplateKind[] = [
   'PRODUCT_SALES',
@@ -21,13 +22,21 @@ const defaultScope: Record<ProposalTemplateKind, string> = {
   PRODUCT_SALES: 'Fornecimento dos itens descritos na proposta comercial, conforme quantidades, prazos e condicoes acordadas.',
   SERVICES_CONTINUOUS: 'Prestacao continuada dos servicos descritos, com equipe, recursos, governanca e indicadores definidos para o contrato.',
   SERVICES_SPOT: 'Execucao pontual do servico solicitado, com entregaveis, prazos e premissas comerciais apresentados nesta proposta.',
-  SAAS_SUBSCRIPTION: 'Disponibilizacao da assinatura de software, incluindo licencas, configuracao inicial e suporte conforme o plano contratado.',
+  SAAS_SUBSCRIPTION: [
+    'Ambiente SaaS Lubit/Core para operacao e gestao de lubrificacao industrial.',
+    'Configuracao inicial de usuarios, perfis, unidades e parametros operacionais.',
+    'Apoio a carga inicial de planos, ativos, materiais e cadastros combinados.',
+    'Suporte tecnico por chamado conforme o plano de SLA contratado.',
+    'Atualizacoes corretivas e evolutivas da plataforma durante a vigencia da assinatura.',
+    'Relatorios, evidencias e visao operacional para acompanhamento gerencial.'
+  ].join('\n'),
   IOT_SUBSCRIPTION: 'Fornecimento da solucao de monitoramento IoT, incluindo equipamentos, instalacao e servico recorrente de acompanhamento.'
 };
 
 export const createDefaultProposalTemplates = (companyName = 'sua empresa'): ProposalTemplatesConfig => (
   PROPOSAL_TEMPLATE_KINDS.reduce((acc, kind) => {
     const label = PROPOSAL_TEMPLATE_LABELS[kind];
+    const isSaas = kind === 'SAAS_SUBSCRIPTION';
     acc[kind] = {
       kind,
       name: `Template ${label}`,
@@ -42,11 +51,24 @@ export const createDefaultProposalTemplates = (companyName = 'sua empresa'): Pro
         `Atenciosamente,`,
         companyName
       ].join('\n'),
-      introduction: `Apresentamos a proposta tecnico-comercial da ${companyName}, elaborada com base nas informacoes comerciais e tecnicas levantadas para {{cliente}}.`,
+      introduction: isSaas
+        ? `Contratacao mensal da plataforma Lubit/Core para digitalizar rotinas de lubrificacao, organizar planos, apoiar execucao operacional, centralizar evidencias e sustentar a melhoria continua da operacao de {{cliente}}.`
+        : `Apresentamos a proposta tecnico-comercial da ${companyName}, elaborada com base nas informacoes comerciais e tecnicas levantadas para {{cliente}}.`,
       scope: defaultScope[kind],
-      commercialConditions: 'Os valores, prazos e condicoes comerciais estao descritos nesta proposta e sao validos conforme o prazo informado.',
-      terms: 'A execucao, faturamento e entrega seguem as condicoes comerciais aprovadas entre as partes e a legislacao aplicavel.',
-      closingNotes: 'Esta proposta pode ser ajustada conforme evolucao do escopo, premissas tecnicas ou negociacao comercial.'
+      commercialConditions: isSaas
+        ? [
+          'Faturamento mensal recorrente a partir da liberacao do ambiente de producao ou data acordada.',
+          'Valores nao incluem customizacoes, integracoes especiais, deslocamentos ou treinamentos presenciais, salvo quando expressamente descritos.',
+          'A contratacao podera ser formalizada por pedido de compra, contrato ou aceite desta proposta.',
+          'Tributos incidentes seguem a legislacao aplicavel e o regime fiscal da contratada.'
+        ].join('\n')
+        : 'Os valores, prazos e condicoes comerciais estao descritos nesta proposta e sao validos conforme o prazo informado.',
+      terms: isSaas
+        ? 'O SLA considera primeira resposta, triagem e priorizacao. Prazos de solucao dependem de diagnostico, evidencias, terceiros, conectividade, dados do cliente e complexidade tecnica.'
+        : 'A execucao, faturamento e entrega seguem as condicoes comerciais aprovadas entre as partes e a legislacao aplicavel.',
+      closingNotes: isSaas
+        ? 'Os termos desta proposta poderao ser ajustados em contrato especifico. Itens nao descritos no escopo serao tratados como servicos adicionais mediante avaliacao comercial.'
+        : 'Esta proposta pode ser ajustada conforme evolucao do escopo, premissas tecnicas ou negociacao comercial.'
     };
     return acc;
   }, {} as ProposalTemplatesConfig)
@@ -68,11 +90,7 @@ export const mergeProposalTemplates = (
 };
 
 export const getProposalTemplateKind = (proposal: ProposalData): ProposalTemplateKind => {
-  if (proposal.pricingModule === 'SAAS_SUBSCRIPTION') return 'SAAS_SUBSCRIPTION';
-  if (proposal.pricingModule === 'IOT_SUBSCRIPTION') return 'IOT_SUBSCRIPTION';
-  if (proposal.type === 'PRODUCT') return 'PRODUCT_SALES';
-  if (proposal.type === 'SPOT') return 'SERVICES_SPOT';
-  return 'SERVICES_CONTINUOUS';
+  return getProposalTemplateKindForPricing(proposal);
 };
 
 export const getProposalDisplayValue = (proposal: ProposalData) => {

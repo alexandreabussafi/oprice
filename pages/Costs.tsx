@@ -90,9 +90,9 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
 
     const categories = [
         { id: 'EPI', label: 'EPIs & Uniformes', icon: Shield, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-        { id: 'Tools', label: 'Ferramental', icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+        { id: 'Tools', label: 'Ferramental', icon: Wrench, color: 'text-[var(--tenant-secondary)]', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]' },
         { id: 'Vehicles', label: 'Veículos & Logística', icon: Truck, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
-        { id: 'IT', label: 'TI & Consumíveis', icon: Monitor, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+        { id: 'IT', label: 'TI & Consumíveis', icon: Monitor, color: 'text-[var(--tenant-secondary)]', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]' },
     ] as const;
 
     // Helper to calc monthly provision per item
@@ -117,16 +117,16 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
 
                 {/* View Toggle Toolbar */}
                 <div className="flex items-center gap-3">
-                    <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <div className="flex bg-[var(--tenant-control)] p-1 rounded-lg border border-[var(--tenant-border)]">
                         <button
                             onClick={() => setActiveTab('opex')}
-                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'opex' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'opex' ? 'bg-[var(--tenant-panel)] shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             OPEX Mensal
                         </button>
                         <button
                             onClick={() => setActiveTab('capex')}
-                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'capex' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeTab === 'capex' ? 'bg-[var(--tenant-panel)] shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             CAPEX (Ativos)
                         </button>
@@ -136,21 +136,21 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                         <div className="relative">
                             <button
                                 onClick={() => setShowKitSelector(!showKitSelector)}
-                                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-bold text-sm rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] font-bold text-sm rounded-lg border border-[var(--tenant-secondary-border)] hover:bg-[var(--tenant-secondary-soft)] transition-colors"
                             >
                                 <Package size={18} /> Importar Kit Padrão
                             </button>
                             {showKitSelector && (
-                                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <div className="p-3 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase">Selecione um Kit</div>
+                                <div className="absolute right-0 mt-2 w-64 bg-[var(--tenant-panel)] rounded-lg shadow-xl border border-[var(--tenant-border)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="p-3 border-b border-[var(--tenant-border)] text-xs font-bold text-slate-400 uppercase">Selecione um Kit</div>
                                     <div className="max-h-64 overflow-y-auto">
                                         {globalConfig.kitTemplates.map(kit => (
                                             <button
                                                 key={kit.id}
                                                 onClick={() => importKit(kit.id)}
-                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 text-slate-700 transition-colors border-b border-slate-50 last:border-0"
+                                                className="w-full text-left px-4 py-3 hover:bg-[var(--tenant-control)] flex items-center gap-3 text-slate-700 transition-colors border-b border-[var(--tenant-border)] last:border-0"
                                             >
-                                                <div className="p-2 bg-slate-100 text-slate-600 rounded-lg shrink-0">
+                                                <div className="p-2 bg-[var(--tenant-control)] text-slate-600 rounded-lg shrink-0">
                                                     <Package size={16} />
                                                 </div>
                                                 <div>
@@ -165,17 +165,17 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                         </div>
                     )}
 
-                    <div className="bg-white p-1 rounded-lg border border-slate-200 shadow-sm flex">
+                    <div className="bg-[var(--tenant-panel)] p-1 rounded-lg border border-[var(--tenant-border)] shadow-sm flex">
                         <button
                             onClick={() => setViewMode('list')}
-                            className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-slate-100 text-[#0f172a] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-[var(--tenant-control)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Visualização em Lista"
                         >
                             <LayoutList size={18} />
                         </button>
                         <button
                             onClick={() => setViewMode('grid')}
-                            className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-slate-100 text-[#0f172a] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-[var(--tenant-control)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                             title="Visualização em Cards"
                         >
                             <LayoutGrid size={18} />
@@ -194,9 +194,9 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                         const Icon = cat.icon;
 
                         return (
-                            <div key={cat.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div key={cat.id} className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] overflow-hidden">
                                 {/* Category Header */}
-                                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <div className="p-4 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] flex flex-col sm:flex-row justify-between items-center gap-4">
                                     <div className="flex items-center gap-3">
                                         <div className={`p-2 rounded-lg ${cat.bg} ${cat.color} border ${cat.border}`}>
                                             <Icon size={20} />
@@ -212,7 +212,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                     </div>
 
                                     <div className="flex items-center gap-4">
-                                        <div className="text-right pl-4 border-l border-slate-200">
+                                        <div className="text-right pl-4 border-l border-[var(--tenant-border)]">
                                             <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Mensal</p>
                                             <span className="font-bold text-slate-800 text-lg">{formatCurrency(catTotal)}</span>
                                         </div>
@@ -224,7 +224,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                         /* LIST VIEW */
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-sm text-left">
-                                                <thead className="bg-white text-slate-400 font-bold border-b border-slate-100 uppercase text-[10px] tracking-wider">
+                                                <thead className="bg-[var(--tenant-panel)] text-slate-400 font-bold border-b border-[var(--tenant-border)] uppercase text-[10px] tracking-wider">
                                                     <tr>
                                                         <th className="px-6 py-3 w-1/3">Item / Descrição</th>
                                                         <th className="px-4 py-3">Valor Unitário</th>
@@ -234,15 +234,15 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                         <th className="px-4 py-3 w-12"></th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-slate-10">
+                                                <tbody className="divide-y divide-[var(--tenant-border)]">
                                                     {catExpenses.map((expense) => (
-                                                        <tr key={expense.id} className="hover:bg-slate-50/50 group transition-colors">
+                                                        <tr key={expense.id} className="hover:bg-[var(--tenant-control)] group transition-colors">
                                                             <td className="px-6 py-3">
                                                                 <input
                                                                     type="text"
                                                                     value={expense.name}
                                                                     onChange={(e) => updateExpense(expense.id, 'name', e.target.value)}
-                                                                    className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-[#fbbf24] focus:ring-0 p-0 py-1 text-slate-700 font-bold placeholder-slate-400 text-sm transition-all"
+                                                                    className="w-full bg-transparent border-b border-transparent hover:border-[var(--tenant-border)] focus:border-[#fbbf24] focus:ring-0 p-0 py-1 text-slate-700 font-bold placeholder-slate-400 text-sm transition-all"
                                                                     placeholder="Nome do item"
                                                                 />
                                                             </td>
@@ -254,7 +254,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                                         step="0.01"
                                                                         value={expense.unitPrice}
                                                                         onChange={(e) => updateExpense(expense.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                                                        className="w-28 bg-white border border-slate-200 rounded px-2 pl-8 py-1 text-sm font-bold text-slate-700 focus:border-[#fbbf24] focus:ring-1 focus:ring-[#fbbf24]"
+                                                                        className="w-28 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded px-2 pl-8 py-1 text-sm font-bold text-slate-700 focus:border-[#fbbf24] focus:ring-1 focus:ring-[#fbbf24]"
                                                                     />
                                                                 </div>
                                                             </td>
@@ -265,22 +265,22 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                                         min="1"
                                                                         value={expense.lifespan}
                                                                         onChange={(e) => updateExpense(expense.id, 'lifespan', parseInt(e.target.value) || 1)}
-                                                                        className="w-16 bg-white border border-slate-200 rounded px-2 py-1 text-center text-sm font-bold text-slate-700 focus:border-[#fbbf24] focus:ring-1 focus:ring-[#fbbf24]"
+                                                                        className="w-16 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded px-2 py-1 text-center text-sm font-bold text-slate-700 focus:border-[#fbbf24] focus:ring-1 focus:ring-[#fbbf24]"
                                                                     />
                                                                     <span className="text-[11px] font-medium text-slate-400">meses</span>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3">
-                                                                <div className="flex bg-slate-100 rounded p-1 w-fit">
+                                                                <div className="flex bg-[var(--tenant-control)] rounded p-1 w-fit">
                                                                     <button
                                                                         onClick={() => updateExpense(expense.id, 'allocation', 'Fixed')}
-                                                                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${expense.allocation === 'Fixed' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${expense.allocation === 'Fixed' ? 'bg-[var(--tenant-panel)] shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                                                                     >
                                                                         Fixo
                                                                     </button>
                                                                     <button
                                                                         onClick={() => updateExpense(expense.id, 'allocation', 'PerHead')}
-                                                                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${expense.allocation === 'PerHead' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                        className={`px-2 py-0.5 text-[10px] font-bold rounded transition-all ${expense.allocation === 'PerHead' ? 'bg-[var(--tenant-panel)] shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                                                                     >
                                                                         x HC
                                                                     </button>
@@ -312,7 +312,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                         /* UPDATED GRID/CARD VIEW - CLEANER & COMPACT */
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
                                             {catExpenses.map((expense) => (
-                                                <div key={expense.id} className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all p-3 flex flex-col gap-3">
+                                                <div key={expense.id} className="group relative bg-[var(--tenant-panel)] rounded-lg border border-[var(--tenant-border)] shadow-sm hover:shadow-md hover:border-[var(--tenant-secondary-border)] transition-all p-3 flex flex-col gap-3">
 
                                                     {/* Remove Button (Absolute) */}
                                                     <button
@@ -332,14 +332,14 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                             className="w-full text-sm font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300 truncate leading-tight"
                                                             placeholder="Nome do item"
                                                         />
-                                                        <div className="h-px bg-slate-100 w-full mt-2"></div>
+                                                        <div className="h-px bg-[var(--tenant-control)] w-full mt-2"></div>
                                                     </div>
 
                                                     {/* Middle: Inputs Grid */}
                                                     <div className="grid grid-cols-2 gap-2">
                                                         <div className="space-y-1">
                                                             <label className="text-[10px] text-slate-400 font-bold uppercase">Valor Unit.</label>
-                                                            <div className="flex items-center bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 focus-within:border-blue-300 focus-within:ring-1 focus-within:ring-blue-100 transition-all">
+                                                            <div className="flex items-center bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-2 py-1.5 focus-within:border-[var(--tenant-secondary-border)] focus-within:ring-1 focus-within:ring-[var(--tenant-primary-soft)] transition-all">
                                                                 <span className="text-[10px] font-bold text-slate-400 mr-1">R$</span>
                                                                 <input
                                                                     type="number"
@@ -351,7 +351,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                         </div>
                                                         <div className="space-y-1">
                                                             <label className="text-[10px] text-slate-400 font-bold uppercase">Vida Útil</label>
-                                                            <div className="flex items-center bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 focus-within:border-blue-300 focus-within:ring-1 focus-within:ring-blue-100 transition-all">
+                                                            <div className="flex items-center bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-2 py-1.5 focus-within:border-[var(--tenant-secondary-border)] focus-within:ring-1 focus-within:ring-[var(--tenant-primary-soft)] transition-all">
                                                                 <Clock size={12} className="text-slate-400 mr-1" />
                                                                 <input
                                                                     type="number"
@@ -365,16 +365,16 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
 
                                                     {/* Footer: Allocation & Result */}
                                                     <div className="flex items-center justify-between pt-2">
-                                                        <div className="flex bg-slate-100 rounded-lg p-0.5 shadow-inner">
+                                                        <div className="flex bg-[var(--tenant-control)] rounded-lg p-0.5 shadow-inner">
                                                             <button
                                                                 onClick={() => updateExpense(expense.id, 'allocation', 'Fixed')}
-                                                                className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${expense.allocation === 'Fixed' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${expense.allocation === 'Fixed' ? 'bg-[var(--tenant-panel)] shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                                                             >
                                                                 Fixo
                                                             </button>
                                                             <button
                                                                 onClick={() => updateExpense(expense.id, 'allocation', 'PerHead')}
-                                                                className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${expense.allocation === 'PerHead' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                                                                className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all ${expense.allocation === 'PerHead' ? 'bg-[var(--tenant-panel)] shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
                                                             >
                                                                 x HC
                                                             </button>
@@ -390,18 +390,18 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                     )}
 
                                     {catExpenses.length === 0 && (
-                                        <div className="p-8 text-center bg-slate-50/50">
-                                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-slate-300 mb-3">
+                                        <div className="p-8 text-center bg-[var(--tenant-control)]">
+                                            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--tenant-control)] text-slate-300 mb-3">
                                                 <Icon size={24} />
                                             </div>
                                             <p className="text-slate-500 text-sm mb-4 font-medium">Nenhum custo lançado em {cat.label}.</p>
                                         </div>
                                     )}
 
-                                    <div className="p-3 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+                                    <div className="p-3 border-t border-[var(--tenant-border)] bg-[var(--tenant-control)] rounded-b-xl">
                                         <button
                                             onClick={() => addExpense(cat.id as any)}
-                                            className="w-full py-2.5 border border-dashed border-slate-300 rounded-lg text-slate-500 text-xs font-bold hover:bg-white hover:border-blue-300 hover:text-blue-600 transition-all flex items-center justify-center gap-2"
+                                            className="w-full py-2.5 border border-dashed border-[var(--tenant-border)] rounded-lg text-slate-500 text-xs font-bold hover:bg-[var(--tenant-panel)] hover:border-[var(--tenant-secondary-border)] hover:text-[var(--tenant-secondary)] transition-all flex items-center justify-center gap-2"
                                         >
                                             <Plus size={14} /> Adicionar Item em {cat.label}
                                         </button>
@@ -415,7 +415,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                 {/* RIGHT SIDEBAR: SUMMARY */}
                 <div className="w-full xl:w-80 space-y-4 shrink-0">
                     {/* Total Card - Dark Theme */}
-                    <div className="bg-[#0f172a] rounded-xl p-6 text-white shadow-xl shadow-slate-900/10 relative overflow-hidden">
+                    <div className="bg-[var(--tenant-primary)] rounded-lg p-6 text-white shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5">
                             <Calculator size={100} />
                         </div>
@@ -423,7 +423,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Custo OpEx Mensal</p>
                             <h3 className="text-3xl font-bold text-[#fbbf24] mb-4">{formatCurrency(totalMonthlyCosts)}</h3>
 
-                            <div className="h-px bg-white/10 w-full mb-4"></div>
+                            <div className="h-px bg-[var(--tenant-panel)] w-full mb-4"></div>
 
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-xs text-slate-400">Total Contrato (12m)</span>
@@ -433,7 +433,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                     </div>
 
                     {/* Info / Distribution Card */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-6">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg border border-[var(--tenant-border)] p-6 shadow-sm space-y-6">
                         <div>
                             <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4">
                                 <Info size={16} className="text-slate-400" />
@@ -450,7 +450,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                 <span className="text-slate-500 font-medium">{cat.label}</span>
                                                 <span className="font-bold text-slate-700">{formatCurrency(catVal)}</span>
                                             </div>
-                                            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                            <div className="w-full bg-[var(--tenant-control)] h-1.5 rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full ${cat.color.replace('text-', 'bg-').replace('-600', '-500')}`}
                                                     style={{ width: `${percent}%` }}
@@ -462,7 +462,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                             </div>
                         </div>
 
-                        <div className="pt-4 border-t border-slate-100">
+                        <div className="pt-4 border-t border-[var(--tenant-border)]">
                             <div className="flex items-start gap-2">
                                 <AlertCircle size={14} className="text-amber-500 mt-0.5 shrink-0" />
                                 <p className="text-[10px] text-slate-400 leading-relaxed">
@@ -478,10 +478,10 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
             {/* CAPEX View container */}
             <div className={`flex flex-col xl:flex-row gap-8 items-start ${activeTab === 'capex' ? 'block' : 'hidden'}`}>
                 <div className="flex-1 w-full space-y-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] overflow-hidden">
+                        <div className="p-4 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200">
+                                <div className="p-2 rounded-lg bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border border-[var(--tenant-secondary-border)]">
                                     <Database size={20} />
                                 </div>
                                 <div>
@@ -499,7 +499,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                     <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">Cadastre investimentos em equipamentos para que sejam depreciados ao longo do contrato e impactem o Fluxo de Caixa corretamente.</p>
                                     <button
                                         onClick={addCapex}
-                                        className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition"
+                                        className="px-6 py-2 bg-[var(--tenant-primary)] text-white font-bold rounded-lg hover:bg-[var(--tenant-secondary-soft)] transition"
                                     >
                                         Adicionar Primeiro Ativo
                                     </button>
@@ -507,7 +507,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {(data.capexItems || []).map((capex) => (
-                                        <div key={capex.id} className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-all p-3 flex flex-col gap-3">
+                                        <div key={capex.id} className="group relative bg-[var(--tenant-panel)] rounded-lg border border-[var(--tenant-border)] shadow-sm hover:border-[var(--tenant-secondary-border)] transition-all p-3 flex flex-col gap-3">
                                             <button
                                                 onClick={() => removeCapex(capex.id)}
                                                 className="absolute top-3 right-3 text-slate-300 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100 z-10"
@@ -524,13 +524,13 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                     className="w-full text-base font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 placeholder-slate-300 truncate"
                                                     placeholder="Nome do ativo"
                                                 />
-                                                <div className="h-px bg-slate-100 w-full mt-2"></div>
+                                                <div className="h-px bg-[var(--tenant-control)] w-full mt-2"></div>
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-3 mt-1">
                                                 <div className="space-y-1 col-span-2">
                                                     <label className="text-[10px] text-slate-400 font-bold uppercase">Valor de Aquisição</label>
-                                                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-400 transition-all">
+                                                    <div className="flex items-center bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-3 py-2 focus-within:border-[var(--tenant-secondary-border)] transition-all">
                                                         <span className="text-sm font-bold text-slate-400 mr-2">R$</span>
                                                         <input
                                                             type="number"
@@ -543,7 +543,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
 
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] text-slate-400 font-bold uppercase" title="Meses p/ depreciar o valor zero">Vida Útil (Meses)</label>
-                                                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-2">
+                                                    <div className="flex items-center bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-2 py-2">
                                                         <input
                                                             type="number"
                                                             value={capex.lifespanMonths}
@@ -555,7 +555,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
 
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] text-slate-400 font-bold uppercase">Mês Compra</label>
-                                                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-2 py-2">
+                                                    <div className="flex items-center bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-2 py-2">
                                                         <input
                                                             type="number"
                                                             title="Mês 0 é no início. Mês 1 é na primeira fatura, etc."
@@ -571,7 +571,7 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                     <select
                                                         value={capex.paymentTerm}
                                                         onChange={(e) => updateCapex(capex.id, 'paymentTerm', e.target.value)}
-                                                        className="w-full bg-slate-50 border border-slate-200 text-sm font-bold text-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 py-1.5"
+                                                        className="w-full bg-[var(--tenant-control)] border border-[var(--tenant-border)] text-sm font-bold text-slate-700 rounded-lg focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] py-1.5"
                                                     >
                                                         <option value="UPFRONT">À Vista no Mês da Compra</option>
                                                         <option value="INSTALLMENTS">Parcelado</option>
@@ -585,17 +585,17 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                                             type="number"
                                                             value={capex.installments || 1}
                                                             onChange={(e) => updateCapex(capex.id, 'installments', parseInt(e.target.value) || 1)}
-                                                            className="w-full bg-slate-50 border border-slate-200 text-sm font-bold text-slate-700 rounded-lg focus:ring-0 py-1.5"
+                                                            className="w-full bg-[var(--tenant-control)] border border-[var(--tenant-border)] text-sm font-bold text-slate-700 rounded-lg focus:ring-0 py-1.5"
                                                             min="2"
                                                         />
                                                     </div>
                                                 )}
                                             </div>
 
-                                            <div className="mt-2 pt-2 border-t border-slate-100 flex justify-between items-center bg-slate-50 p-2 rounded-lg">
+                                            <div className="mt-2 pt-2 border-t border-[var(--tenant-border)] flex justify-between items-center bg-[var(--tenant-control)] p-2 rounded-lg">
                                                 <div className="text-[10px] text-slate-500 font-bold">DEPRECIAÇÃO LINEAR</div>
                                                 <div className="text-right">
-                                                    <span className="font-bold text-indigo-700 text-sm">{formatCurrency(capex.value / (capex.lifespanMonths || 1))}</span>
+                                                    <span className="font-bold text-[var(--tenant-secondary)] text-sm">{formatCurrency(capex.value / (capex.lifespanMonths || 1))}</span>
                                                     <span className="text-[9px] font-bold text-slate-400 uppercase ml-1">/ mês</span>
                                                 </div>
                                             </div>
@@ -606,10 +606,10 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                         </div>
 
                         {((data.capexItems || []).length > 0) && (
-                            <div className="p-3 border-t border-slate-100 bg-slate-50 rounded-b-xl">
+                            <div className="p-3 border-t border-[var(--tenant-border)] bg-[var(--tenant-control)] rounded-b-xl">
                                 <button
                                     onClick={addCapex}
-                                    className="w-full py-2.5 border border-dashed border-indigo-300 rounded-lg text-indigo-600 font-bold hover:bg-white transition-all flex items-center justify-center gap-2"
+                                    className="w-full py-2.5 border border-dashed border-[var(--tenant-secondary-border)] rounded-lg text-[var(--tenant-secondary)] font-bold hover:bg-[var(--tenant-panel)] transition-all flex items-center justify-center gap-2"
                                 >
                                     <Plus size={16} /> Adicionar Novo Ativo
                                 </button>
@@ -620,28 +620,28 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
 
                 {/* RIGHT SIDEBAR FOR CAPEX SUMMARY */}
                 <div className="w-full xl:w-80 space-y-4 shrink-0">
-                    <div className="bg-indigo-900 rounded-xl p-6 text-white shadow-xl shadow-indigo-900/10 relative overflow-hidden">
+                    <div className="bg-[var(--tenant-primary)] rounded-lg p-6 text-white shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5">
                             <Database size={100} />
                         </div>
                         <div className="relative z-10">
-                            <p className="text-xs font-bold text-indigo-200 uppercase tracking-widest mb-1">Total CAPEX</p>
+                            <p className="text-xs font-bold text-[var(--tenant-secondary)] uppercase tracking-widest mb-1">Total CAPEX</p>
                             <h3 className="text-3xl font-bold text-white mb-4">
                                 {formatCurrency((data.capexItems || []).reduce((acc, c) => acc + c.value, 0))}
                             </h3>
 
-                            <div className="h-px bg-white/10 w-full mb-4"></div>
+                            <div className="h-px bg-[var(--tenant-panel)] w-full mb-4"></div>
 
                             <div className="flex justify-between items-center mb-1">
-                                <span className="text-xs text-indigo-200">Depreciação Total Estimada (Mês)</span>
-                                <span className="text-sm font-bold text-indigo-100">
+                                <span className="text-xs text-[var(--tenant-secondary)]">Depreciação Total Estimada (Mês)</span>
+                                <span className="text-sm font-bold text-[var(--tenant-secondary)]">
                                     {formatCurrency((data.capexItems || []).reduce((acc, c) => acc + (c.value / (c.lifespanMonths || 1)), 0))}
                                 </span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg border border-[var(--tenant-border)] p-6 shadow-sm space-y-4">
                         <div>
                             <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-2">
                                 <CreditCard size={16} className="text-slate-400" />
@@ -652,12 +652,12 @@ const Costs: React.FC<CostsProps> = ({ data, updateData, globalConfig }) => {
                                 Você pode habilitar a consideração do <strong>Valor Residual</strong> do ativo ao fim do contrato.
                             </p>
 
-                            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                            <label className="flex items-start gap-3 p-3 border border-[var(--tenant-border)] rounded-lg hover:bg-[var(--tenant-control)] cursor-pointer transition-colors">
                                 <input
                                     type="checkbox"
                                     checked={data.includeResidualValueInNPV || false}
                                     onChange={(e) => updateData({ includeResidualValueInNPV: e.target.checked })}
-                                    className="mt-0.5 text-indigo-600 rounded focus:ring-indigo-500"
+                                    className="mt-0.5 text-[var(--tenant-secondary)] rounded focus:ring-[var(--tenant-primary-soft)]"
                                 />
                                 <div>
                                     <span className="block text-sm font-bold text-slate-800">Valor Residual no VPL</span>

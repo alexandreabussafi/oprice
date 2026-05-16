@@ -20,7 +20,7 @@ import Contacts from './pages/Contacts';
 import Tasks from './pages/Tasks';
 import ProductEditor from './pages/ProductEditor'; // NOVO: Módulo de Produtos
 import SaasSubscriptionEditor from './pages/SaasSubscriptionEditor';
-import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ContinuousStage, SpotStage, CONTINUOUS_TO_SPOT_MAPPING, SPOT_TO_CONTINUOUS_MAPPING, ProposalVersionStatus, AppRole, BusinessUnitAccess, Milestone, Contact, CRMTask, CatalogProduct, defaultAccounting, TimelineEvent, TenantModule, TaskAttachment, CRMCommunication, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft } from './types';
+import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ProposalVersionStatus, AppRole, BusinessUnitAccess, Milestone, Contact, CRMTask, CatalogProduct, defaultAccounting, TimelineEvent, TenantModule, PricingModuleId, TaskAttachment, CRMCommunication, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft } from './types';
 import { calculateFinancials } from './utils/pricingEngine';
 import { Moon, Sun, X } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -31,7 +31,12 @@ import { IOT_TENANT_ID, LUBRIM_TENANT_ID, SAAS_TENANT_ID, useTenant } from './co
 import { crmRepository, isUuid } from './services/crmRepository';
 import { googleWorkspaceService } from './services/googleWorkspaceService';
 import { microsoftWorkspaceService } from './services/microsoftWorkspaceService';
+import { getPersistenceErrorMessage, runSupabaseRequest } from './services/supabaseRequest';
 import { createDefaultProposalTemplates, mergeProposalTemplates } from './utils/proposalTemplates';
+import { addDaysDateInput as addProposalFollowUpDays, buildProposalSendTemplateVariables, createDefaultProposalSendAutomationConfig, getDefaultProposalSendAutomationTemplate, normalizeProposalSendAutomation, renderProposalSendTemplate } from './utils/proposalSendAutomation';
+import { applyPricingModuleDefaultsToProposal, withPricingModuleCompatibility } from './utils/pricingModuleAdapters';
+import { getDefaultPricingModuleForBusinessUnit, getEditorTabForPricingModule as getPricingEditorTab, tenantSupportsPricingBusinessUnit } from './utils/pricingModules';
+import { getPricingModuleForProposal, getSalesPipelineForCreation, getSalesPipelineForProposal, isClosedStage, mapStageBetweenPipelines } from './utils/salesPipelines';
 
 // Default Tax Config (The System Standard)
 const defaultTaxConfig: ProposalData['taxConfig'] = {
@@ -118,7 +123,7 @@ const defaultKits: KitTemplate[] = [
 const defaultLetterheadConfig: ProposalData['letterheadConfig'] = {
   logoUrl: '/logo.png',
   primaryColor: '#0f172a',
-  secondaryColor: '#2563eb',
+  secondaryColor: '#047857',
   companyName: 'OPCAPEX',
   companySlogan: 'Industrial Viability Engine',
   addressLine1: 'Av. Industrial, 1000',
@@ -127,6 +132,27 @@ const defaultLetterheadConfig: ProposalData['letterheadConfig'] = {
   contactEmail: 'contato@opcapex.com.br',
   contactPhone: '(11) 9999-9999',
   website: 'www.opcapex.com.br'
+};
+
+const ensureHeadLink = (rel: string, href: string, type?: string) => {
+  let link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = rel;
+    document.head.appendChild(link);
+  }
+  link.href = href;
+  if (type) link.type = type;
+};
+
+const ensureHeadMeta = (selector: string, attributes: Record<string, string>, content: string) => {
+  let meta = document.querySelector<HTMLMetaElement>(selector);
+  if (!meta) {
+    meta = document.createElement('meta');
+    Object.entries(attributes).forEach(([key, value]) => meta!.setAttribute(key, value));
+    document.head.appendChild(meta);
+  }
+  meta.content = content;
 };
 
 // Default Template for new proposals
@@ -191,7 +217,7 @@ const initialProductCatalog: CatalogProduct[] = [
 const createTenantConfig = (
   tenantId: string,
   overrides: Partial<ProposalData> = {}
-): ProposalData => ({
+): ProposalData => withPricingModuleCompatibility({
   ...defaultProposalTemplate,
   id: `global-config-${tenantId}`,
   tenantId,
@@ -200,6 +226,7 @@ const createTenantConfig = (
   letterheadConfig: defaultLetterheadConfig,
   productCatalog: initialProductCatalog,
   proposalTemplates: createDefaultProposalTemplates(defaultLetterheadConfig.companyName),
+  proposalSendAutomation: createDefaultProposalSendAutomationConfig(),
   accountingConfig: defaultAccounting,
   productAccountingConfig: defaultAccounting,
   markup: 0.30,
@@ -442,7 +469,7 @@ const mockInitialProposals: ProposalData[] = [
 ];
 
 function App() {
-  const { activeTenant, activeTenantId, memberships, tenantLoading, isPlatformSuperAdmin, hasModule, clearTenantSelection } = useTenant();
+  const { activeTenant, activeTenantId, memberships, tenantLoading, isPlatformSuperAdmin, clearTenantSelection } = useTenant();
   const [view, setView] = useState<'CRM' | 'EDITOR' | 'HELP' | 'SUPERADMIN'>('CRM');
   // --- THEME STATE ---
   const [darkMode, setDarkMode] = useState(() => {
@@ -467,6 +494,12 @@ function App() {
   };
 
   const [activeTab, setActiveTab] = useState('crm-dashboard');
+
+  useEffect(() => {
+    if (window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase() === 'superadmin') {
+      setView('SUPERADMIN');
+    }
+  }, []);
   const [businessUnit, setBusinessUnit] = useState<'SERVICES' | 'PRODUCTS'>(() => {
     const saved = localStorage.getItem('oprice-business-unit');
     return (saved as 'SERVICES' | 'PRODUCTS') || 'SERVICES';
@@ -476,8 +509,8 @@ function App() {
     enabledModules: TenantModule[] = [],
     preferred?: 'SERVICES' | 'PRODUCTS'
   ): 'SERVICES' | 'PRODUCTS' => {
-    const tenantSupportsServices = enabledModules.includes('SERVICES_COMPLEX');
-    const tenantSupportsProducts = enabledModules.some(module => ['PRODUCT_SALES', 'SAAS_SUBSCRIPTION', 'IOT_SUBSCRIPTION'].includes(module));
+    const tenantSupportsServices = tenantSupportsPricingBusinessUnit(enabledModules, 'SERVICES');
+    const tenantSupportsProducts = tenantSupportsPricingBusinessUnit(enabledModules, 'PRODUCTS');
 
     if (preferred === 'SERVICES' && tenantSupportsServices) return 'SERVICES';
     if (preferred === 'PRODUCTS' && tenantSupportsProducts) return 'PRODUCTS';
@@ -550,7 +583,7 @@ function App() {
   const resolvedTenantId = activeTenantId || LUBRIM_TENANT_ID;
   const globalConfig = tenantConfigs[resolvedTenantId] || createTenantConfig(resolvedTenantId);
   const tenantBranding = activeTenant?.branding || {};
-  const brandedGlobalConfig: ProposalData = {
+  const brandedGlobalConfig: ProposalData = withPricingModuleCompatibility({
     ...globalConfig,
     proposalTemplates: mergeProposalTemplates(
       globalConfig.proposalTemplates,
@@ -560,19 +593,50 @@ function App() {
       ...globalConfig.letterheadConfig,
       logoUrl: tenantBranding.logoUrl || globalConfig.letterheadConfig?.logoUrl || '/logo.png',
       primaryColor: tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || '#0f172a',
-      secondaryColor: tenantBranding.secondaryColor || globalConfig.letterheadConfig?.secondaryColor || '#2563eb',
+      secondaryColor: tenantBranding.secondaryColor || globalConfig.letterheadConfig?.secondaryColor || '#047857',
       companyName: tenantBranding.companyName || tenantBranding.displayName || activeTenant?.name || globalConfig.letterheadConfig?.companyName || 'OPCAPEX'
     }
-  };
+  });
+
+  useEffect(() => {
+    const tenantName = tenantBranding.displayName || tenantBranding.companyName || activeTenant?.name || 'OPrice';
+    const tenantSlug = activeTenant?.slug || 'oprice';
+    const tenantSlogan = tenantBranding.slogan || globalConfig.letterheadConfig?.companySlogan || 'Pricing System';
+    const title = `${tenantName} | ${tenantSlug} - ${tenantSlogan}`;
+    const faviconUrl = tenantBranding.faviconUrl || tenantBranding.logoUrl || globalConfig.letterheadConfig?.logoUrl || '/pwa-icon-192.png';
+    const themeColor = tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || '#0f172a';
+
+    document.title = title;
+    ensureHeadMeta('meta[name="description"]', { name: 'description' }, `${tenantName} (${tenantSlug}) - ${tenantSlogan}`);
+    ensureHeadMeta('meta[name="theme-color"]', { name: 'theme-color' }, themeColor);
+    ensureHeadMeta('meta[name="apple-mobile-web-app-title"]', { name: 'apple-mobile-web-app-title' }, tenantName);
+    ensureHeadLink('icon', faviconUrl);
+    ensureHeadLink('shortcut icon', faviconUrl);
+    ensureHeadLink('apple-touch-icon', faviconUrl);
+  }, [
+    activeTenant?.id,
+    activeTenant?.slug,
+    activeTenant?.name,
+    tenantBranding.displayName,
+    tenantBranding.companyName,
+    tenantBranding.logoUrl,
+    tenantBranding.faviconUrl,
+    tenantBranding.primaryColor,
+    tenantBranding.slogan,
+    globalConfig.letterheadConfig?.logoUrl,
+    globalConfig.letterheadConfig?.primaryColor,
+    globalConfig.letterheadConfig?.companySlogan
+  ]);
+
   const setGlobalConfig = async (config: ProposalData) => {
-    const nextConfig = {
+    const nextConfig = withPricingModuleCompatibility({
       ...config,
       tenantId: resolvedTenantId,
       proposalTemplates: mergeProposalTemplates(
         config.proposalTemplates,
         config.letterheadConfig?.companyName || activeTenant?.name
       )
-    };
+    });
     const previousConfig = tenantConfigs[resolvedTenantId];
     setTenantConfigs(prev => ({
       ...prev,
@@ -581,8 +645,12 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      const savedSettings = await crmRepository.upsertTenantSettings(resolvedTenantId, nextConfig);
-      setTenantConfigs(prev => ({ ...prev, [resolvedTenantId]: { ...savedSettings, tenantId: resolvedTenantId } }));
+      const savedSettings = await withTenantLoadTimeout(
+        signal => crmRepository.upsertTenantSettings(resolvedTenantId, nextConfig, { signal }),
+        'Salvar configuracoes do tenant',
+        10000
+      );
+      setTenantConfigs(prev => ({ ...prev, [resolvedTenantId]: withPricingModuleCompatibility({ ...savedSettings, tenantId: resolvedTenantId }) }));
     } catch (error: any) {
       setTenantConfigs(prev => ({ ...prev, [resolvedTenantId]: previousConfig || createTenantConfig(resolvedTenantId) }));
       setCrmDataError(error.message || 'Erro ao salvar configurações do tenant.');
@@ -649,23 +717,33 @@ function App() {
     ]);
   };
 
-  const withTenantLoadTimeout = async <T,>(promise: Promise<T>, label: string, timeoutMs = 15000): Promise<T> => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error(`${label} demorou demais para responder. Verifique a conexão com o Supabase, permissões do tenant e migrations pendentes. A tela foi liberada para tentar novamente.`)), timeoutMs);
-    });
-    try {
-      return await Promise.race([promise, timeoutPromise]);
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
-    }
+  const withTenantLoadTimeout = async <T,>(
+    operation: Promise<T> | ((signal?: AbortSignal) => Promise<T>),
+    label: string,
+    timeoutMs = 15000
+  ): Promise<T> => {
+    return runSupabaseRequest(
+      signal => typeof operation === 'function' ? operation(signal) : operation,
+      { label, tenantId: resolvedTenantId, timeoutMs }
+    );
   };
 
   const getCrmSaveErrorMessage = (error: any, fallback: string) => {
+    const classified = getPersistenceErrorMessage(error, fallback);
+    if (classified && classified !== fallback) return classified;
     const code = String(error?.code || '');
     const message = String(error?.message || error?.details || '');
     const details = String(error?.details || '');
     const combined = `${message} ${details}`;
+    if (code === 'CRM_TIMEOUT') {
+      return message || `${error?.crmLabel || 'Operacao'} excedeu o tempo limite de resposta do Supabase.`;
+    }
+    if (error?.name === 'AbortError' || /abort|aborted/i.test(combined)) {
+      return 'A chamada ao Supabase foi abortada apos timeout para liberar a tela. Tente novamente e consulte o trace do Playwright se persistir.';
+    }
+    if (/failed to fetch|networkerror|load failed|err_network|err_connection|fetch failed/i.test(combined)) {
+      return 'Falha de rede ao acessar o Supabase. Verifique internet, URL/chave do projeto e bloqueios do navegador.';
+    }
     if (/column .*payload.* does not exist/i.test(message)) {
       return 'Schema remoto incompatível: a tabela não possui coluna payload. O salvamento foi interrompido sem travar a tela.';
     }
@@ -759,41 +837,55 @@ function App() {
       setCrmDataLoading(true);
       setCrmDataError(null);
       try {
-        const [loadedClients, loadedContacts, loadedTasks, loadedTaskAttachments, loadedCommunications, loadedExternalEvents, loadedProposals, loadedSettings] = await Promise.all([
-          withTenantLoadTimeout(crmRepository.listClients(activeTenantId), 'Clientes'),
-          withTenantLoadTimeout(crmRepository.listContacts(activeTenantId), 'Contatos'),
-          withTenantLoadTimeout(crmRepository.listTasks(activeTenantId), 'Tarefas'),
-          withTenantLoadTimeout(crmRepository.listTaskAttachments(activeTenantId), 'Anexos de tarefas').catch(error => {
-            console.warn('Anexos de tarefas indisponiveis. Verifique a migration crm_task_attachments.', error);
-            return [] as TaskAttachment[];
-          }),
-          withTenantLoadTimeout(crmRepository.listCommunications(activeTenantId), 'Comunicacoes').catch(error => {
-            console.warn('Comunicacoes Google indisponiveis. Verifique a migration google_workspace_integration.', error);
-            return [] as CRMCommunication[];
-          }),
-          withTenantLoadTimeout(crmRepository.listExternalEvents(activeTenantId), 'Eventos externos').catch(error => {
-            console.warn('Eventos Google indisponiveis. Verifique a migration google_workspace_integration.', error);
-            return [] as CRMExternalEvent[];
-          }),
-          withTenantLoadTimeout(crmRepository.listProposals(activeTenantId), 'Propostas'),
-          withTenantLoadTimeout(crmRepository.getTenantSettings<ProposalData>(activeTenantId), 'Configurações')
+        const [loadedClients, loadedContacts, loadedTasks, loadedProposals, loadedSettings] = await Promise.all([
+          withTenantLoadTimeout(signal => crmRepository.listClients(activeTenantId, { signal }), 'Clientes'),
+          withTenantLoadTimeout(signal => crmRepository.listContacts(activeTenantId, { signal }), 'Contatos'),
+          withTenantLoadTimeout(signal => crmRepository.listTasks(activeTenantId, { signal }), 'Tarefas'),
+          withTenantLoadTimeout(signal => crmRepository.listProposals(activeTenantId, { signal }), 'Propostas'),
+          withTenantLoadTimeout(signal => crmRepository.getTenantSettings<ProposalData>(activeTenantId, { signal }), 'Configurações')
         ]);
         if (cancelled) return;
 
         replaceTenantClients(activeTenantId, loadedClients.length > 0 || activeTenantId !== LUBRIM_TENANT_ID ? loadedClients : initialClients.map(c => ({ ...c, tenantId: LUBRIM_TENANT_ID })));
         replaceTenantContacts(activeTenantId, loadedContacts.length > 0 || activeTenantId !== LUBRIM_TENANT_ID ? loadedContacts : initialContacts.map(c => ({ ...c, tenantId: LUBRIM_TENANT_ID })));
         replaceTenantTasks(activeTenantId, loadedTasks.length > 0 || activeTenantId !== LUBRIM_TENANT_ID ? loadedTasks : initialTasks.map(t => ({ ...t, tenantId: LUBRIM_TENANT_ID })));
-        replaceTenantTaskAttachments(activeTenantId, loadedTaskAttachments);
-        replaceTenantCommunications(activeTenantId, loadedCommunications);
-        replaceTenantExternalEvents(activeTenantId, loadedExternalEvents);
         replaceTenantProposals(activeTenantId, loadedProposals.length > 0 || activeTenantId !== LUBRIM_TENANT_ID ? loadedProposals : mockInitialProposals.map((p: any) => ({ ...p, tenantId: LUBRIM_TENANT_ID })));
         setTenantConfigs(prev => ({
           ...prev,
-          [activeTenantId]: loadedSettings ? { ...loadedSettings, tenantId: activeTenantId } : prev[activeTenantId] || createTenantConfig(activeTenantId)
+          [activeTenantId]: loadedSettings
+            ? withPricingModuleCompatibility({ ...loadedSettings, tenantId: activeTenantId })
+            : prev[activeTenantId] || createTenantConfig(activeTenantId)
         }));
+
+        const optionalResults = await Promise.allSettled([
+          withTenantLoadTimeout(signal => crmRepository.listTaskAttachments(activeTenantId, undefined, { signal, timeoutMs: 7000 }), 'Anexos de tarefas', 7000),
+          withTenantLoadTimeout(signal => crmRepository.listCommunications(activeTenantId, { signal, timeoutMs: 7000 }), 'Comunicacoes', 7000),
+          withTenantLoadTimeout(signal => crmRepository.listExternalEvents(activeTenantId, { signal, timeoutMs: 7000 }), 'Eventos externos', 7000)
+        ]);
+        if (cancelled) return;
+
+        const [attachmentsResult, communicationsResult, eventsResult] = optionalResults;
+        if (attachmentsResult.status === 'fulfilled') {
+          replaceTenantTaskAttachments(activeTenantId, attachmentsResult.value);
+        } else {
+          console.warn('Anexos de tarefas indisponiveis. Verifique a migration crm_task_attachments.', attachmentsResult.reason);
+          replaceTenantTaskAttachments(activeTenantId, []);
+        }
+        if (communicationsResult.status === 'fulfilled') {
+          replaceTenantCommunications(activeTenantId, communicationsResult.value);
+        } else {
+          console.warn('Comunicacoes Google indisponiveis. Verifique a migration google_workspace_integration.', communicationsResult.reason);
+          replaceTenantCommunications(activeTenantId, []);
+        }
+        if (eventsResult.status === 'fulfilled') {
+          replaceTenantExternalEvents(activeTenantId, eventsResult.value);
+        } else {
+          console.warn('Eventos Google indisponiveis. Verifique a migration google_workspace_integration.', eventsResult.reason);
+          replaceTenantExternalEvents(activeTenantId, []);
+        }
       } catch (error: any) {
         if (!cancelled) {
-          setCrmDataError(error.message || 'Erro ao carregar dados do tenant.');
+          setCrmDataError(getCrmSaveErrorMessage(error, 'Erro ao carregar dados do tenant.'));
         }
       } finally {
         if (!cancelled) setCrmDataLoading(false);
@@ -852,9 +944,9 @@ function App() {
     setCrmDataError(null);
     try {
       const savedClient = await withTenantLoadTimeout(
-        isUuid(client.id)
-          ? crmRepository.updateClient(optimistic, resolvedTenantId)
-          : crmRepository.createClient(optimistic, resolvedTenantId),
+        signal => isUuid(client.id)
+          ? crmRepository.updateClient(optimistic, resolvedTenantId, { signal })
+          : crmRepository.createClient(optimistic, resolvedTenantId, { signal }),
         'Salvar cliente',
         10000
       );
@@ -878,7 +970,7 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      await crmRepository.deleteClient(id, resolvedTenantId);
+      await withTenantLoadTimeout(signal => crmRepository.deleteClient(id, resolvedTenantId, { signal }), 'Excluir cliente', 10000);
     } catch (error: any) {
       replaceTenantClients(resolvedTenantId, previousClients);
       setCrmDataError(error.message || 'Erro ao excluir cliente.');
@@ -896,9 +988,9 @@ function App() {
     setCrmDataError(null);
     try {
       const savedContact = await withTenantLoadTimeout(
-        isUuid(contact.id)
-          ? crmRepository.updateContact(optimistic, resolvedTenantId)
-          : crmRepository.createContact(optimistic, resolvedTenantId),
+        signal => isUuid(contact.id)
+          ? crmRepository.updateContact(optimistic, resolvedTenantId, { signal })
+          : crmRepository.createContact(optimistic, resolvedTenantId, { signal }),
         'Salvar contato',
         10000
       );
@@ -922,7 +1014,7 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      await crmRepository.deleteContact(id, resolvedTenantId);
+      await withTenantLoadTimeout(signal => crmRepository.deleteContact(id, resolvedTenantId, { signal }), 'Excluir contato', 10000);
     } catch (error: any) {
       replaceTenantContacts(resolvedTenantId, previousContacts);
       setCrmDataError(error.message || 'Erro ao excluir contato.');
@@ -944,9 +1036,9 @@ function App() {
     setCrmDataError(null);
     try {
       const savedTask = await withTenantLoadTimeout(
-        isUuid(task.id)
-          ? crmRepository.updateTask(optimistic, resolvedTenantId)
-          : crmRepository.createTask(optimistic, resolvedTenantId),
+        signal => isUuid(task.id)
+          ? crmRepository.updateTask(optimistic, resolvedTenantId, { signal })
+          : crmRepository.createTask(optimistic, resolvedTenantId, { signal }),
         'Salvar tarefa',
         10000
       );
@@ -973,7 +1065,7 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      await crmRepository.deleteTask(id, resolvedTenantId);
+      await withTenantLoadTimeout(signal => crmRepository.deleteTask(id, resolvedTenantId, { signal }), 'Excluir tarefa', 10000);
     } catch (error: any) {
       replaceTenantTasks(resolvedTenantId, previousTasks);
       replaceTenantTaskAttachments(resolvedTenantId, previousAttachments);
@@ -988,7 +1080,11 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      const savedAttachment = await crmRepository.uploadTaskAttachment(task, file, resolvedTenantId, profile?.id);
+      const savedAttachment = await withTenantLoadTimeout(
+        signal => crmRepository.uploadTaskAttachment(task, file, resolvedTenantId, profile?.id, { signal }),
+        'Anexar arquivo',
+        10000
+      );
       upsertLocalTaskAttachment(resolvedTenantId, savedAttachment);
       return savedAttachment;
     } catch (error: any) {
@@ -1008,7 +1104,11 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      await crmRepository.deleteTaskAttachment(attachment, resolvedTenantId);
+      await withTenantLoadTimeout(
+        signal => crmRepository.deleteTaskAttachment(attachment, resolvedTenantId, { signal }),
+        'Remover anexo',
+        10000
+      );
     } catch (error: any) {
       replaceTenantTaskAttachments(resolvedTenantId, previousAttachments);
       setCrmDataError(error.message || 'Erro ao remover anexo.');
@@ -1020,7 +1120,11 @@ function App() {
 
   const openTenantTaskAttachment = async (attachment: TaskAttachment): Promise<void> => {
     try {
-      const signedUrl = await crmRepository.createTaskAttachmentSignedUrl(attachment, resolvedTenantId);
+      const signedUrl = await withTenantLoadTimeout(
+        signal => crmRepository.createTaskAttachmentSignedUrl(attachment, resolvedTenantId, { signal }),
+        'Abrir anexo',
+        10000
+      );
       window.open(signedUrl, '_blank', 'noopener,noreferrer');
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao abrir anexo.');
@@ -1056,13 +1160,104 @@ function App() {
     }
   };
 
+  const getProposalSentStageId = (proposal: ProposalData) => {
+    const pipeline = getSalesPipelineForProposal(proposal, brandedGlobalConfig);
+    return pipeline.stages.find(stage => stage.id === 'Sent')?.id
+      || pipeline.stages.find(stage => stage.category === 'proposal')?.id
+      || 'Sent';
+  };
+
+  const handleProposalSentAutomation = async (
+    draft: GoogleEmailDraft | MicrosoftEmailDraft,
+    communication: CRMCommunication
+  ) => {
+    if (!draft.markProposalSent || !draft.proposalId) return;
+    const proposal = tenantProposals.find(p => p.id === draft.proposalId);
+    if (!proposal?.clientId) return;
+
+    const sentAt = new Date(communication.sentAt || communication.createdAt || Date.now());
+    const sentStageId = getProposalSentStageId(proposal);
+    const nextProposal: ProposalData = {
+      ...proposal,
+      stage: sentStageId,
+      status: 'Active',
+      versionStatus: 'SUBMITTED',
+      updatedAt: sentAt.toISOString(),
+      timeline: [
+        ...(proposal.timeline || []),
+        {
+          id: Math.random().toString(36).substring(2, 9),
+          date: sentAt.toISOString(),
+          type: 'COMMUNICATION',
+          title: `Proposta #${proposal.proposalId} enviada por e-mail`,
+          user: currentUser.name || profile?.email || 'Sistema',
+          metadata: {
+            communicationId: communication.id,
+            provider: communication.provider,
+            subject: draft.subject,
+            to: draft.to,
+            stage: sentStageId,
+            status: 'Active',
+            versionStatus: 'SUBMITTED'
+          }
+        }
+      ]
+    };
+
+    await persistProposal(nextProposal);
+
+    const automation = normalizeProposalSendAutomation(brandedGlobalConfig.proposalSendAutomation);
+    if (!automation.enabled) return;
+
+    const template = getDefaultProposalSendAutomationTemplate(automation);
+    const variables = buildProposalSendTemplateVariables({
+      proposal: nextProposal,
+      subject: draft.subject,
+      to: draft.to,
+      cc: draft.cc,
+      responsible: currentUser.name || profile?.email,
+      sentAt
+    });
+    const title = renderProposalSendTemplate(template.titleTemplate, variables);
+    const description = renderProposalSendTemplate(template.descriptionTemplate, variables);
+    const dueDate = addProposalFollowUpDays(template.delayDays, sentAt);
+
+    if (template.syncMicrosoftTodo && microsoftConnection.connected) {
+      await createTenantMicrosoftTodoTask({
+        tenantId: '',
+        clientId: nextProposal.clientId,
+        proposalId: nextProposal.id,
+        contactId: draft.contactId,
+        title,
+        description,
+        type: 'Follow-up',
+        dueDate
+      });
+      return;
+    }
+
+    await saveTenantTask({
+      id: `task-${Date.now()}`,
+      clientId: nextProposal.clientId,
+      proposalId: nextProposal.id,
+      contactId: draft.contactId,
+      assignee: currentUser.name || profile?.email,
+      title,
+      description,
+      type: 'Follow-up',
+      status: 'To Do',
+      dueDate,
+      createdAt: new Date().toISOString()
+    });
+  };
+
   const syncTenantGmail = async () => {
     setGoogleWorkspaceLoading(true);
     setCrmDataError(null);
     try {
       await googleWorkspaceService.syncGmail(resolvedTenantId);
       const [loadedCommunications, status] = await Promise.all([
-        crmRepository.listCommunications(resolvedTenantId),
+        withTenantLoadTimeout(signal => crmRepository.listCommunications(resolvedTenantId, { signal }), 'Recarregar comunicacoes', 7000),
         googleWorkspaceService.getConnectionStatus(resolvedTenantId)
       ]);
       replaceTenantCommunications(resolvedTenantId, loadedCommunications);
@@ -1079,9 +1274,19 @@ function App() {
     setGoogleWorkspaceLoading(true);
     setCrmDataError(null);
     try {
-      const { task, communication } = await googleWorkspaceService.sendEmail({ ...draft, tenantId: resolvedTenantId });
+      const { task, communication, threadWarning } = await googleWorkspaceService.sendEmail({ ...draft, tenantId: resolvedTenantId });
       upsertLocalTask(resolvedTenantId, task);
       upsertLocalCommunication(resolvedTenantId, communication);
+      if (threadWarning) setCrmDataError(threadWarning);
+      try {
+        await handleProposalSentAutomation(draft, communication);
+      } catch (automationError: any) {
+        const message = `E-mail enviado, mas nao foi possivel atualizar a proposta e criar o follow-up: ${automationError.message || automationError}`;
+        setCrmDataError(message);
+        const enhanced = new Error(message);
+        (enhanced as any).emailSent = true;
+        throw enhanced;
+      }
       return { task, communication };
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao enviar e-mail pelo Gmail.');
@@ -1141,8 +1346,8 @@ function App() {
     try {
       const syncResult = await microsoftWorkspaceService.syncMail(resolvedTenantId);
       const [loadedCommunications, loadedTasks, status] = await Promise.all([
-        crmRepository.listCommunications(resolvedTenantId),
-        crmRepository.listTasks(resolvedTenantId),
+        withTenantLoadTimeout(signal => crmRepository.listCommunications(resolvedTenantId, { signal }), 'Recarregar comunicacoes', 7000),
+        withTenantLoadTimeout(signal => crmRepository.listTasks(resolvedTenantId, { signal }), 'Recarregar tarefas', 7000),
         microsoftWorkspaceService.getConnectionStatus(resolvedTenantId)
       ]);
       replaceTenantCommunications(resolvedTenantId, loadedCommunications);
@@ -1169,6 +1374,15 @@ function App() {
       upsertLocalCommunication(resolvedTenantId, communication);
       if (todoTask) upsertLocalTask(resolvedTenantId, todoTask);
       if (todoError) setCrmDataError(todoError);
+      try {
+        await handleProposalSentAutomation(draft, communication);
+      } catch (automationError: any) {
+        const message = `E-mail enviado, mas nao foi possivel atualizar a proposta e criar o follow-up: ${automationError.message || automationError}`;
+        setCrmDataError(message);
+        const enhanced = new Error(message);
+        (enhanced as any).emailSent = true;
+        throw enhanced;
+      }
       return { task, communication, todoTask, externalTask, todoError };
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao enviar e-mail pelo Outlook.');
@@ -1243,7 +1457,7 @@ function App() {
 
   // ---- GUARD RETURNS (all hooks declared above, safe to return early now) ----
   if (loading) {
-    return <div className="h-screen w-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 text-slate-500">Carregando...</div>;
+    return <div className="flex h-screen w-screen items-center justify-center bg-[var(--tenant-bg)] text-slate-500 dark:bg-[var(--tenant-bg-dark)]">Carregando...</div>;
   }
 
   if (!session) {
@@ -1251,27 +1465,31 @@ function App() {
   }
 
   if (view === 'SUPERADMIN') {
-    return <SuperAdminPortal onBack={() => setView('CRM')} />;
+    return <SuperAdminPortal onBack={() => {
+      window.history.pushState({}, '', activeTenant?.slug ? `/${activeTenant.slug}` : '/');
+      setView('CRM');
+    }} />;
   }
 
   if (tenantLoading || !activeTenantId || !activeTenant) {
-    return <TenantEntry onOpenPortal={() => setView('SUPERADMIN')} />;
+    return <TenantEntry onOpenPortal={() => {
+      window.history.pushState({}, '', '/superadmin');
+      setView('SUPERADMIN');
+    }} />;
   }
 
   // --- CRM ACTIONS ---
 
   const getDefaultProductPricingModule = (): TenantModule => {
-    if (hasModule('SAAS_SUBSCRIPTION')) return 'SAAS_SUBSCRIPTION';
-    if (hasModule('IOT_SUBSCRIPTION')) return 'IOT_SUBSCRIPTION';
-    return 'PRODUCT_SALES';
+    return getDefaultPricingModuleForBusinessUnit(activeTenant.enabledModules, 'PRODUCTS') || 'PRODUCT_SALES';
   };
 
   const getEditorTabForPricingModule = (type: ProposalType, pricingModule?: TenantModule) => {
-    if (type === 'PRODUCT') {
-      return pricingModule === 'SAAS_SUBSCRIPTION' ? 'saas-editor' : 'product-editor';
-    }
-    return 'dashboard';
+    return getPricingEditorTab(type, pricingModule);
   };
+
+  const getDefaultStageForPricing = (pricingModule: PricingModuleId, type: ProposalType) =>
+    getSalesPipelineForCreation(brandedGlobalConfig, pricingModule, type).defaultStageId;
 
   const persistProposal = async (proposal: ProposalData) => {
     const previousProposals = tenantProposals;
@@ -1280,9 +1498,13 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      const savedProposal = isUuid(proposal.id)
-        ? await crmRepository.updateProposal(optimistic, resolvedTenantId)
-        : await crmRepository.createProposal(optimistic, resolvedTenantId);
+      const savedProposal = await withTenantLoadTimeout(
+        signal => isUuid(proposal.id)
+          ? crmRepository.updateProposal(optimistic, resolvedTenantId, { signal })
+          : crmRepository.createProposal(optimistic, resolvedTenantId, { signal }),
+        'Salvar proposta',
+        10000
+      );
       setProposals(prev => [
         ...prev.filter(p => p.id !== proposal.id && p.id !== savedProposal.id),
         { ...savedProposal, tenantId: resolvedTenantId }
@@ -1308,7 +1530,7 @@ function App() {
       setCrmSaving(true);
       setCrmDataError(null);
       try {
-        selectedClient = await withTenantLoadTimeout(crmRepository.createClient({
+        selectedClient = await withTenantLoadTimeout(signal => crmRepository.createClient({
           id: Math.random().toString(36).substr(2, 9),
           tenantId: resolvedTenantId,
           name: inlineName,
@@ -1317,7 +1539,7 @@ function App() {
           businessUnit: payload.type === 'PRODUCT' ? 'PRODUCTS' : 'SERVICES',
           isProductClient: payload.type === 'PRODUCT',
           isServiceClient: payload.type !== 'PRODUCT'
-        }, resolvedTenantId), 'Salvar cliente');
+        }, resolvedTenantId, { signal }), 'Salvar cliente');
         replaceTenantClients(resolvedTenantId, [selectedClient, ...tenantClients]);
       } catch (error: any) {
         const message = getCrmSaveErrorMessage(error, 'Erro ao salvar cliente.');
@@ -1347,11 +1569,11 @@ function App() {
     const today = new Date();
     const expiry = new Date();
     expiry.setDate(today.getDate() + 15);
-    const resolvedPricingModule: TenantModule = payload.type === 'PRODUCT'
-      ? (payload.pricingModule || getDefaultProductPricingModule())
+    const resolvedPricingModule: PricingModuleId = payload.type === 'PRODUCT'
+      ? ((payload.pricingModule && payload.pricingModule !== 'CRM_CORE' ? payload.pricingModule : getDefaultProductPricingModule()) as PricingModuleId)
       : 'SERVICES_COMPLEX';
 
-    const newProp: ProposalData = {
+    let newProp: ProposalData = {
       ...defaultProposalTemplate,
       id: newId,
       tenantId: resolvedTenantId,
@@ -1368,16 +1590,10 @@ function App() {
       spotExpenses: shouldInheritRef ? [...referenceProp!.spotExpenses] : defaultProposalTemplate.spotExpenses,
       documents: shouldInheritRef ? { ...referenceProp!.documents } : defaultProposalTemplate.documents,
       motion: payload.motion,
-      stage: 'Pricing',
+      stage: getDefaultStageForPricing(resolvedPricingModule, payload.type),
       status: 'Active',
       type: payload.type,
       pricingModule: resolvedPricingModule,
-      saasPlanName: resolvedPricingModule === 'SAAS_SUBSCRIPTION' ? 'Plano Professional' : undefined,
-      saasUnitPrice: resolvedPricingModule === 'SAAS_SUBSCRIPTION' ? 0 : undefined,
-      saasQuantity: resolvedPricingModule === 'SAAS_SUBSCRIPTION' ? 1 : undefined,
-      saasMonthlyDiscount: resolvedPricingModule === 'SAAS_SUBSCRIPTION' ? 0 : undefined,
-      saasSetupFee: resolvedPricingModule === 'SAAS_SUBSCRIPTION' ? 0 : undefined,
-      saasContractMonths: resolvedPricingModule === 'SAAS_SUBSCRIPTION' ? 12 : undefined,
       referenceOpportunityId: payload.referenceId,
       expansionType: payload.expansionType,
       // INHERIT GLOBAL SETTINGS
@@ -1399,10 +1615,14 @@ function App() {
         user: currentUser.name || 'Sistema'
       }]
     };
+    newProp = applyPricingModuleDefaultsToProposal(newProp, brandedGlobalConfig, resolvedPricingModule);
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      const savedProposal = await withTenantLoadTimeout(crmRepository.createProposal(newProp, resolvedTenantId), 'Salvar proposta');
+      const savedProposal = await withTenantLoadTimeout(
+        signal => crmRepository.createProposal(newProp, resolvedTenantId, { signal }),
+        'Salvar proposta'
+      );
       setProposals(prev => [
         { ...savedProposal, tenantId: resolvedTenantId },
         ...prev.filter(p => p.id !== savedProposal.id)
@@ -1442,7 +1662,7 @@ function App() {
       versionNotes: notes,
       versionStatus: 'DRAFT',
       isCurrentVersion: true,
-      stage: 'Pricing',
+      stage: getDefaultStageForPricing(getPricingModuleForProposal(source), source.type),
       status: 'Active',
       motion: source.motion === 'NewBusiness' ? 'NewBusiness' : source.motion,
       createdAt: today.toISOString(),
@@ -1466,8 +1686,16 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      const savedInactiveSource = await crmRepository.updateProposal({ ...source, isCurrentVersion: false, updatedAt: today.toISOString() }, resolvedTenantId);
-      const savedNewProp = await crmRepository.createProposal(newProp, resolvedTenantId);
+      const savedInactiveSource = await withTenantLoadTimeout(
+        signal => crmRepository.updateProposal({ ...source, isCurrentVersion: false, updatedAt: today.toISOString() }, resolvedTenantId, { signal }),
+        'Arquivar versao anterior',
+        10000
+      );
+      const savedNewProp = await withTenantLoadTimeout(
+        signal => crmRepository.createProposal(newProp, resolvedTenantId, { signal }),
+        'Criar nova versao',
+        10000
+      );
       setProposals(prev => prev.map(p => p.id === source.id ? savedInactiveSource : p.id === newProp.id ? savedNewProp : p));
       setCurrentId(savedNewProp.id);
     } catch (error: any) {
@@ -1510,7 +1738,7 @@ function App() {
       versionStatus: 'DRAFT',
       isCurrentVersion: true,
       status: 'Active',
-      stage: 'Pricing',
+      stage: getDefaultStageForPricing(getPricingModuleForProposal(source), source.type),
       createdAt: today.toISOString(),
       updatedAt: today.toISOString(),
       expirationDate: expiry.toISOString(),
@@ -1526,7 +1754,11 @@ function App() {
     setCrmSaving(true);
     setCrmDataError(null);
     try {
-      const savedNewProp = await crmRepository.createProposal(newProp, resolvedTenantId);
+      const savedNewProp = await withTenantLoadTimeout(
+        signal => crmRepository.createProposal(newProp, resolvedTenantId, { signal }),
+        'Duplicar proposta',
+        10000
+      );
       setProposals(prev => prev.map(p => p.id === newProp.id ? savedNewProp : p));
     } catch (error: any) {
       const message = getCrmSaveErrorMessage(error, 'Erro ao duplicar proposta.');
@@ -1540,7 +1772,8 @@ function App() {
   const handleDeleteProposal = (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta proposta?')) {
       setProposals(proposals.filter(p => p.id !== id));
-      crmRepository.deleteProposal(id, resolvedTenantId).catch((error: any) => setCrmDataError(error.message || 'Erro ao excluir proposta.'));
+      withTenantLoadTimeout(signal => crmRepository.deleteProposal(id, resolvedTenantId, { signal }), 'Excluir proposta', 10000)
+        .catch((error: any) => setCrmDataError(getCrmSaveErrorMessage(error, 'Erro ao excluir proposta.')));
       if (currentId === id) {
         setCurrentId(null);
         setView('CRM');
@@ -1640,14 +1873,17 @@ function App() {
     let changedProposal: ProposalData | null = null;
     setProposals(prev => prev.map(p => {
       if (p.id === currentId) {
-        // Handle Stage Mapping if Type is changing
         let updatedStage = p.stage;
-        if (newData.type && newData.type !== p.type) {
-          if (newData.type === 'SPOT') {
-            updatedStage = CONTINUOUS_TO_SPOT_MAPPING[p.stage as ContinuousStage] || 'MQL';
-          } else {
-            updatedStage = SPOT_TO_CONTINUOUS_MAPPING[p.stage as SpotStage] || 'MQL';
-          }
+        const nextType = newData.type || p.type;
+        const nextPricingModule = newData.pricingModule && newData.pricingModule !== 'CRM_CORE'
+          ? newData.pricingModule as PricingModuleId
+          : getPricingModuleForProposal({ ...p, ...newData });
+        if ((newData.type && newData.type !== p.type) || (newData.pricingModule && newData.pricingModule !== p.pricingModule)) {
+          updatedStage = mapStageBetweenPipelines(
+            p.stage,
+            getSalesPipelineForProposal(p, brandedGlobalConfig),
+            getSalesPipelineForCreation(brandedGlobalConfig, nextPricingModule, nextType)
+          );
         }
 
         const updated = { ...p, ...newData, stage: updatedStage, updatedAt: new Date().toISOString() };
@@ -1701,7 +1937,7 @@ function App() {
     let nextVersion = Math.max(0, ...sameProposalVersions.map(p => Number(p.version || 0))) + 1;
     const reloadTenantProposals = async () => {
       const freshProposals = await withTenantLoadTimeout(
-        crmRepository.listProposals(resolvedTenantId),
+        signal => crmRepository.listProposals(resolvedTenantId, { signal }),
         'Recarregar propostas',
         8000
       );
@@ -1709,7 +1945,7 @@ function App() {
       return freshProposals;
     };
     const remoteProposalVersions = await withTenantLoadTimeout(
-      crmRepository.listProposalVersions(resolvedTenantId, currentSaved.proposalId),
+      signal => crmRepository.listProposalVersions(resolvedTenantId, currentSaved.proposalId, { signal }),
       'Consultar versoes da proposta',
       8000
     );
@@ -1753,21 +1989,21 @@ function App() {
     setCrmDataError(null);
     try {
       const savedOriginal = await withTenantLoadTimeout(
-        crmRepository.updateProposal(revertedOriginal, resolvedTenantId),
+        signal => crmRepository.updateProposal(revertedOriginal, resolvedTenantId, { signal }),
         'Atualizar versao anterior',
         10000
       );
       let savedNewVersion: ProposalData;
       try {
         savedNewVersion = await withTenantLoadTimeout(
-          crmRepository.createProposal(newVersionedProp, resolvedTenantId),
+          signal => crmRepository.createProposal(newVersionedProp, resolvedTenantId, { signal }),
           'Criar nova versao',
           10000
         );
       } catch (createError: any) {
         if (!isProposalVersionDuplicateError(createError)) throw createError;
         const refreshedVersions = await withTenantLoadTimeout(
-          crmRepository.listProposalVersions(resolvedTenantId, currentSaved.proposalId),
+          signal => crmRepository.listProposalVersions(resolvedTenantId, currentSaved.proposalId, { signal }),
           'Reconsultar versoes da proposta',
           8000
         );
@@ -1789,7 +2025,7 @@ function App() {
           ]
         };
         savedNewVersion = await withTenantLoadTimeout(
-          crmRepository.createProposal(newVersionedProp, resolvedTenantId),
+          signal => crmRepository.createProposal(newVersionedProp, resolvedTenantId, { signal }),
           'Criar nova versao',
           10000
         );
@@ -1827,7 +2063,7 @@ function App() {
       let message = getCrmSaveErrorMessage(error, 'Erro ao salvar nova versao.');
       try {
         await withTenantLoadTimeout(
-          crmRepository.updateProposal({ ...initialDataSnapshot, isCurrentVersion: true, updatedAt: new Date().toISOString() }, resolvedTenantId),
+          signal => crmRepository.updateProposal({ ...initialDataSnapshot, isCurrentVersion: true, updatedAt: new Date().toISOString() }, resolvedTenantId, { signal }),
           'Restaurar versao original',
           8000
         );
@@ -1882,6 +2118,7 @@ function App() {
             microsoftConnection={microsoftConnection}
             microsoftWorkspaceLoading={microsoftWorkspaceLoading}
             proposals={visibleProposals}
+            globalConfig={brandedGlobalConfig}
             onSelectProposal={handleSelectProposal}
             onCreateProposal={handleCreateProposal}
             onCreateTask={saveTenantTask}
@@ -1915,6 +2152,7 @@ function App() {
             proposals={visibleProposals}
             onSelectProposal={handleSelectProposal}
             businessUnit={businessUnit}
+            globalConfig={brandedGlobalConfig}
           />;
         case 'crm-clients':
           return <Clients clients={tenantClients} contacts={tenantContacts} onSaveClient={saveTenantClient} onDeleteClient={deleteTenantClient} onSaveContact={saveTenantContact} onSelectProposal={handleSelectProposal} proposals={visibleProposals} />;
@@ -1961,6 +2199,7 @@ function App() {
             microsoftConnection={microsoftConnection}
             microsoftWorkspaceLoading={microsoftWorkspaceLoading}
             proposals={visibleProposals}
+            globalConfig={brandedGlobalConfig}
             onSelectProposal={handleSelectProposal}
             onCreateProposal={handleCreateProposal}
             onCreateTask={saveTenantTask}
@@ -2004,7 +2243,8 @@ function App() {
     const isContinuous = currentData.type === 'CONTINUOUS';
     const isProduct = currentData.type === 'PRODUCT';
     const allVersions = tenantProposals.filter(p => p.proposalId === currentData.proposalId).sort((a, b) => b.version - a.version);
-    const isLocked = ['Won', 'Lost'].includes(currentData.stage) || currentData.status === 'Archived';
+    const currentProposalFamilyIds = new Set(allVersions.map(proposal => proposal.id));
+    const isLocked = isClosedStage(currentData.stage, getSalesPipelineForProposal(currentData, brandedGlobalConfig)) || currentData.status === 'Archived';
 
     const editorContent = (() => {
       switch (activeTab) {
@@ -2018,6 +2258,7 @@ function App() {
             onSelectVersion={handleSelectProposal}
             onUpdateVersionStatus={handleUpdateVersionStatus}
             currentUser={currentUser}
+            globalConfig={brandedGlobalConfig}
           />;
         case 'docs':
           return <Documents data={currentData!} updateData={updateCurrentData} globalConfig={brandedGlobalConfig} />;
@@ -2042,10 +2283,10 @@ function App() {
             data={currentData}
             updateData={updateCurrentDataDraft}
             onSaveData={saveCurrentData}
-            brandColor={tenantBranding.primaryColor || brandedGlobalConfig.letterheadConfig?.primaryColor || '#0f172a'}
-            brandSecondaryColor={tenantBranding.secondaryColor || brandedGlobalConfig.letterheadConfig?.secondaryColor || '#2563eb'}
+            tenantBranding={tenantBranding}
             globalConfig={brandedGlobalConfig}
             contacts={tenantContacts.filter(contact => contact.clientId === currentData.clientId)}
+            communications={tenantCommunications.filter(communication => Boolean(communication.proposalId && currentProposalFamilyIds.has(communication.proposalId)))}
             googleConnection={googleConnection}
             microsoftConnection={microsoftConnection}
             workspaceLoading={googleWorkspaceLoading || microsoftWorkspaceLoading}
@@ -2064,7 +2305,7 @@ function App() {
           return <Taxes data={currentData} updateData={updateCurrentData} />;
 
         default:
-          return <Dashboard data={currentData} setActiveTab={setActiveTab} />;
+          return <Dashboard data={currentData} setActiveTab={setActiveTab} globalConfig={brandedGlobalConfig} />;
       }
     })();
 
@@ -2110,13 +2351,13 @@ function App() {
       onDisconnectMicrosoft={disconnectTenantMicrosoft}
     >
       {(crmDataLoading || crmSaving || crmDataError) && (
-        <div className="fixed right-5 top-20 z-[200] flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-bold text-white shadow-xl print:hidden">
+        <div className="fixed right-5 top-20 z-[200] flex items-center gap-3 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-4 py-3 text-sm font-bold text-[var(--tenant-text)] shadow-xl print:hidden dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-[var(--tenant-text-dark)]">
           <span>{crmDataError || (crmSaving ? 'Salvando dados...' : 'Carregando dados do tenant...')}</span>
           {crmDataError && (
             <button
               type="button"
               onClick={() => setCrmDataError(null)}
-              className="rounded p-1 text-slate-300 transition hover:bg-slate-800 hover:text-white"
+              className="rounded p-1 text-slate-500 transition hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-primary)] dark:text-slate-300 dark:hover:bg-[var(--tenant-control-dark)]"
               aria-label="Fechar aviso"
             >
               <X size={14} />

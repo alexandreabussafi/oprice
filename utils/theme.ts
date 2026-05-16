@@ -2,11 +2,17 @@ import type { CSSProperties } from 'react';
 import type { TenantBranding } from '../types';
 
 const FALLBACK_PRIMARY = '#0f172a';
-const FALLBACK_SECONDARY = '#2563eb';
+const FALLBACK_SECONDARY = '#047857';
 const FALLBACK_BACKGROUND_LIGHT = '#f8fafc';
 const FALLBACK_BACKGROUND_DARK = '#151a24';
 const FALLBACK_SIDEBAR_LIGHT = '#ffffff';
 const FALLBACK_SIDEBAR_DARK = '#182031';
+const FALLBACK_PANEL_LIGHT = '#ffffff';
+const FALLBACK_PANEL_DARK = '#1f2937';
+const FALLBACK_CONTROL_LIGHT = '#f8fafc';
+const FALLBACK_CONTROL_DARK = '#182031';
+const FALLBACK_CONTROL_ACTIVE_LIGHT = '#ffffff';
+const FALLBACK_CONTROL_ACTIVE_DARK = '#0f172a';
 const FALLBACK_SURFACE_LIGHT = '#ffffff';
 const FALLBACK_SURFACE_DARK = '#1f2937';
 const FALLBACK_TEXT_LIGHT = '#0f172a';
@@ -23,6 +29,12 @@ export interface TenantTheme {
   backgroundDark: string;
   sidebarLight: string;
   sidebarDark: string;
+  panelLight: string;
+  panelDark: string;
+  controlLight: string;
+  controlDark: string;
+  controlActiveLight: string;
+  controlActiveDark: string;
   surfaceLight: string;
   surfaceDark: string;
   textLight: string;
@@ -92,6 +104,12 @@ export const createTenantTheme = (branding?: TenantBranding): TenantTheme => {
   const backgroundDark = normalizeHex(branding?.backgroundDark, FALLBACK_BACKGROUND_DARK);
   const sidebarLight = normalizeHex(branding?.sidebarLight, FALLBACK_SIDEBAR_LIGHT);
   const sidebarDark = normalizeHex(branding?.sidebarDark, FALLBACK_SIDEBAR_DARK);
+  const panelLight = normalizeHex(branding?.panelLight, branding?.surfaceLight || FALLBACK_PANEL_LIGHT);
+  const panelDark = normalizeHex(branding?.panelDark, branding?.surfaceDark || FALLBACK_PANEL_DARK);
+  const controlLight = normalizeHex(branding?.controlLight, FALLBACK_CONTROL_LIGHT);
+  const controlDark = normalizeHex(branding?.controlDark, FALLBACK_CONTROL_DARK);
+  const controlActiveLight = normalizeHex(branding?.controlActiveLight, FALLBACK_CONTROL_ACTIVE_LIGHT);
+  const controlActiveDark = normalizeHex(branding?.controlActiveDark, FALLBACK_CONTROL_ACTIVE_DARK);
   const surfaceLight = normalizeHex(branding?.surfaceLight, FALLBACK_SURFACE_LIGHT);
   const surfaceDark = normalizeHex(branding?.surfaceDark, FALLBACK_SURFACE_DARK);
   const textLight = normalizeHex(branding?.textLight, FALLBACK_TEXT_LIGHT);
@@ -108,6 +126,12 @@ export const createTenantTheme = (branding?: TenantBranding): TenantTheme => {
     backgroundDark,
     sidebarLight,
     sidebarDark,
+    panelLight,
+    panelDark,
+    controlLight,
+    controlDark,
+    controlActiveLight,
+    controlActiveDark,
     surfaceLight,
     surfaceDark,
     textLight,
@@ -129,6 +153,12 @@ export const createTenantTheme = (branding?: TenantBranding): TenantTheme => {
       '--tenant-bg-dark': backgroundDark,
       '--tenant-sidebar': sidebarLight,
       '--tenant-sidebar-dark': sidebarDark,
+      '--tenant-panel': panelLight,
+      '--tenant-panel-dark': panelDark,
+      '--tenant-control': controlLight,
+      '--tenant-control-dark': controlDark,
+      '--tenant-control-active': controlActiveLight,
+      '--tenant-control-active-dark': controlActiveDark,
       '--tenant-surface': surfaceLight,
       '--tenant-surface-dark': surfaceDark,
       '--tenant-text': textLight,

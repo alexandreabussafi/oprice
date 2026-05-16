@@ -61,6 +61,26 @@ export const groupCommunicationThreads = (communications: CRMCommunication[]): C
     .sort((a, b) => new Date(getCommunicationDate(b.lastMessage)).getTime() - new Date(getCommunicationDate(a.lastMessage)).getTime());
 };
 
+const compactEmailHeader = (value?: string) => String(value || '').replace(/\s+/g, ' ').trim();
+
+export const getThreadReplySourceMessage = (thread?: CommunicationThread | null) => {
+  if (!thread) return undefined;
+  return thread.messages.slice().reverse().find(message => message.direction === 'inbound' && message.gmailInternetMessageId)
+    || thread.messages.slice().reverse().find(message => message.gmailInternetMessageId)
+    || thread.messages.slice().reverse().find(message => message.direction === 'inbound')
+    || thread.lastMessage;
+};
+
+export const buildGmailReplyHeaders = (communication?: CRMCommunication | null) => {
+  const inReplyTo = compactEmailHeader(communication?.gmailInternetMessageId);
+  const existingReferences = compactEmailHeader(communication?.emailReferences);
+  const references = compactEmailHeader([existingReferences, inReplyTo].filter(Boolean).join(' '));
+  return {
+    inReplyTo: inReplyTo || undefined,
+    references: references || undefined
+  };
+};
+
 export const buildCommercialTimeline = (input: {
   communications?: CRMCommunication[];
   externalEvents?: CRMExternalEvent[];

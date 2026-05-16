@@ -6,6 +6,7 @@ import { AppRole, BusinessUnitAccess, GoogleConnectionStatus, MicrosoftConnectio
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createTenantTheme } from '../utils/theme';
+import { getPricingModuleLabel, tenantSupportsPricingBusinessUnit } from '../utils/pricingModules';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -44,14 +45,36 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const enabledModules = activeTenant?.enabledModules || ['CRM_CORE', 'SERVICES_COMPLEX', 'PRODUCT_SALES'];
-  const tenantSupportsServices = enabledModules.includes('SERVICES_COMPLEX');
-  const tenantSupportsProducts = enabledModules.some(module => ['PRODUCT_SALES', 'SAAS_SUBSCRIPTION', 'IOT_SUBSCRIPTION'].includes(module));
+  const tenantSupportsServices = tenantSupportsPricingBusinessUnit(enabledModules, 'SERVICES');
+  const tenantSupportsProducts = tenantSupportsPricingBusinessUnit(enabledModules, 'PRODUCTS');
   const branding = activeTenant?.branding || {};
   const tenantName = branding.displayName || branding.companyName || activeTenant?.name || 'OpCapex';
   const tenantLogo = branding.logoUrl;
-  const brandPrimary = branding.primaryColor || '#0f172a';
-  const brandSecondary = branding.secondaryColor || brandPrimary;
   const tenantTheme = createTenantTheme(branding);
+  const brandPrimary = tenantTheme.primary;
+  const brandSecondary = tenantTheme.secondary;
+  const getHexLuminance = (hex: string) => {
+    const raw = hex.replace('#', '');
+    const full = raw.length === 3 ? raw.split('').map(char => `${char}${char}`).join('') : raw;
+    const rgb = [0, 2, 4].map(index => parseInt(full.slice(index, index + 2), 16) / 255);
+    const linear = rgb.map(value => value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+  const currentSidebarColor = darkMode ? tenantTheme.sidebarDark : tenantTheme.sidebarLight;
+  const sidebarUsesDarkSurface = getHexLuminance(currentSidebarColor) < 0.38;
+  const sidebarAccent = sidebarUsesDarkSurface ? tenantTheme.primaryOnDark : brandPrimary;
+  const sidebarControlStyle = {
+    backgroundColor: sidebarUsesDarkSurface ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.72)',
+    borderColor: sidebarUsesDarkSurface ? 'rgba(255,255,255,0.14)' : tenantTheme.borderLight,
+    color: sidebarUsesDarkSurface ? 'rgba(226,232,240,0.88)' : '#64748b'
+  };
+  const sidebarControlActiveStyle = {
+    backgroundColor: sidebarUsesDarkSurface ? 'rgba(255,255,255,0.09)' : tenantTheme.primarySubtle,
+    borderColor: tenantTheme.primaryBorder,
+    color: sidebarAccent
+  };
+  const sidebarMutedTextStyle = { color: sidebarUsesDarkSurface ? 'rgba(203,213,225,0.68)' : '#64748b' };
+  const sidebarStrongTextStyle = { color: sidebarUsesDarkSurface ? '#f8fafc' : '#334155' };
 
   useEffect(() => {
     localStorage.setItem('oprice-sidebar-collapsed', String(sidebarCollapsed));
@@ -151,7 +174,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
   return (
     // PRINT FIX: Reset min-h-screen and flex to allow natural document flow
     <div
-      className={`flex h-dvh overflow-hidden bg-[var(--tenant-bg)] font-sans text-[var(--tenant-text)] transition-colors duration-300 dark:bg-[var(--tenant-bg-dark)] dark:text-[var(--tenant-text-dark)] print:block print:h-auto print:static print:overflow-visible print:bg-white ${isProducts ? 'theme-products' : 'theme-services'}`}
+      className={`flex h-dvh overflow-hidden bg-[var(--tenant-bg)] font-sans text-[var(--tenant-text)] transition-colors duration-300 dark:bg-[var(--tenant-bg-dark)] dark:text-[var(--tenant-text-dark)] print:block print:h-auto print:static print:overflow-visible print:bg-[var(--tenant-panel)] ${isProducts ? 'theme-products' : 'theme-services'}`}
       style={tenantTheme.cssVars}
     >
 
@@ -163,14 +186,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
           <button
             type="button"
             onClick={() => setSidebarCollapsed(prev => !prev)}
-            className="absolute right-2 top-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-1.5 text-slate-500 shadow-sm transition hover:text-slate-900 dark:border-[var(--tenant-border-dark)] dark:bg-slate-800/75 dark:text-slate-300 dark:hover:text-white"
+            className="absolute right-2 top-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1.5 text-slate-500 shadow-sm transition hover:text-slate-900 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300 dark:hover:text-white"
             title={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
             aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
           >
             {sidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
           </button>
           <div
-            className={`flex ${sidebarCollapsed ? 'h-10 w-10' : 'h-12 w-12'} shrink-0 items-center justify-center rounded-lg border bg-white p-2 dark:bg-slate-900/60`}
+            className={`flex ${sidebarCollapsed ? 'h-10 w-10' : 'h-12 w-12'} shrink-0 items-center justify-center rounded-lg border bg-[var(--tenant-control)] p-2 dark:bg-[var(--tenant-control-dark)]`}
             style={{ borderColor: tenantTheme.primaryBorder, backgroundColor: tenantTheme.primarySubtle }}
           >
             {tenantLogo ? (
@@ -193,8 +216,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
         </div>
 
         {isCRMMode && hasMultipleBUs && !sidebarCollapsed && (
-          <div className="border-b border-[var(--tenant-border)] bg-[var(--tenant-bg)] p-2 dark:border-[var(--tenant-border-dark)] dark:bg-slate-900/25">
-            <div className="relative flex h-9 items-center rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-1 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-slate-800/70">
+          <div className="border-b border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] p-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)]">
+            <div className="relative flex h-9 items-center rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
               <div
                 className={`absolute inset-y-1 w-[calc(50%-4px)] rounded-lg transition-all duration-300 shadow-sm ${isProducts ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}
                 style={{ background: isProducts ? brandSecondary : brandPrimary }}
@@ -221,7 +244,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
             <button
               onClick={onBackToCRM}
               title="Voltar ao CRM"
-              className={`group flex w-full items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-surface)] ${sidebarCollapsed ? 'px-2' : 'px-3'} py-2 text-xs font-bold uppercase text-slate-600 shadow-sm transition-all duration-300 hover:shadow active:scale-95 dark:border-[var(--tenant-border-dark)] dark:bg-slate-800/70 dark:text-slate-300`}
+              className={`group flex w-full items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] ${sidebarCollapsed ? 'px-2' : 'px-3'} py-2 text-xs font-bold uppercase text-slate-600 shadow-sm transition-all duration-300 hover:shadow active:scale-95 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300`}
               style={{ color: brandPrimary }}
             >
               <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> {!sidebarCollapsed && 'Voltar ao CRM'}
@@ -245,7 +268,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                 style={isActive ? { borderColor: brandPrimary, backgroundColor: tenantTheme.primarySubtle, color: brandPrimary } : undefined}
                 className={`group flex w-full items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'} rounded-md border-l-2 py-2 text-sm font-bold transition-all duration-200 ${isActive
                   ? 'border-y-transparent border-r-transparent shadow-sm dark:text-slate-100'
-                  : `border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-white ${!sidebarCollapsed ? 'hover:translate-x-0.5' : ''}`
+                  : `border-transparent text-slate-500 hover:bg-[var(--tenant-control)] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-white ${!sidebarCollapsed ? 'hover:translate-x-0.5' : ''}`
                   }`}
               >
                 <div
@@ -262,7 +285,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
           {!isCRMMode && proposalType === 'PRODUCT' && !sidebarCollapsed && (
             <div className="p-4 mt-10">
               <div className="rounded-lg border p-4" style={{ borderColor: tenantTheme.secondaryBorder, backgroundColor: tenantTheme.secondarySubtle }}>
-                <p className="mb-2 text-[10px] font-black uppercase" style={{ color: brandSecondary }}>{pricingModule === 'SAAS_SUBSCRIPTION' ? 'Assinatura SaaS' : 'Editor Simplificado'}</p>
+                <p className="mb-2 text-[10px] font-black uppercase" style={{ color: brandSecondary }}>{getPricingModuleLabel(pricingModule, 'Editor Simplificado')}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Toda a cotação é gerenciada em uma única tela de <strong>Ordem de Venda</strong>.
                 </p>
@@ -272,68 +295,53 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
         </nav>
 
         {/* Toggle Theme & User Footer */}
-        <div className={`mt-auto ${sidebarCollapsed ? 'p-2' : 'p-3'} shrink-0 space-y-2 border-t border-[var(--tenant-border)] bg-[var(--tenant-bg)] dark:border-[var(--tenant-border-dark)] dark:bg-slate-900/30`}>
+        <div className={`mt-auto ${sidebarCollapsed ? 'p-2' : 'p-3'} shrink-0 space-y-2 border-t border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)]`}>
 
-          {isCRMMode && (
-            <div className={`grid gap-2 ${sidebarCollapsed || !canOpenTenantSettings ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_2.25rem]'}`}>
+          <div className={`grid gap-2 ${isCRMMode ? (canOpenTenantSettings ? 'grid-cols-3' : 'grid-cols-2') : 'grid-cols-1'}`}>
+            {isCRMMode && (
               <button
                 type="button"
                 onClick={() => setActiveTab('crm-help')}
                 title="Ajuda & Manuais"
                 aria-label="Ajuda & Manuais"
-                style={activeTab === 'crm-help' ? { color: brandPrimary, backgroundColor: tenantTheme.primarySoft, borderColor: tenantTheme.primaryBorder } : undefined}
-                className={`flex h-9 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-surface)] px-3 text-xs font-bold uppercase text-slate-500 shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:text-slate-800 active:scale-[0.98] dark:border-[var(--tenant-border-dark)] dark:bg-slate-800/70 dark:text-slate-300 dark:hover:text-white ${sidebarCollapsed ? 'px-2' : ''}`}
+                style={activeTab === 'crm-help' ? sidebarControlActiveStyle : sidebarControlStyle}
+                className="flex h-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-500 shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:brightness-95 active:scale-[0.98] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"
               >
                 <HelpCircle size={16} />
-                {!sidebarCollapsed && <span>Ajuda</span>}
               </button>
+            )}
 
-              {canOpenTenantSettings && (
+            {isCRMMode && canOpenTenantSettings && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('crm-settings')}
                   title="Configurações do Tenant"
                   aria-label="Configurações do Tenant"
-                  style={activeTab === 'crm-settings' ? { color: brandPrimary, backgroundColor: tenantTheme.primarySoft, borderColor: tenantTheme.primaryBorder } : undefined}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-surface)] text-slate-500 shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:text-slate-800 active:scale-[0.98] dark:border-[var(--tenant-border-dark)] dark:bg-slate-800/70 dark:text-slate-300 dark:hover:text-white"
+                  style={activeTab === 'crm-settings' ? sidebarControlActiveStyle : sidebarControlStyle}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-500 shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:brightness-95 active:scale-[0.98] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"
                 >
                   <Settings size={16} />
                 </button>
-              )}
-            </div>
-          )}
+            )}
 
-          {/* THEME TOGGLE */}
-          <button
-            onClick={toggleDarkMode}
-            title={darkMode ? 'Modo Claro' : 'Modo Escuro'}
-            className={`flex w-full items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-3'} rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-surface)] py-2 text-xs font-bold uppercase text-slate-500 shadow-sm transition-all hover:border-[var(--tenant-primary-border)] active:scale-[0.98] dark:border-[var(--tenant-border-dark)] dark:bg-slate-800/70 dark:text-slate-300`}
-          >
-            <div className="flex items-center gap-2">
-              {darkMode ? <Sun size={16} className="text-amber-500" /> : <Moon size={16} style={{ color: brandPrimary }} />}
-              {!sidebarCollapsed && <span>{darkMode ? 'Modo Claro' : 'Modo Escuro'}</span>}
-            </div>
-            {!sidebarCollapsed && <div className="relative h-5 w-9 rounded-full bg-slate-100 p-1 transition-colors dark:bg-slate-700">
-              <div className={`h-3 w-3 rounded-full bg-white shadow transition-all duration-300 ${darkMode ? 'translate-x-4' : 'translate-x-0'}`} style={!darkMode ? { backgroundColor: brandPrimary } : undefined}></div>
-            </div>}
-          </button>
-
-          {onExitTenant && (
             <button
-              onClick={onExitTenant}
-              title="Portal Superadmin"
-              className={`flex w-full items-center justify-center gap-2 rounded-md border bg-white ${sidebarCollapsed ? 'px-2' : 'px-4'} py-2.5 text-xs font-bold uppercase shadow-sm transition-all active:scale-[0.98] dark:bg-slate-800/70`}
-              style={{ color: brandSecondary, borderColor: tenantTheme.secondaryBorder, backgroundColor: tenantTheme.secondarySubtle }}
+              type="button"
+              onClick={toggleDarkMode}
+              title={darkMode ? 'Modo Claro' : 'Modo Escuro'}
+              aria-label={darkMode ? 'Modo Claro' : 'Modo Escuro'}
+              style={sidebarControlStyle}
+              className="flex h-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-500 shadow-sm transition-all hover:border-[var(--tenant-primary-border)] hover:brightness-95 active:scale-[0.98] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"
             >
-              {sidebarCollapsed ? <Globe size={16} /> : 'Portal Superadmin'}
+              {darkMode ? <Sun size={16} className="text-amber-500" /> : <Moon size={16} style={{ color: sidebarAccent }} />}
             </button>
-          )}
+          </div>
 
           <button
             type="button"
             onClick={() => setProfileOpen(true)}
             title="Abrir perfil"
-            className={`flex w-full cursor-pointer items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'} rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-2.5 text-left shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:bg-slate-50 dark:border-[var(--tenant-border-dark)] dark:bg-slate-800/60 dark:hover:bg-slate-800/80`}
+            style={sidebarControlStyle}
+            className={`flex w-full cursor-pointer items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'} rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-2.5 text-left shadow-sm transition hover:border-[var(--tenant-primary-border)] hover:brightness-95 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]`}
           >
               <div
                 className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border text-xs font-black uppercase"
@@ -342,8 +350,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                 {profileAvatarUrl ? <img src={profileAvatarUrl} alt={profileName} className="h-full w-full object-cover" /> : initials || <UserCircle size={18} />}
               </div>
               {!sidebarCollapsed && <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate" title={profileName || currentUser.name}>{profileName || currentUser.name}</p>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                <p className="truncate text-sm font-bold" style={sidebarStrongTextStyle} title={profileName || currentUser.name}>{profileName || currentUser.name}</p>
+                <p className="truncate text-xs font-medium" style={sidebarMutedTextStyle}>
                   {roleLabel}
                 </p>
               </div>}
@@ -352,7 +360,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
       </aside>
 
       {/* Main Content - Unlocked for Print */}
-      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--tenant-bg)] transition-[margin] duration-300 dark:bg-[var(--tenant-bg-dark)] print:block print:h-auto print:w-full print:static print:overflow-visible print:bg-white print:ml-0">
+      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--tenant-bg)] transition-[margin] duration-300 dark:bg-[var(--tenant-bg-dark)] print:block print:h-auto print:w-full print:static print:overflow-visible print:bg-[var(--tenant-panel)] print:ml-0">
         <div className="shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] px-3 py-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)] lg:hidden print:hidden">
           <div className="flex min-h-12 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -360,7 +368,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                 <button
                   type="button"
                   onClick={onBackToCRM}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-bg)] text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-slate-900/60 dark:text-slate-300"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"
                   title="Voltar ao CRM"
                   aria-label="Voltar ao CRM"
                 >
@@ -368,7 +376,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                 </button>
               )}
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-white p-1.5 dark:bg-slate-900/60"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--tenant-control)] p-1.5 dark:bg-[var(--tenant-control-dark)]"
                 style={{ borderColor: tenantTheme.primaryBorder, backgroundColor: tenantTheme.primarySubtle }}
               >
                 {tenantLogo ? (
@@ -385,7 +393,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
 
             <div className="flex shrink-0 items-center gap-2">
               {isCRMMode && hasMultipleBUs && (
-                <div className="flex h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-bg)] p-1 dark:border-[var(--tenant-border-dark)] dark:bg-slate-900/60">
+                <div className="flex h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                   <button
                     type="button"
                     onClick={() => setBusinessUnit('SERVICES')}
@@ -407,7 +415,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
               <button
                 type="button"
                 onClick={() => setProfileOpen(true)}
-                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-bg)] text-xs font-black uppercase text-slate-700 dark:border-[var(--tenant-border-dark)] dark:bg-slate-900/60 dark:text-slate-200"
+                className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-xs font-black uppercase text-slate-700 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-200"
                 title="Abrir perfil"
                 aria-label="Abrir perfil"
               >
@@ -417,15 +425,15 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
           </div>
         </div>
         {profileOpen && (
-          <div className="fixed inset-0 z-[260] flex justify-end bg-slate-950/30 p-4 backdrop-blur-sm print:hidden" onClick={() => setProfileOpen(false)}>
+          <div className="fixed inset-0 z-[260] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] p-4 backdrop-blur-sm print:hidden" onClick={() => setProfileOpen(false)}>
             <div
-              className="flex h-full w-full max-w-[520px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700/70 dark:bg-[#1a2232]"
+              className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[720px] flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="border-b border-slate-200 bg-slate-50 p-5 dark:border-slate-700/70 dark:bg-[#202a3c]">
+              <div className="border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-5 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-4">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white text-lg font-black text-slate-700 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-lg font-black text-slate-700 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100">
                       {profileAvatarUrl ? <img src={profileAvatarUrl} alt={profileName} className="h-full w-full object-cover" /> : initials || <UserCircle size={24} />}
                     </div>
                     <div className="min-w-0">
@@ -434,7 +442,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                       <span className="mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase" style={{ borderColor: tenantTheme.primaryBorder, backgroundColor: tenantTheme.primarySoft, color: brandPrimary }}>{roleLabel}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={() => setProfileOpen(false)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100">
+                  <button type="button" onClick={() => setProfileOpen(false)} className="rounded-lg p-2 text-slate-400 transition hover:bg-[var(--tenant-control)] hover:text-slate-700 dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-slate-100">
                     <X size={18} />
                   </button>
                 </div>
@@ -442,56 +450,56 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
 
               <div className="flex-1 space-y-5 overflow-y-auto p-5">
                 {profileError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">{profileError}</div>}
-                <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700/70 dark:bg-slate-900/40">
+                <section className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                   <h3 className="mb-4 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Cadastro do usuário</h3>
                   <div className="grid gap-4">
                     <label className="space-y-1.5">
                       <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"><UserCircle size={13} /> Nome</span>
-                      <input value={profileName} onChange={event => setProfileName(event.target.value)} className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200" />
+                      <input value={profileName} onChange={event => setProfileName(event.target.value)} className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-bold text-[var(--tenant-text)] outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]" />
                     </label>
                     <label className="space-y-1.5">
                       <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"><Camera size={13} /> URL da foto</span>
-                      <input value={profileAvatarUrl} onChange={event => setProfileAvatarUrl(event.target.value)} placeholder="https://..." className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200" />
+                      <input value={profileAvatarUrl} onChange={event => setProfileAvatarUrl(event.target.value)} placeholder="https://..." className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-medium text-[var(--tenant-text)] outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]" />
                     </label>
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="space-y-1.5">
                         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"><Phone size={13} /> Telefone</span>
-                        <input value={profilePhone} onChange={event => setProfilePhone(event.target.value)} placeholder="(00) 00000-0000" className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200" />
+                        <input value={profilePhone} onChange={event => setProfilePhone(event.target.value)} placeholder="(00) 00000-0000" className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-medium text-[var(--tenant-text)] outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]" />
                       </label>
                       <label className="space-y-1.5">
                         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400"><Linkedin size={13} /> LinkedIn</span>
-                        <input value={profileLinkedin} onChange={event => setProfileLinkedin(event.target.value)} placeholder="https://linkedin.com/in/..." className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200" />
+                        <input value={profileLinkedin} onChange={event => setProfileLinkedin(event.target.value)} placeholder="https://linkedin.com/in/..." className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-medium text-[var(--tenant-text)] outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]" />
                       </label>
                     </div>
                   </div>
                 </section>
 
-                <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700/70 dark:bg-slate-900/40">
+                <section className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                   <h3 className="mb-4 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Conexões do workspace</h3>
                   <div className="space-y-3">
-                    <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                    <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><MailCheck size={16} /> Google Workspace</p>
                           <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{googleConnection.connected ? googleConnection.account?.google_email : 'Gmail e Google Meet'}</p>
                         </div>
                         {googleConnection.connected ? (
-                          <button disabled={workspaceBusy || !onDisconnectGoogle} onClick={() => onDisconnectGoogle?.()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Desconectar</button>
+                          <button disabled={workspaceBusy || !onDisconnectGoogle} onClick={() => onDisconnectGoogle?.()} className="rounded-lg border border-[var(--tenant-border)] px-3 py-2 text-xs font-bold text-slate-600 hover:bg-[var(--tenant-surface)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:text-slate-300 dark:hover:bg-[var(--tenant-surface-dark)]">Desconectar</button>
                         ) : (
-                          <button disabled={workspaceBusy || !onConnectGoogle} onClick={() => onConnectGoogle?.()} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900">Conectar</button>
+                          <button disabled={workspaceBusy || !onConnectGoogle} onClick={() => onConnectGoogle?.()} className="rounded-lg bg-[var(--tenant-primary)] px-3 py-2 text-xs font-bold text-white hover:brightness-95 disabled:opacity-50">Conectar</button>
                         )}
                       </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                    <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><CalendarDays size={16} /> Microsoft 365</p>
                           <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">{microsoftConnection.connected ? microsoftConnection.account?.microsoft_email : 'Outlook, Teams e To Do'}</p>
                         </div>
                         {microsoftConnection.connected ? (
-                          <button disabled={workspaceBusy || !onDisconnectMicrosoft} onClick={() => onDisconnectMicrosoft?.()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Desconectar</button>
+                          <button disabled={workspaceBusy || !onDisconnectMicrosoft} onClick={() => onDisconnectMicrosoft?.()} className="rounded-lg border border-[var(--tenant-border)] px-3 py-2 text-xs font-bold text-slate-600 hover:bg-[var(--tenant-surface)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:text-slate-300 dark:hover:bg-[var(--tenant-surface-dark)]">Desconectar</button>
                         ) : (
-                          <button disabled={workspaceBusy || !onConnectMicrosoft} onClick={() => onConnectMicrosoft?.()} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900">Conectar</button>
+                          <button disabled={workspaceBusy || !onConnectMicrosoft} onClick={() => onConnectMicrosoft?.()} className="rounded-lg bg-[var(--tenant-primary)] px-3 py-2 text-xs font-bold text-white hover:brightness-95 disabled:opacity-50">Conectar</button>
                         )}
                       </div>
                     </div>
@@ -499,10 +507,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                 </section>
               </div>
 
-              <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700/70 dark:bg-[#202a3c]">
-                <button type="button" onClick={() => signOut()} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
-                  <LogOut size={16} /> Sair
-                </button>
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]">
+                <div className="flex items-center gap-2">
+                  {onExitTenant && (
+                    <button type="button" onClick={() => { setProfileOpen(false); onExitTenant(); }} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-bold transition hover:brightness-95" style={{ color: brandSecondary, borderColor: tenantTheme.secondaryBorder, backgroundColor: tenantTheme.secondarySubtle }}>
+                      <Globe size={16} /> Portal Superadmin
+                    </button>
+                  )}
+                  <button type="button" onClick={() => signOut()} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
+                    <LogOut size={16} /> Sair
+                  </button>
+                </div>
                 <button type="button" disabled={profileSaving} onClick={saveUserProfile} className="rounded-md px-4 py-2 text-sm font-bold text-white transition hover:brightness-95 disabled:opacity-50" style={{ backgroundColor: brandPrimary }}>
                   {profileSaving ? 'Salvando...' : 'Salvar perfil'}
                 </button>

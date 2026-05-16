@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, Client, Contact, CRMTask, CONTINUOUS_STAGES, SPOT_STAGES, STAGE_LABELS, CONTINUOUS_TO_SPOT_MAPPING, ContinuousStage, SpotStage, TenantModule, TaskAttachment, CRMCommunication, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft, WorkspaceProvider } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, Client, Contact, CRMTask, TenantModule, TaskAttachment, CRMCommunication, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft, WorkspaceProvider, PricingModuleId } from '../types';
 import { calculateFinancials, formatCurrency, formatPercent } from '../utils/pricingEngine';
 import { Plus, Search, FileText, CheckCircle, XCircle, X, Clock, Copy, Edit3, Trash2, PieChart, TrendingUp, Calendar, User, LayoutGrid, List, ArrowRight, DollarSign, Users, Briefcase, GripVertical, ExternalLink, BarChart3, Zap, Repeat, AlertCircle, Snowflake, Filter, Save, Landmark, Package, Activity, History, CreditCard, PhoneCall, MailCheck, CalendarDays, Paperclip, File as FileIcon, UserPlus } from 'lucide-react';
-import { buildCommercialTimeline, getCommunicationDate, groupCommunicationThreads, groupTimelineByDay } from '../utils/crmTraceability';
+import { buildCommercialTimeline, buildGmailReplyHeaders, getCommunicationDate, getThreadReplySourceMessage, groupCommunicationThreads, groupTimelineByDay, type CommunicationThread } from '../utils/crmTraceability';
 import { Button, PageHeader, ResponsiveDrawer } from '../components/ui';
+import { getDefaultPricingModuleForBusinessUnit, getEnabledPricingModules, getPricingModuleDefinition, getPricingModuleLabel } from '../utils/pricingModules';
+import { applyProposalTemplateVariables } from '../utils/proposalTemplates';
+import { getKanbanStagesForPipeline, getPipelineOptionForProposal, getPipelineOptionKey, getPipelineStage, getPipelineStageCategory, getPipelineStageLabel, getPipelineStageStyle, getSalesPipelineForProposal, getSalesPipelineFromConfig, getSalesPipelineOptions, isClosedStage, isLostStage, isWonStage, parsePipelineOptionKey } from '../utils/salesPipelines';
+import { generateProposalEmailAttachment, getProposalPdfTemplate } from '../services/proposalPdf';
+import { getDefaultProposalSendAutomationTemplate, normalizeProposalSendAutomation } from '../utils/proposalSendAutomation';
+import { useTenant } from '../contexts/TenantContext';
+import { createTenantTheme } from '../utils/theme';
 
 interface CRMProps {
     clients: Client[];
@@ -17,6 +25,7 @@ interface CRMProps {
     microsoftConnection: MicrosoftConnectionStatus;
     microsoftWorkspaceLoading: boolean;
     proposals: ProposalData[];
+    globalConfig: ProposalData;
     onSelectProposal: (id: string) => void;
     onCreateProposal: (payload: { type: ProposalType, clientId: string, motion: OpportunityMotion, pricingModule: TenantModule, inlineClientName: string, referenceId: string, expansionType: 'Volume' | 'Scope' | 'Site' }) => void | Promise<void>;
     onCreateNewVersion: (id: string, notes: string) => void | Promise<void>;
@@ -58,6 +67,7 @@ const CRM: React.FC<CRMProps> = ({
     microsoftConnection = { connected: false, account: null },
     microsoftWorkspaceLoading = false,
     proposals,
+    globalConfig,
     onSelectProposal,
     onCreateProposal,
     onCreateNewVersion,
@@ -84,24 +94,38 @@ const CRM: React.FC<CRMProps> = ({
     currentUser,
     initialViewMode = 'kanban',
     businessUnit,
-    enabledModules = ['CRM_CORE', 'SERVICES_COMPLEX', 'PRODUCT_SALES']
+    enabledModules = ['CRM_CORE', 'SERVICES_COMPLEX', 'PRODUCT_SALES'] as TenantModule[]
 }) => {
-    const hasServicesModule = enabledModules.includes('SERVICES_COMPLEX');
-    const hasProductModule = enabledModules.some(module => ['PRODUCT_SALES', 'SAAS_SUBSCRIPTION', 'IOT_SUBSCRIPTION'].includes(module));
-    const hasSaasModule = enabledModules.includes('SAAS_SUBSCRIPTION');
-    const hasProductSalesModule = enabledModules.includes('PRODUCT_SALES');
-    const hasIotModule = enabledModules.includes('IOT_SUBSCRIPTION');
+    const { activeTenant } = useTenant();
+    const portalTenantTheme = useMemo(() => createTenantTheme(activeTenant?.branding), [activeTenant?.branding]);
+    const servicePricingModules = getEnabledPricingModules(enabledModules, 'SERVICES');
+    const productPricingModules = getEnabledPricingModules(enabledModules, 'PRODUCTS');
+    const hasServicesModule = servicePricingModules.length > 0;
+    const hasProductModule = productPricingModules.length > 0;
+    const hasSaasModule = productPricingModules.includes('SAAS_SUBSCRIPTION');
+    const hasIotModule = productPricingModules.includes('IOT_SUBSCRIPTION');
+    const hasProductSalesModule = productPricingModules.includes('PRODUCT_SALES');
+    const defaultProductPricingModule = getDefaultPricingModuleForBusinessUnit(enabledModules, 'PRODUCTS') || 'PRODUCT_SALES';
+    const pipelineOptions = useMemo(() => getSalesPipelineOptions(enabledModules, businessUnit), [enabledModules, businessUnit]);
+    const fallbackPipelineOption = pipelineOptions[0] || {
+        key: getPipelineOptionKey('SERVICES_COMPLEX', 'CONTINUOUS'),
+        pricingModule: 'SERVICES_COMPLEX' as PricingModuleId,
+        variant: 'CONTINUOUS' as const,
+        label: 'Continuo',
+        shortLabel: 'Continuo',
+        proposalType: 'CONTINUOUS' as ProposalType
+    };
     const [viewMode, setViewMode] = useState<'list' | 'kanban'>(initialViewMode as 'list' | 'kanban');
     const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [pipelineFilter, setPipelineFilter] = useState<ProposalType>(businessUnit === 'PRODUCTS' ? 'PRODUCT' : 'CONTINUOUS');
+    const [pipelineFilter, setPipelineFilter] = useState<string>(fallbackPipelineOption.key);
     const [showFrozen, setShowFrozen] = useState(false);
 
     // Create Modal States
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createStep, setCreateStep] = useState<1 | 2>(1);
     const [createType, setCreateType] = useState<ProposalType>(businessUnit === 'PRODUCTS' ? 'PRODUCT' : 'CONTINUOUS');
-    const [createPricingModule, setCreatePricingModule] = useState<TenantModule | undefined>(businessUnit === 'PRODUCTS' ? 'PRODUCT_SALES' : 'SERVICES_COMPLEX');
+    const [createPricingModule, setCreatePricingModule] = useState<TenantModule | undefined>(businessUnit === 'PRODUCTS' ? defaultProductPricingModule : 'SERVICES_COMPLEX');
     const [createClientId, setCreateClientId] = useState<string>('');
     const [createInlineClientName, setCreateInlineClientName] = useState('');
     const [createMotion, setCreateMotion] = useState<OpportunityMotion>('NewBusiness');
@@ -138,9 +162,18 @@ const CRM: React.FC<CRMProps> = ({
     const [emailCc, setEmailCc] = useState('');
     const [emailSubject, setEmailSubject] = useState('');
     const [emailBody, setEmailBody] = useState('');
-    const [emailSyncMicrosoftTodo, setEmailSyncMicrosoftTodo] = useState(false);
+    const [emailSubmitting, setEmailSubmitting] = useState(false);
     const [emailSentAfterError, setEmailSentAfterError] = useState(false);
     const [emailError, setEmailError] = useState<string | null>(null);
+    const [expandedThreadKey, setExpandedThreadKey] = useState<string | null>(null);
+    const [replyThreadKey, setReplyThreadKey] = useState<string | null>(null);
+    const [replyProvider, setReplyProvider] = useState<WorkspaceProvider>('google');
+    const [replyTo, setReplyTo] = useState('');
+    const [replyCc, setReplyCc] = useState('');
+    const [replySubject, setReplySubject] = useState('');
+    const [replyBody, setReplyBody] = useState('');
+    const [replySending, setReplySending] = useState(false);
+    const [replyError, setReplyError] = useState<string | null>(null);
     const [meetingModal, setMeetingModal] = useState<{ proposalId: string } | null>(null);
     const [meetingProvider, setMeetingProvider] = useState<WorkspaceProvider>('google');
     const [meetingContactIds, setMeetingContactIds] = useState<string[]>([]);
@@ -167,6 +200,21 @@ const CRM: React.FC<CRMProps> = ({
     // Tab State for Right Sidebar
     const [activeRightPanelTab, setActiveRightPanelTab] = useState<'overview' | 'activities' | 'timeline'>('overview');
 
+    const activePipelineOption = pipelineOptions.find(option => option.key === pipelineFilter) || fallbackPipelineOption;
+    const parsedPipelineFilter = parsePipelineOptionKey(activePipelineOption.key) || {
+        pricingModule: fallbackPipelineOption.pricingModule,
+        variant: fallbackPipelineOption.variant
+    };
+    const activePipeline = getSalesPipelineFromConfig(globalConfig, parsedPipelineFilter.pricingModule, parsedPipelineFilter.variant);
+    const getProposalPipeline = (proposal: ProposalData) => getSalesPipelineForProposal(proposal, globalConfig);
+    const getPipelineOptionIcon = (option = activePipelineOption) => {
+        if (option.pricingModule === 'SERVICES_COMPLEX' && option.variant === 'SPOT') return Zap;
+        if (option.pricingModule === 'SERVICES_COMPLEX') return Repeat;
+        if (option.pricingModule === 'SAAS_SUBSCRIPTION') return CreditCard;
+        if (option.pricingModule === 'IOT_SUBSCRIPTION') return Activity;
+        return Package;
+    };
+
     useEffect(() => {
         const handleClick = () => setContextMenu(null);
         window.addEventListener('click', handleClick);
@@ -185,20 +233,19 @@ const CRM: React.FC<CRMProps> = ({
 
     // Sync pipeline and creation defaults when Business Unit changes
     useEffect(() => {
-        if (businessUnit === 'PRODUCTS') {
-            if (hasProductModule) {
-                setPipelineFilter('PRODUCT');
-                setCreateType('PRODUCT');
-                setCreatePricingModule(hasSaasModule ? 'SAAS_SUBSCRIPTION' : hasIotModule ? 'IOT_SUBSCRIPTION' : 'PRODUCT_SALES');
-            }
-        } else {
-            if (hasServicesModule) {
-                setPipelineFilter('CONTINUOUS');
-                setCreateType('CONTINUOUS');
-                setCreatePricingModule('SERVICES_COMPLEX');
-            }
-        }
-    }, [businessUnit, hasProductModule, hasServicesModule, hasSaasModule, hasIotModule]);
+        const currentOption = pipelineOptions.find(option => option.key === pipelineFilter);
+        const nextOption = currentOption || pipelineOptions[0];
+        if (!nextOption) return;
+        if (!currentOption) setPipelineFilter(nextOption.key);
+        setCreateType(nextOption.proposalType);
+        setCreatePricingModule(nextOption.pricingModule);
+    }, [businessUnit, pipelineOptions, pipelineFilter]);
+
+    useEffect(() => {
+        const currentOption = pipelineOptions.find(option => option.key === pipelineFilter);
+        if (currentOption || pipelineOptions.length === 0) return;
+        setPipelineFilter(pipelineOptions[0].key);
+    }, [pipelineOptions, pipelineFilter]);
 
     // Get only the proposals that are the CURRENT version
     const activeProposals = proposals.filter(p => p.isCurrentVersion);
@@ -210,6 +257,7 @@ const CRM: React.FC<CRMProps> = ({
     };
 
     const selectedProposal = proposals.find(p => p.id === selectedPreviewId);
+    const selectedProposalPipeline = selectedProposal ? getProposalPipeline(selectedProposal) : activePipeline;
     const selectedFinancials = selectedProposal ? calculateFinancials(selectedProposal) : null;
     const workspaceLoading = googleWorkspaceLoading || microsoftWorkspaceLoading;
     const connectedProviders: WorkspaceProvider[] = [
@@ -217,6 +265,11 @@ const CRM: React.FC<CRMProps> = ({
         ...(microsoftConnection.connected ? ['microsoft' as WorkspaceProvider] : [])
     ];
     const getDefaultProvider = (): WorkspaceProvider => googleConnection.connected ? 'google' : 'microsoft';
+    const getDefaultThreadProvider = (thread?: CommunicationThread | null): WorkspaceProvider => {
+        if (thread?.provider === 'google') return 'google';
+        if (thread?.provider === 'microsoft') return 'microsoft';
+        return getDefaultProvider();
+    };
     const isProviderConnected = (provider: WorkspaceProvider) => provider === 'google' ? googleConnection.connected : microsoftConnection.connected;
     const getProviderLabel = (provider: WorkspaceProvider) => provider === 'google' ? 'Google Workspace' : 'Microsoft 365';
     const getEmailProviderLabel = (provider: WorkspaceProvider) => provider === 'google' ? 'Gmail' : 'Outlook';
@@ -242,24 +295,77 @@ const CRM: React.FC<CRMProps> = ({
         const proposalTaskIds = new Set(getProposalTasks(proposalId).map(task => task.id));
         return taskAttachments.filter(attachment => attachment.proposalId === proposalId || proposalTaskIds.has(attachment.taskId));
     };
+    const getProposalFamilyIds = (proposalId: string) => {
+        const proposal = proposals.find(p => p.id === proposalId);
+        if (!proposal?.proposalId) return new Set([proposalId]);
+        return new Set(proposals
+            .filter(item => item.id === proposalId || item.proposalId === proposal.proposalId)
+            .map(item => item.id));
+    };
     const getProposalCommunications = (proposalId: string) => communications
-        .filter(communication => communication.proposalId === proposalId)
+        .filter(communication => communication.proposalId && getProposalFamilyIds(proposalId).has(communication.proposalId))
         .sort((a, b) => new Date(b.receivedAt || b.sentAt || b.createdAt).getTime() - new Date(a.receivedAt || a.sentAt || a.createdAt).getTime());
     const getProposalExternalEvents = (proposalId: string) => externalEvents
-        .filter(event => event.proposalId === proposalId)
+        .filter(event => event.proposalId && getProposalFamilyIds(proposalId).has(event.proposalId))
         .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+    const getProposalForEmailDocument = (proposal: ProposalData): ProposalData => ({
+        ...proposal,
+        letterheadConfig: globalConfig.letterheadConfig || proposal.letterheadConfig,
+        proposalTemplates: globalConfig.proposalTemplates || proposal.proposalTemplates
+    });
     const getProposalTraceability = (proposal: ProposalData) => {
+        const familyIds = getProposalFamilyIds(proposal.id);
+        const familyProposals = proposals.filter(item => familyIds.has(item.id));
         const proposalCommunications = getProposalCommunications(proposal.id);
-        const proposalTasks = getProposalTasks(proposal.id);
+        const proposalTasks = tasks.filter(task => task.proposalId && familyIds.has(task.proposalId));
         const proposalEvents = getProposalExternalEvents(proposal.id);
         const threads = groupCommunicationThreads(proposalCommunications);
         const timeline = buildCommercialTimeline({
             communications: proposalCommunications,
             externalEvents: proposalEvents,
             tasks: proposalTasks,
-            timeline: proposal.timeline || []
+            timeline: familyProposals.flatMap(item => (item.timeline || []).map(event => ({ ...event, id: `${item.id}-${event.id}` })))
         });
         return { proposalCommunications, proposalTasks, proposalEvents, threads, timeline, groupedTimeline: groupTimelineByDay(timeline) };
+    };
+    const getThreadReplyRecipient = (proposal: ProposalData, thread: CommunicationThread) => {
+        const lastInbound = thread.messages.slice().reverse().find(message => message.direction === 'inbound' && message.fromEmail);
+        if (lastInbound?.fromEmail) return lastInbound.fromEmail;
+        const threadContact = contacts.find(contact => contact.id === thread.lastMessage.contactId && contact.email);
+        if (threadContact?.email) return threadContact.email;
+        const primaryContact = contacts.find(contact => contact.clientId === proposal.clientId && contact.email);
+        if (primaryContact?.email) return primaryContact.email;
+        return clients.find(client => client.id === proposal.clientId)?.email || '';
+    };
+    const getThreadReplySubject = (thread: CommunicationThread) => {
+        const subject = thread.subject || '(sem assunto)';
+        return subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
+    };
+    const resetThreadReplyComposer = () => {
+        setReplyThreadKey(null);
+        setReplyProvider(getDefaultProvider());
+        setReplyTo('');
+        setReplyCc('');
+        setReplySubject('');
+        setReplyBody('');
+        setReplySending(false);
+        setReplyError(null);
+    };
+    const closeExpandedThread = () => {
+        setExpandedThreadKey(null);
+        resetThreadReplyComposer();
+    };
+    const openThreadReplyComposer = (proposal: ProposalData, thread: CommunicationThread) => {
+        const provider = getDefaultThreadProvider(thread);
+        setExpandedThreadKey(thread.key);
+        setActiveRightPanelTab('timeline');
+        setReplyThreadKey(thread.key);
+        setReplyProvider(provider);
+        setReplyTo(getThreadReplyRecipient(proposal, thread));
+        setReplyCc('');
+        setReplySubject(getThreadReplySubject(thread));
+        setReplyBody('');
+        setReplyError(null);
     };
     const openReplyTaskFromCommunication = (communication: CRMCommunication) => {
         const proposal = proposals.find(p => p.id === communication.proposalId);
@@ -333,6 +439,8 @@ const CRM: React.FC<CRMProps> = ({
     const closePreviewPanel = () => {
         setSelectedPreviewId(null);
         setActiveRightPanelTab('overview');
+        setExpandedThreadKey(null);
+        resetThreadReplyComposer();
         closeMilestoneForm();
     };
 
@@ -356,7 +464,7 @@ const CRM: React.FC<CRMProps> = ({
         setEmailCc('');
         setEmailSubject('');
         setEmailBody('');
-        setEmailSyncMicrosoftTodo(false);
+        setEmailSubmitting(false);
         setEmailSentAfterError(false);
         setEmailError(null);
     };
@@ -440,14 +548,16 @@ const CRM: React.FC<CRMProps> = ({
         const clientContacts = contacts.filter(contact => contact.clientId === proposal.clientId);
         const primaryContact = clientContacts.find(contact => contact.email) || clientContacts[0];
         const defaultProvider = getDefaultProvider();
+        const proposalForEmail = getProposalForEmailDocument(proposal);
+        const template = getProposalPdfTemplate(proposalForEmail);
         setEmailModal({ proposalId });
         setEmailProvider(defaultProvider);
         setEmailContactId(primaryContact?.id || '');
         setEmailTo(primaryContact?.email || '');
         setEmailCc('');
-        setEmailSubject(`Follow-up proposta #${proposal.proposalId} - ${proposal.clientName}`);
-        setEmailBody(`Olá${primaryContact?.name ? ` ${primaryContact.name}` : ''},\n\nEstou entrando em contato para dar sequência à proposta #${proposal.proposalId}.\n\nFico à disposição.\n`);
-        setEmailSyncMicrosoftTodo(Boolean(defaultProvider === 'microsoft' && microsoftConnection.connected && onCreateMicrosoftTodoTask));
+        setEmailSubject(applyProposalTemplateVariables(template.emailSubject, proposalForEmail, template));
+        setEmailBody(applyProposalTemplateVariables(template.emailBody, proposalForEmail, template));
+        setEmailSubmitting(false);
         setEmailSentAfterError(false);
         setEmailError(null);
         setContextMenu(null);
@@ -548,7 +658,10 @@ const CRM: React.FC<CRMProps> = ({
             emailProvider === 'google' ? communication.gmailThreadId : communication.microsoftConversationId
         );
         try {
+            setEmailSubmitting(true);
             setEmailError(null);
+            const proposalForEmail = getProposalForEmailDocument(proposal);
+            const attachment = await generateProposalEmailAttachment(proposalForEmail);
             const baseDraft = {
                 tenantId: '',
                 clientId: proposal.clientId,
@@ -557,28 +670,21 @@ const CRM: React.FC<CRMProps> = ({
                 to: emailTo.split(',').map(item => item.trim()).filter(Boolean),
                 cc: emailCc.split(',').map(item => item.trim()).filter(Boolean),
                 subject: emailSubject.trim(),
-                bodyText: emailBody
+                bodyText: emailBody,
+                attachments: [attachment],
+                markProposalSent: true
             };
             if (emailProvider === 'google') {
+                const replyHeaders = buildGmailReplyHeaders(lastCommunication);
                 await onSendGoogleEmail?.({
                     ...baseDraft,
-                    gmailThreadId: lastCommunication.gmailThreadId
+                    gmailThreadId: lastCommunication?.gmailThreadId,
+                    ...replyHeaders
                 });
             } else {
                 await onSendMicrosoftEmail?.({
                     ...baseDraft,
-                    microsoftConversationId: lastCommunication.microsoftConversationId,
-                    createMicrosoftTodo: emailSyncMicrosoftTodo && Boolean(onCreateMicrosoftTodoTask),
-                    todoDueDate: addDaysDateInput(2),
-                    todoTitle: `Acompanhar retorno: ${emailSubject.trim()}`,
-                    todoDescription: [
-                        `Cliente: ${proposal.clientName}`,
-                        `Proposta: #${proposal.proposalId}`,
-                        `Para: ${emailTo}`,
-                        emailCc.trim() ? `Cc: ${emailCc}` : '',
-                        '',
-                        emailBody
-                    ].filter(Boolean).join('\n')
+                    microsoftConversationId: lastCommunication?.microsoftConversationId
                 });
             }
             setActiveRightPanelTab('timeline');
@@ -586,6 +692,70 @@ const CRM: React.FC<CRMProps> = ({
         } catch (error: any) {
             if (error.emailSent) setEmailSentAfterError(true);
             setEmailError(error.message || 'Não foi possível enviar o e-mail.');
+        } finally {
+            setEmailSubmitting(false);
+        }
+    };
+
+    const submitThreadReply = async () => {
+        if (!selectedProposal || !replyThreadKey) return;
+        const thread = getProposalTraceability(selectedProposal).threads.find(item => item.key === replyThreadKey);
+        if (!thread) {
+            setReplyError('Conversa nao encontrada. Sincronize o e-mail e tente novamente.');
+            return;
+        }
+        if (!isProviderConnected(replyProvider)) {
+            setReplyError(`Conecte sua conta ${getEmailProviderLabel(replyProvider)} antes de responder.`);
+            return;
+        }
+        if (!replyTo.trim() || !replySubject.trim() || !replyBody.trim()) {
+            setReplyError('Preencha destinatario, assunto e mensagem.');
+            return;
+        }
+        if (replyProvider === 'google' && !thread.lastMessage.gmailThreadId) {
+            setReplyError('Esta conversa nao tem identificador de thread do Gmail. Sincronize o e-mail antes de responder.');
+            return;
+        }
+        if (replyProvider === 'microsoft' && !thread.lastMessage.microsoftConversationId) {
+            setReplyError('Esta conversa nao tem identificador de conversa do Outlook. Sincronize o e-mail antes de responder.');
+            return;
+        }
+
+        const baseDraft = {
+            tenantId: '',
+            clientId: selectedProposal.clientId,
+            proposalId: selectedProposal.id,
+            contactId: thread.lastMessage.contactId || undefined,
+            to: replyTo.split(',').map(item => item.trim()).filter(Boolean),
+            cc: replyCc.split(',').map(item => item.trim()).filter(Boolean),
+            subject: replySubject.trim(),
+            bodyText: replyBody
+        };
+
+        try {
+            setReplySending(true);
+            setReplyError(null);
+            if (replyProvider === 'google') {
+                const replySource = getThreadReplySourceMessage(thread);
+                const replyHeaders = buildGmailReplyHeaders(replySource);
+                await onSendGoogleEmail?.({
+                    ...baseDraft,
+                    gmailThreadId: thread.lastMessage.gmailThreadId,
+                    ...replyHeaders
+                });
+            } else {
+                await onSendMicrosoftEmail?.({
+                    ...baseDraft,
+                    microsoftConversationId: thread.lastMessage.microsoftConversationId,
+                    createMicrosoftTodo: false
+                });
+            }
+            setReplyThreadKey(null);
+            setReplyBody('');
+        } catch (error: any) {
+            setReplyError(error?.message || 'Nao foi possivel enviar a resposta.');
+        } finally {
+            setReplySending(false);
         }
     };
 
@@ -670,23 +840,23 @@ const CRM: React.FC<CRMProps> = ({
         const taskIds = Object.keys(attachmentsByTask);
 
         return (
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
+            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pb-2">
                     <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
                         <Paperclip size={14} /> Anexos das atividades
                     </h4>
                     {attachments.length > 0 && (
-                        <span className="rounded bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-900 dark:text-slate-400">{attachments.length}</span>
+                        <span className="rounded bg-[var(--tenant-control)] px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-[var(--tenant-panel-dark)] dark:text-slate-400">{attachments.length}</span>
                     )}
                 </div>
                 {taskIds.length === 0 ? (
-                    <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">Nenhum anexo em atividades vinculadas.</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded-lg">Nenhum anexo em atividades vinculadas.</p>
                 ) : (
                     <div className="space-y-3">
                         {taskIds.map(taskId => {
                             const task = tasks.find(item => item.id === taskId);
                             return (
-                                <div key={taskId} className="rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+                                <div key={taskId} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                                     <p className="mb-2 truncate text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{task.title || 'Atividade'}</p>
                                     <div className="space-y-2">
                                         {attachmentsByTask[taskId].map(attachment => (
@@ -694,7 +864,7 @@ const CRM: React.FC<CRMProps> = ({
                                                 key={attachment.id}
                                                 type="button"
                                                 onClick={() => onOpenTaskAttachment(attachment)}
-                                                className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-primary-soft)] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-[var(--tenant-primary-border)] dark:hover:bg-[var(--tenant-primary-soft)]"
+                                                className="flex w-full items-center justify-between gap-3 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-left transition-colors hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:hover:border-[var(--tenant-primary-border)] dark:hover:bg-[var(--tenant-primary-soft)]"
                                             >
                                                 <span className="flex min-w-0 items-center gap-2">
                                                     <FileIcon size={14} className="shrink-0 text-slate-400" />
@@ -722,28 +892,22 @@ const CRM: React.FC<CRMProps> = ({
         const matchesFrozen = showFrozen || p.status !== 'Frozen';
         const isArchived = p.status === 'Archived';
 
-        // Business Unit / Pipeline filter
-        let matchesPipeline = false;
-        if (businessUnit === 'PRODUCTS') {
-            matchesPipeline = hasProductModule && p.type === 'PRODUCT';
-        } else {
-            // In Services BI, we toggle between Continuous and Spot
-            matchesPipeline = hasServicesModule && (pipelineFilter === 'CONTINUOUS' ? p.type === 'CONTINUOUS' : p.type === 'SPOT');
-        }
+        const matchesPipeline = getPipelineOptionForProposal(p) === activePipelineOption.key;
 
         return matchesSearch && matchesFrozen && !isArchived && matchesPipeline;
     });
 
     // --- KPI Calculations ---
     const totalQuotesForConversion = activeProposals.filter(p => p.status !== 'Frozen' && p.status !== 'Archived').length;
-    const wonQuotes = activeProposals.filter(p => p.stage === 'Won');
+    const wonQuotes = activeProposals.filter(p => isWonStage(p.stage, getProposalPipeline(p)));
     const totalGains = wonQuotes.reduce((acc, p) => acc + p.value, 0);
 
     // Pipeline should exclude Won and Lost and Archived
     const totalPipeline = activeProposals
         .filter(p =>
-            !['Won', 'Lost'].includes(p.stage) &&
-            p.status === 'Active'
+            !isClosedStage(p.stage, getProposalPipeline(p)) &&
+            p.status === 'Active' &&
+            getPipelineOptionForProposal(p) === activePipelineOption.key
         ).reduce((acc, p) => acc + p.value, 0);
 
 
@@ -769,77 +933,49 @@ const CRM: React.FC<CRMProps> = ({
         }
     };
 
-    // Added 'barColor' for explicit tailwind classes
-    const continuousColumns: { id: OpportunityStage, label: string, color: string, bg: string, border: string, barColor: string, headerBg: string }[] = [
-        { id: 'MQL', label: 'Prospecção', color: 'text-[var(--tenant-primary)]', bg: 'bg-[var(--tenant-primary-soft)]', border: 'border-[var(--tenant-primary-border)]', barColor: 'bg-[var(--tenant-primary)]', headerBg: 'bg-[var(--tenant-primary-soft)]' },
-        { id: 'Qualification', label: 'Qualificação', color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-300', barColor: 'bg-violet-500', headerBg: 'bg-violet-100/50' },
-        { id: 'SolutionDesign', label: 'Desenho de Solução', color: 'text-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-300', barColor: 'bg-cyan-500', headerBg: 'bg-cyan-100/50' },
-        { id: 'Pricing', label: 'Precificação', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-300', barColor: 'bg-slate-500', headerBg: 'bg-slate-100/50' },
-        { id: 'Sent', label: 'Enviado', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-400', barColor: 'bg-blue-500', headerBg: 'bg-blue-50/70' },
-        { id: 'Negotiation', label: 'Negociação', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-400', barColor: 'bg-amber-500', headerBg: 'bg-amber-50/70' },
-        { id: 'Review', label: 'Em Revisão', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-400', barColor: 'bg-rose-500', headerBg: 'bg-rose-50/70' },
-        { id: 'Won', label: 'Ganho', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-500', barColor: 'bg-emerald-500', headerBg: 'bg-emerald-50/70' },
-    ];
+    const kanbanColumns = getKanbanStagesForPipeline(activePipeline, filteredProposals);
 
-    const spotColumns: { id: OpportunityStage, label: string, color: string, bg: string, border: string, barColor: string, headerBg: string }[] = [
-        { id: 'MQL', label: 'Prospecção', color: 'text-[var(--tenant-primary)]', bg: 'bg-[var(--tenant-primary-soft)]', border: 'border-[var(--tenant-primary-border)]', barColor: 'bg-[var(--tenant-primary)]', headerBg: 'bg-[var(--tenant-primary-soft)]' },
-        { id: 'Diagnosis', label: 'Diagnóstico', color: 'text-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-300', barColor: 'bg-cyan-500', headerBg: 'bg-cyan-100/50' },
-        { id: 'Pricing', label: 'Precificação', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-300', barColor: 'bg-slate-500', headerBg: 'bg-slate-100/50' },
-        { id: 'Sent', label: 'Enviado', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-400', barColor: 'bg-blue-500', headerBg: 'bg-blue-50/70' },
-        { id: 'FinalAdjustments', label: 'Ajustes Finais', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-400', barColor: 'bg-amber-500', headerBg: 'bg-amber-50/70' },
-        { id: 'AwaitingPO', label: 'Aguardando PO', color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-400', barColor: 'bg-rose-500', headerBg: 'bg-rose-50/70' },
-        { id: 'Won', label: 'Ganho', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-500', barColor: 'bg-emerald-500', headerBg: 'bg-emerald-50/70' },
-    ];
+    const getStatusBadge = (stage: OpportunityStage, status: OpportunityStatus = 'Active', pipelineConfig = activePipeline) => {
+        if (status === 'Frozen') return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border border-[var(--tenant-secondary-border)] transition-colors"><Snowflake size={12} /> Congelado</span>;
+        if (status === 'Archived') return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-500 dark:text-slate-400 border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] transition-colors"><Trash2 size={12} /> Arquivado</span>;
 
-    const productColumns: { id: OpportunityStage, label: string, color: string, bg: string, border: string, barColor: string, headerBg: string }[] = [
-        { id: 'MQL', label: 'Lead/Interesse', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-300', barColor: 'bg-emerald-500', headerBg: 'bg-emerald-100/50' },
-        { id: 'Qualification', label: 'Cotação Técnica', color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-300', barColor: 'bg-teal-500', headerBg: 'bg-teal-100/50' },
-        { id: 'Pricing', label: 'Lista de Preços', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-300', barColor: 'bg-slate-500', headerBg: 'bg-slate-100/50' },
-        { id: 'Sent', label: 'Cotação Enviada', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-400', barColor: 'bg-blue-500', headerBg: 'bg-blue-50/70' },
-        { id: 'Negotiation', label: 'Fechamento', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-400', barColor: 'bg-amber-500', headerBg: 'bg-amber-50/70' },
-        { id: 'Won', label: 'Faturado', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-500', barColor: 'bg-emerald-500', headerBg: 'bg-emerald-50/70' },
-    ];
+        const stageConfig = getPipelineStage(pipelineConfig, stage);
+        const label = getPipelineStageLabel(pipelineConfig, stage);
+        const category = getPipelineStageCategory(stage, pipelineConfig);
+        const style = getPipelineStageStyle(stageConfig);
+        const Icon = isWonStage(stage, pipelineConfig)
+            ? CheckCircle
+            : isLostStage(stage, pipelineConfig)
+                ? XCircle
+                : category === 'pricing'
+                    ? Edit3
+                    : category === 'proposal'
+                        ? FileText
+                        : category === 'negotiation' || category === 'closing'
+                            ? Clock
+                            : null;
 
-    let kanbanColumns = continuousColumns;
-    if (pipelineFilter === 'SPOT') kanbanColumns = spotColumns;
-    else if (pipelineFilter === 'PRODUCT') kanbanColumns = productColumns;
-
-    const getStatusBadge = (stage: OpportunityStage, status: OpportunityStatus = 'Active') => {
-        if (status === 'Frozen') return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-900/10 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors"><Snowflake size={12} /> Congelado</span>;
-        if (status === 'Archived') return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 transition-colors"><Trash2 size={12} /> Arquivado</span>;
-
-        const label = STAGE_LABELS[stage] || stage;
-
-        switch (stage) {
-            case 'Won': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 transition-colors"><CheckCircle size={12} /> {label}</span>;
-            case 'Lost': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-800 transition-colors"><XCircle size={12} /> {label}</span>;
-            case 'Pricing': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors"><Edit3 size={12} /> {label}</span>;
-            case 'Sent': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border border-blue-200 dark:border-blue-800 transition-colors"><FileText size={12} /> {label}</span>;
-            case 'Negotiation':
-            case 'FinalAdjustments': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-800 transition-colors"><Clock size={12} /> {label}</span>;
-            case 'MQL': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] border border-[var(--tenant-primary-border)] transition-colors">{label}</span>;
-            case 'Qualification':
-            case 'Diagnosis': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-400 border border-violet-200 dark:border-violet-800 transition-colors">{label}</span>;
-            case 'Review':
-            case 'AwaitingPO': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors">{label}</span>;
-            case 'SolutionDesign': return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800 transition-colors">{label}</span>;
-            default: return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors">{label}</span>;
-        }
+        return (
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-colors ${style.badge}`}>
+                {Icon && <Icon size={12} />}
+                {label}
+            </span>
+        );
     };
 
     const getMotionBadge = (motion: OpportunityMotion) => {
         switch (motion) {
             case 'NewBusiness': return <span className="text-[10px] bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded border border-green-100 dark:border-green-800 font-bold transition-colors">Novo</span>;
-            case 'Renewal': return <span className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-800 font-bold transition-colors">Renovação</span>;
+            case 'Renewal': return <span className="text-[10px] bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] px-1.5 py-0.5 rounded border border-[var(--tenant-secondary-border)] font-bold transition-colors">Renovação</span>;
             case 'Expansion': return <span className="text-[10px] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] px-1.5 py-0.5 rounded border border-[var(--tenant-primary-border)] font-bold transition-colors">Expansão</span>;
-            case 'Addendum': return <span className="text-[10px] bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-700 font-bold transition-colors">Aditivo</span>;
+            case 'Addendum': return <span className="text-[10px] bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] font-bold transition-colors">Aditivo</span>;
             case 'Reactivation': return <span className="text-[10px] bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 rounded border border-orange-100 dark:border-orange-800 font-bold transition-colors">Reativação</span>;
         }
     };
 
     const getProposalTypeLabel = (proposal: ProposalData) => {
-        if (proposal.pricingModule === 'SAAS_SUBSCRIPTION') return 'SaaS';
-        if (proposal.pricingModule === 'IOT_SUBSCRIPTION') return 'IoT';
+        const pricingLabel = getPricingModuleDefinition(proposal.pricingModule)?.shortLabel;
+        if (pricingLabel) return pricingLabel;
         if (proposal.type === 'SPOT') return 'Spot / Consultoria';
         if (proposal.type === 'PRODUCT') return 'Produtos';
         return 'Contrato Mensal';
@@ -855,7 +991,7 @@ const CRM: React.FC<CRMProps> = ({
                     event.stopPropagation();
                     handleRowClick(prop.id);
                 }}
-                className={`rounded-md border bg-white px-3 py-2.5 shadow-sm transition active:scale-[0.99] dark:bg-slate-900 ${isSelected ? 'border-[var(--tenant-primary)] ring-2 ring-[var(--tenant-primary-soft)]' : 'border-slate-200 dark:border-slate-800'} ${prop.status === 'Frozen' ? 'opacity-70 grayscale-[0.4]' : ''}`}
+                className={`rounded-lg border bg-[var(--tenant-panel)] px-3 py-2.5 shadow-sm transition active:scale-[0.99] dark:bg-[var(--tenant-panel-dark)] ${isSelected ? 'border-[var(--tenant-primary-border)] ring-1 ring-[var(--tenant-primary-soft)]' : 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'} ${prop.status === 'Frozen' ? 'opacity-70 grayscale-[0.4]' : ''}`}
             >
                 <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -874,9 +1010,9 @@ const CRM: React.FC<CRMProps> = ({
 
                 <div className="mt-2 flex items-center justify-between gap-2">
                     <div className="min-w-0 flex flex-1 items-center gap-1.5 overflow-hidden">
-                        {getStatusBadge(prop.stage, prop.status)}
+                        {getStatusBadge(prop.stage, prop.status, getProposalPipeline(prop))}
                         {nextTask && (
-                            <span className={`inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold ${isTaskOverdue(nextTask) ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300' : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300'}`}>
+                            <span className={`inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-bold ${isTaskOverdue(nextTask) ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300'}`}>
                                 <Clock size={11} />
                                 <span className="truncate">{nextTask.title}</span>
                             </span>
@@ -889,7 +1025,7 @@ const CRM: React.FC<CRMProps> = ({
                                 event.stopPropagation();
                                 openActivityModal(prop.id, 'Call');
                             }}
-                            className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-600 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-200"
                             title="Ligar"
                             aria-label="Ligar"
                         >
@@ -931,37 +1067,52 @@ const CRM: React.FC<CRMProps> = ({
                         actions={
                         <>
                             {businessUnit === 'SERVICES' && hasServicesModule && (
-                                <div className="flex p-1 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+                                <div className="flex rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                     <button
-                                        onClick={() => setPipelineFilter('CONTINUOUS')}
-                                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${pipelineFilter === 'CONTINUOUS' ? 'bg-[var(--tenant-primary)] text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                                        onClick={() => {
+                                            setPipelineFilter(getPipelineOptionKey('SERVICES_COMPLEX', 'CONTINUOUS'));
+                                            setCreateType('CONTINUOUS');
+                                            setCreatePricingModule('SERVICES_COMPLEX');
+                                        }}
+                                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${pipelineFilter === getPipelineOptionKey('SERVICES_COMPLEX', 'CONTINUOUS') ? 'bg-[var(--tenant-primary)] text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
                                     >
                                         <Repeat size={14} /> Contínuo
                                     </button>
                                     <button
-                                        onClick={() => setPipelineFilter('SPOT')}
-                                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${pipelineFilter === 'SPOT' ? 'bg-[var(--tenant-primary)] text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                                        onClick={() => {
+                                            setPipelineFilter(getPipelineOptionKey('SERVICES_COMPLEX', 'SPOT'));
+                                            setCreateType('SPOT');
+                                            setCreatePricingModule('SERVICES_COMPLEX');
+                                        }}
+                                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${pipelineFilter === getPipelineOptionKey('SERVICES_COMPLEX', 'SPOT') ? 'bg-[var(--tenant-primary)] text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
                                     >
                                         <Zap size={14} /> Spot
                                     </button>
                                 </div>
                             )}
 
-                            {businessUnit === 'PRODUCTS' && hasSaasModule && (
-                                <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 dark:border-slate-800 dark:bg-slate-900 sm:flex">
-                                    <CreditCard size={16} className="text-slate-700 dark:text-slate-200" />
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Assinatura SaaS</span>
+                            {businessUnit === 'PRODUCTS' && hasProductModule && (
+                                <div className="flex rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                    {pipelineOptions.map(option => {
+                                        const Icon = getPipelineOptionIcon(option);
+                                        return (
+                                            <button
+                                                key={option.key}
+                                                onClick={() => {
+                                                    setPipelineFilter(option.key);
+                                                    setCreateType(option.proposalType);
+                                                    setCreatePricingModule(option.pricingModule);
+                                                }}
+                                                className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 ${pipelineFilter === option.key ? 'bg-[var(--tenant-primary)] text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                                            >
+                                                <Icon size={14} /> {option.shortLabel}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
 
-                            {businessUnit === 'PRODUCTS' && hasProductModule && !hasSaasModule && (
-                                <div className="hidden items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-2 dark:border-emerald-800 dark:bg-emerald-900/20 sm:flex">
-                                    <Package size={16} className="text-emerald-600" />
-                                    <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400">Hub de Produtos</span>
-                                </div>
-                            )}
-
-                            <div className="bg-white dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex transition-colors">
+                            <div className="flex rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                 <button onClick={() => setViewMode('kanban')} className={`p-2 rounded-md transition-all ${viewMode === 'kanban' ? 'bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`} title="Kanban"><LayoutGrid size={20} /></button>
                                 <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`} title="Lista"><List size={20} /></button>
                             </div>
@@ -969,12 +1120,12 @@ const CRM: React.FC<CRMProps> = ({
                                 onClick={() => setShowFrozen(!showFrozen)}
                                 title={showFrozen ? 'Ocultar congelados' : 'Mostrar congelados'}
                                 aria-label={showFrozen ? 'Ocultar congelados' : 'Mostrar congelados'}
-                                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${showFrozen ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'}`}
+                                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${showFrozen ? 'border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)]' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400'}`}
                             >
                                 <Snowflake size={16} />
                                 <span className="hidden sm:inline">{showFrozen ? 'Ocultar Congelados' : 'Mostrar Congelados'}</span>
                             </button>
-                            <div className="hidden h-10 w-px bg-slate-200 dark:bg-slate-800 mx-1 transition-colors sm:block"></div>
+                            <div className="mx-1 hidden h-10 w-px bg-[var(--tenant-border)] transition-colors dark:bg-[var(--tenant-border-dark)] sm:block"></div>
                             <Button
                                 type="button"
                                 variant="secondary"
@@ -990,8 +1141,8 @@ const CRM: React.FC<CRMProps> = ({
                                 className="min-h-11 flex-1 sm:w-auto sm:flex-none"
                                 onClick={() => {
                                 if (businessUnit === 'PRODUCTS' && hasProductModule) {
-                                    setCreateType('PRODUCT');
-                                    setCreatePricingModule(hasSaasModule ? 'SAAS_SUBSCRIPTION' : hasIotModule ? 'IOT_SUBSCRIPTION' : 'PRODUCT_SALES');
+                                    setCreateType(activePipelineOption.proposalType);
+                                    setCreatePricingModule(activePipelineOption.pricingModule);
                                     setCreateStep(2);
                                 } else if (!hasServicesModule) {
                                     return;
@@ -1025,7 +1176,7 @@ const CRM: React.FC<CRMProps> = ({
                                     key={item.type}
                                     type="button"
                                     onClick={() => openQuickActivityModal(item.type)}
-                                    className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-1 text-[10px] font-black text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                                    className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-1 text-[10px] font-black text-[var(--tenant-text)] shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]"
                                 >
                                     <Icon size={16} />
                                     {item.label}
@@ -1039,8 +1190,8 @@ const CRM: React.FC<CRMProps> = ({
                 <div className="flex-1 overflow-hidden px-3 pb-4 sm:px-6 lg:px-8 lg:pb-8 flex flex-col">
                     {viewMode === 'list' ? (
                         /* LIST VIEW */
-                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full w-full transition-colors">
-                            <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-slate-50/30 p-2.5 dark:border-slate-800 dark:bg-slate-900/30 sm:gap-4 sm:p-4">
+                        <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                            <div className="flex shrink-0 items-center gap-3 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-2.5 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] sm:gap-4 sm:p-4">
                                 <Search className="text-slate-400 dark:text-slate-500" size={18} />
                                 <input
                                     type="text"
@@ -1053,7 +1204,7 @@ const CRM: React.FC<CRMProps> = ({
                             <div className="flex-1 space-y-3 overflow-y-auto p-3 custom-scrollbar lg:hidden">
                                 {filteredProposals.map(renderProposalMobileCard)}
                                 {filteredProposals.length === 0 && (
-                                    <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-800 dark:bg-slate-900/50">
+                                    <div className="rounded-lg border-2 border-dashed border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 py-10 text-center dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                         <Search className="mx-auto mb-3 text-slate-300" size={28} />
                                         <p className="text-sm font-black text-slate-600 dark:text-slate-300">Nenhuma oportunidade encontrada</p>
                                     </div>
@@ -1061,7 +1212,7 @@ const CRM: React.FC<CRMProps> = ({
                             </div>
                             <div className="hidden overflow-auto flex-1 custom-scrollbar lg:block">
                                 <table className="w-full text-sm text-left relative">
-                                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase text-xs tracking-wider border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 shadow-sm transition-colors">
+                                    <thead className="sticky top-0 z-10 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] text-xs font-bold uppercase tracking-wider text-slate-500 shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">
                                         <tr>
                                             <th className="px-6 py-4">Status</th>
                                             <th className="px-6 py-4">ID / Cliente</th>
@@ -1072,7 +1223,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <th className="px-6 py-4 text-center">Ações</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 cursor-pointer transition-colors text-slate-800 dark:text-slate-200">
+                                    <tbody className="cursor-pointer divide-y divide-[var(--tenant-border)] text-slate-800 transition-colors dark:divide-[var(--tenant-border-dark)] dark:text-slate-200">
                                         {filteredProposals.map((prop) => {
                                             const isSelected = selectedPreviewId === prop.id;
                                             return (
@@ -1081,28 +1232,28 @@ const CRM: React.FC<CRMProps> = ({
                                                     onClick={(e) => { e.stopPropagation(); handleRowClick(prop.id); }}
                                                     onDoubleClick={() => onSelectProposal(prop.id)}
                                                     onContextMenu={(e) => handleContextMenu(e, prop.id)}
-                                                    className={`transition-all group border-l-[6px] ${isSelected ? 'bg-slate-50 dark:bg-slate-800/50 border-l-[var(--tenant-primary)] shadow-inner' : 'border-l-transparent hover:bg-slate-50/60 dark:hover:bg-slate-800/30 hover:border-l-slate-200 dark:hover:border-l-slate-700'} ${prop.status === 'Frozen' ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                                                    className={`group border-l-4 transition-all ${isSelected ? 'border-l-[var(--tenant-primary)] bg-[var(--tenant-control-active)] shadow-inner dark:bg-[var(--tenant-control-active-dark)]' : 'border-l-transparent hover:border-l-[var(--tenant-primary-border)] hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)]'} ${prop.status === 'Frozen' ? 'opacity-60 grayscale-[0.5]' : ''}`}
                                                 >
-                                                    <td className="px-6 py-4">{getStatusBadge(prop.stage, prop.status)}</td>
+                                                    <td className="px-6 py-4">{getStatusBadge(prop.stage, prop.status, getProposalPipeline(prop))}</td>
                                                     <td className="px-6 py-4">
                                                         <div className={`font-bold transition-colors ${isSelected ? 'text-[var(--tenant-primary)]' : 'text-slate-800 dark:text-slate-200'}`}>{prop.clientName}</div>
-                                                        <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-0.5 transition-colors">#{prop.proposalId} <span className="bg-slate-100 dark:bg-slate-800 px-1 rounded ml-1 transition-colors">v{prop.version}</span></p>
+                                                        <p className="mt-0.5 font-mono text-xs text-slate-400 transition-colors dark:text-slate-500">#{prop.proposalId} <span className="ml-1 rounded bg-[var(--tenant-control)] px-1 transition-colors dark:bg-[var(--tenant-control-dark)]">v{prop.version}</span></p>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${prop.type === 'SPOT' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : prop.type === 'PRODUCT' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'}`}>
+                                                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${prop.type === 'SPOT' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : prop.type === 'PRODUCT' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border-[var(--tenant-secondary-border)]'}`}>
                                                             {getProposalTypeLabel(prop)}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 transition-colors">
-                                                            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400 transition-colors">{prop.responsible.charAt(0)}</div>
+                                                            <div className="w-6 h-6 rounded-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400 transition-colors">{prop.responsible.charAt(0)}</div>
                                                             <span className="text-xs font-medium">{prop.responsible}</span>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-100 transition-colors">{formatCurrency(prop.value)}</td>
                                                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs transition-colors">{new Date(prop.expirationDate).toLocaleDateString('pt-BR')}</td>
                                                     <td className="px-6 py-4 text-center">
-                                                        <button onClick={(e) => { e.stopPropagation(); onSelectProposal(prop.id); }} className="text-blue-600 dark:text-blue-400 font-bold text-xs hover:underline bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 transition-colors">
+                                                        <button onClick={(e) => { e.stopPropagation(); onSelectProposal(prop.id); }} className="rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-3 py-1.5 text-xs font-bold text-[var(--tenant-primary)] transition-colors hover:border-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]">
                                                             Abrir
                                                         </button>
                                                     </td>
@@ -1118,27 +1269,27 @@ const CRM: React.FC<CRMProps> = ({
                         <div className="flex gap-6 h-full overflow-x-auto pb-2 custom-scrollbar items-stretch snap-x">
                             {kanbanColumns.map(col => {
                                 const colProposals = filteredProposals.filter(p => p.stage === col.id);
+                                const colStyle = getPipelineStageStyle(col);
 
                                 return (
                                     <div
                                         key={col.id}
-                                        className="flex flex-col h-full rounded-xl overflow-hidden bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/60 min-w-[280px] w-full max-w-[320px] shrink-0 snap-center transition-colors"
+                                        className="flex h-full min-w-[280px] w-full max-w-[320px] shrink-0 snap-center flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-surface)] transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]"
                                         onDragOver={handleDragOver}
                                         onDrop={(e) => handleDrop(e, col.id)}
                                     >
                                         {/* Column Header */}
-                                        <div className={`flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-800 ${col.headerBg} dark:bg-slate-800/40 backdrop-blur-sm sticky top-0 z-10 transition-colors`}>
+                                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-3 h-3 rounded-full ${col.bg.replace('bg-', 'bg-').replace('-50', '-500')}`}></div>
+                                                <div className={`w-3 h-3 rounded-full ${colStyle.barColor}`}></div>
                                                 <h3 className={`font-bold text-sm text-slate-700 dark:text-slate-100 transition-colors`}>{col.label}</h3>
                                             </div>
-                                            <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-xs font-bold text-slate-500 dark:text-slate-400 shadow-sm border border-slate-200 dark:border-slate-700 transition-colors">{colProposals.length}</span>
+                                            <span className="rounded border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-0.5 text-xs font-bold text-slate-500 shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-400">{colProposals.length}</span>
                                         </div>
 
                                         {/* Column Content */}
                                         <div className="p-3 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
                                             {colProposals
-                                                .filter(p => viewMode === 'list' || p.type === pipelineFilter)
                                                 .map(prop => (
                                                     <div
                                                         key={prop.id}
@@ -1148,25 +1299,29 @@ const CRM: React.FC<CRMProps> = ({
                                                         onDoubleClick={() => onSelectProposal(prop.id)}
                                                         onContextMenu={(e) => handleContextMenu(e, prop.id)}
                                                         className={`
-                                                    group bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border cursor-grab active:cursor-grabbing transition-all hover:shadow-md hover:-translate-y-1 relative overflow-hidden
-                                                    ${selectedPreviewId === prop.id ? 'ring-2 ring-[var(--tenant-primary)] shadow-md' : 'border-slate-200 dark:border-slate-700'}
-                                                    border-l-[6px] ${col.border}
-                                                    ${prop.status === 'Frozen' ? 'grayscale-[0.8] opacity-70 bg-slate-50/50 dark:bg-slate-900/50' : ''}
+                                                    group relative cursor-grab overflow-hidden rounded-lg border bg-[var(--tenant-panel)] p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md active:cursor-grabbing dark:bg-[var(--tenant-panel-dark)]
+                                                    ${selectedPreviewId === prop.id ? 'border-[var(--tenant-primary-border)] ring-1 ring-[var(--tenant-primary-soft)] shadow-md' : 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}
+                                                    border-l-4 ${colStyle.border}
+                                                    ${prop.status === 'Frozen' ? 'grayscale-[0.8] opacity-70' : ''}
                                                 `}
                                                     >
                                                         {prop.status === 'Frozen' && (
-                                                            <div className="absolute top-0 right-0 p-1 bg-blue-900/10 dark:bg-blue-900/40 text-blue-900 dark:text-blue-300 rounded-bl-lg transition-colors" title="Congelada">
+                                                            <div className="absolute top-0 right-0 p-1 bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] rounded-bl-lg transition-colors" title="Congelada">
                                                                 <Snowflake size={14} />
                                                             </div>
                                                         )}
                                                         <div className="flex justify-between items-start mb-3">
-                                                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 px-1.5 rounded border border-slate-100 dark:border-slate-700 transition-colors">
+                                                            <span className="rounded border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-1.5 font-mono text-[10px] text-slate-400 transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-500">
                                                                 #{prop.proposalId} v{prop.version}
                                                             </span>
                                                             <div className="flex gap-1 items-center">
                                                                 {getMotionBadge(prop.motion)}
                                                                 {prop.type === 'SPOT' && <Zap size={14} className="text-amber-500" title="Projeto Spot" />}
-                                                                {prop.pricingModule === 'SAAS_SUBSCRIPTION' ? <CreditCard size={14} className="text-slate-500" title="Assinatura SaaS" /> : prop.type === 'PRODUCT' && <Package size={14} className="text-emerald-500" title="Cotação de Produtos" />}
+                                                                {prop.pricingModule === 'SAAS_SUBSCRIPTION'
+                                                                    ? <CreditCard size={14} className="text-slate-500" title="Assinatura SaaS" />
+                                                                    : prop.pricingModule === 'IOT_SUBSCRIPTION'
+                                                                        ? <Activity size={14} className="text-[var(--tenant-secondary)]" title="IoT e sensores" />
+                                                                        : prop.type === 'PRODUCT' && <Package size={14} className="text-emerald-500" title="Cotação de Produtos" />}
                                                                 <GripVertical size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                             </div>
                                                         </div>
@@ -1176,7 +1331,7 @@ const CRM: React.FC<CRMProps> = ({
                                                             const nextTask = getPendingProposalTasks(prop.id)[0];
                                                             if (!nextTask) return null;
                                                             return (
-                                                                <div className="mb-3 inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400">
+                                                                <div className="mb-3 inline-flex max-w-full items-center gap-1.5 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2 py-1 text-[10px] font-bold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">
                                                                     <Clock size={11} />
                                                                     <span className="truncate">{nextTask.title}</span>
                                                                     <span className="shrink-0">{new Date(nextTask.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
@@ -1195,7 +1350,7 @@ const CRM: React.FC<CRMProps> = ({
                                                                         <AlertCircle size={12} />
                                                                     </div>
                                                                 )}
-                                                                <div className="p-2 bg-slate-50 dark:bg-slate-700/50 text-slate-400 dark:text-slate-500 rounded-lg group-hover:bg-[var(--tenant-primary)] group-hover:text-white dark:group-hover:text-white transition-colors">
+                                                                <div className="rounded-md bg-[var(--tenant-control)] p-2 text-slate-400 transition-colors group-hover:bg-[var(--tenant-primary)] group-hover:text-white dark:bg-[var(--tenant-control-dark)] dark:text-slate-500 dark:group-hover:text-white">
                                                                     <ArrowRight size={14} />
                                                                 </div>
                                                             </div>
@@ -1218,14 +1373,67 @@ const CRM: React.FC<CRMProps> = ({
                     onClose={closePreviewPanel}
                     panelClassName="overflow-x-hidden"
                 >
-                    <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 shrink-0">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${selectedProposal.type === 'SPOT' ? 'bg-amber-100 text-amber-700' : selectedProposal.type === 'PRODUCT' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                {getProposalTypeLabel(selectedProposal).toUpperCase()}
-                            </span>
-                            <button onClick={closePreviewPanel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"><XCircle size={20} /></button>
+                    <div className="p-4 sm:p-5 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] shrink-0">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                                <span className={`mb-2 inline-flex px-2 py-1 rounded text-xs font-bold ${selectedProposal.type === 'SPOT' ? 'bg-amber-100 text-amber-700' : selectedProposal.type === 'PRODUCT' ? 'bg-emerald-100 text-emerald-700' : 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)]'}`}>
+                                    {getProposalTypeLabel(selectedProposal).toUpperCase()}
+                                </span>
+                                <h2 className="font-bold text-xl text-slate-800 dark:text-slate-100 leading-tight">{selectedProposal.clientName}</h2>
+                            </div>
+                            <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => onSelectProposal(selectedProposal.id)}
+                                    className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-[var(--tenant-primary)] px-3 text-xs font-black text-white shadow-sm transition hover:brightness-95 active:scale-95 sm:flex-none"
+                                    title="Abrir editor completo"
+                                    aria-label="Abrir editor completo"
+                                >
+                                    <ExternalLink size={15} />
+                                    <span className="truncate">Abrir</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActionProposalId(selectedProposal.id);
+                                        setTempNotes('');
+                                        setIsNewVersionModalOpen(true);
+                                    }}
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]"
+                                    title="Nova versão"
+                                    aria-label="Nova versão"
+                                >
+                                    <Repeat size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onDuplicateProposal(selectedProposal.id)}
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]"
+                                    title="Duplicar cotação"
+                                    aria-label="Duplicar cotação"
+                                >
+                                    <Copy size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onDeleteProposal(selectedProposal.id)}
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/55"
+                                    title="Arquivar / descartar"
+                                    aria-label="Arquivar / descartar"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={closePreviewPanel}
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-slate-500 transition hover:bg-[var(--tenant-control)] hover:text-slate-700 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300 dark:hover:text-slate-100"
+                                    title="Fechar painel"
+                                    aria-label="Fechar painel"
+                                >
+                                    <XCircle size={18} />
+                                </button>
+                            </div>
                         </div>
-                        <h2 className="font-bold text-xl text-slate-800 dark:text-slate-100 leading-tight mb-1">{selectedProposal.clientName}</h2>
 
                         {selectedProposal.versionNotes && (
                             <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-100 dark:border-amber-800 mt-2 italic shadow-sm">
@@ -1234,15 +1442,15 @@ const CRM: React.FC<CRMProps> = ({
                         )}
 
                         <div className="mt-3 flex flex-wrap gap-2">
-                            {getStatusBadge(selectedProposal.stage, selectedProposal.status)}
+                            {getStatusBadge(selectedProposal.stage, selectedProposal.status, getProposalPipeline(selectedProposal))}
                             {getMotionBadge(selectedProposal.motion)}
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${selectedProposal.type === 'SPOT' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : selectedProposal.type === 'PRODUCT' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'}`}>
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${selectedProposal.type === 'SPOT' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : selectedProposal.type === 'PRODUCT' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border-[var(--tenant-secondary-border)]'}`}>
                                 {getProposalTypeLabel(selectedProposal)}
                             </span>
                         </div>
 
                         {/* Responsible and Version Info */}
-                        <div className="mt-4 flex flex-col gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <div className="mt-4 flex flex-col gap-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] p-3 rounded-lg border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]">
                             <div className="flex items-center justify-between text-xs">
                                 <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><User size={14} /> Vendedor Resp.</span>
                                 <span className="font-bold text-slate-700 dark:text-slate-300">{selectedProposal.responsible}</span>
@@ -1257,7 +1465,7 @@ const CRM: React.FC<CRMProps> = ({
                     <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
 
                         {/* TABS */}
-                        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 pt-2 px-5 shrink-0 sticky top-0 z-10 transition-colors">
+                        <div className="flex border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] pt-2 px-5 shrink-0 sticky top-0 z-10 transition-colors">
                             <button
                                 onClick={() => setActiveRightPanelTab('overview')}
                                 className={`pb-3 px-2 text-[11px] font-bold uppercase tracking-wider transition-colors border-b-2 ${activeRightPanelTab === 'overview' ? 'border-[var(--tenant-primary)] text-[var(--tenant-primary)]' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
@@ -1281,7 +1489,7 @@ const CRM: React.FC<CRMProps> = ({
                         <div className="p-5 space-y-5 flex-1 min-w-0">
                             {activeRightPanelTab === 'overview' && (
                                 <>
-                                    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                                    <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-4 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
                                                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Workspace</h4>
@@ -1315,7 +1523,7 @@ const CRM: React.FC<CRMProps> = ({
                                                         console.error('Erro ao sincronizar workspace', error);
                                                     }
                                                 }}
-                                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                                className="rounded-lg border border-[var(--tenant-border)] px-3 py-2 text-xs font-bold text-slate-600 hover:bg-[var(--tenant-control)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:text-slate-300 dark:hover:bg-[var(--tenant-control-dark)]"
                                             >
                                                 {workspaceLoading ? 'Sincronizando...' : 'Sincronizar'}
                                             </button>
@@ -1335,35 +1543,35 @@ const CRM: React.FC<CRMProps> = ({
                                         const totalHeadcount = Math.round(selectedProposal.roles?.reduce((acc, r) => acc + r.quantity, 0) * 10) / 10; // Arredonda para 1 casa decimal se necessário
 
                                         return (
-                                            <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-                                                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-700 pb-2 flex items-center gap-2">
+                                            <div className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg p-5 shadow-sm">
+                                                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pb-2 flex items-center gap-2">
                                                     <PieChart size={14} /> Resumo da Cotação
                                                 </h4>
 
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-lg shadow-sm">
+                                                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
                                                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Preço (Mensal)</p>
                                                         <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(displayMonthlyValue)}</p>
                                                     </div>
-                                                    <div className={`border p-3 rounded-lg shadow-sm ${selectedProposal.targetMargin < 0.15 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
+                                                    <div className={`border p-3 rounded-lg shadow-sm ${selectedProposal.targetMargin < 0.15 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}`}>
                                                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Margem (Target)</p>
                                                         <p className={`text-lg font-black ${selectedProposal.targetMargin < 0.15 ? 'text-red-600 dark:text-red-400' : 'text-[var(--tenant-primary)]'}`}>
                                                             {formatPercent(selectedProposal.targetMargin)}
                                                         </p>
                                                     </div>
                                                     {selectedProposal.type === 'CONTINUOUS' && (
-                                                        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-lg shadow-sm">
+                                                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
                                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Total de Vidas (HC)</p>
                                                             <p className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><Users size={14} className="text-slate-400" /> {totalHeadcount}</p>
                                                         </div>
                                                     )}
                                                     {selectedProposal.type === 'SPOT' && (
-                                                        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-lg shadow-sm">
+                                                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
                                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Recursos Alocados</p>
                                                         <p className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><Users size={14} className="text-slate-400" /> {selectedProposal.spotResources?.reduce((acc, r) => acc + r.quantity, 0) || 0} diárias</p>
                                                         </div>
                                                     )}
-                                                    <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-lg shadow-sm">
+                                                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
                                                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Carga Trib. s/ Venda</p>
                                                         <p className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><Landmark size={14} className="text-slate-400" /> {formatPercent(displayTaxRate)}</p>
                                                     </div>
@@ -1374,7 +1582,7 @@ const CRM: React.FC<CRMProps> = ({
 
                                     {/* ALERT: Margin Validation */}
                                     {selectedProposal.targetMargin < 0.15 && (
-                                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex gap-3 animate-pulse">
+                                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex gap-3 animate-pulse">
                                             <XCircle className="text-red-600 dark:text-red-400 shrink-0" size={20} />
                                             <div>
                                                 <p className="text-xs font-bold text-red-800 dark:text-red-300 uppercase tracking-tight">Alerta de Viabilidade</p>
@@ -1389,7 +1597,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Etapa (Funil)</label>
                                             <select
                                                 disabled={selectedProposal.status === 'Archived'}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                                 value={selectedProposal.stage}
                                                 onChange={async (e) => {
                                                     try {
@@ -1400,21 +1608,20 @@ const CRM: React.FC<CRMProps> = ({
                                                     }
                                                 }}
                                             >
-                                                {selectedProposal.type === 'CONTINUOUS' ? (
-                                                    <>
-                                                        {CONTINUOUS_STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        {SPOT_STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
-                                                    </>
-                                                )}
+                                                {selectedProposalPipeline.stages
+                                                    .filter(stage => stage.active || stage.id === selectedProposal.stage)
+                                                    .sort((a, b) => a.order - b.order)
+                                                    .map(stage => (
+                                                        <option key={stage.id} value={stage.id}>
+                                                            {stage.label}{!stage.active ? ' (legada)' : ''}
+                                                        </option>
+                                                    ))}
                                             </select>
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Estado Transversal</label>
                                             <select
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none transition-colors"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none transition-colors"
                                                 value={selectedProposal.status}
                                                 onChange={async (e) => {
                                                     const newStatus = e.target.value as OpportunityStatus;
@@ -1441,13 +1648,13 @@ const CRM: React.FC<CRMProps> = ({
                                     </div>
 
                                     {selectedProposal.status === 'Frozen' && (
-                                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-2">
-                                            <div className="flex items-center gap-2 text-blue-800 dark:text-blue-400 font-bold text-xs uppercase">
+                                        <div className="bg-[var(--tenant-secondary-soft)] border border-[var(--tenant-secondary-border)] rounded-lg p-4 space-y-2">
+                                            <div className="flex items-center gap-2 text-[var(--tenant-secondary)] font-bold text-xs uppercase">
                                                 <Snowflake size={14} /> Detalhes do Congelamento
                                             </div>
-                                            <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium">Motivo: <span className="font-normal italic text-blue-600 dark:text-blue-400">{selectedProposal.frozenReason}</span></p>
+                                            <p className="text-[11px] text-[var(--tenant-secondary)] font-medium">Motivo: <span className="font-normal italic text-[var(--tenant-secondary)]">{selectedProposal.frozenReason}</span></p>
                                             {selectedProposal.frozenUntil && (
-                                                <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium">Revisar em: <span className="font-normal italic text-blue-600 dark:text-blue-400">{new Date(selectedProposal.frozenUntil).toLocaleDateString()}</span></p>
+                                                <p className="text-[11px] text-[var(--tenant-secondary)] font-medium">Revisar em: <span className="font-normal italic text-[var(--tenant-secondary)]">{new Date(selectedProposal.frozenUntil).toLocaleDateString()}</span></p>
                                             )}
                                             <button
                                                 onClick={async () => {
@@ -1458,15 +1665,15 @@ const CRM: React.FC<CRMProps> = ({
                                                         console.error('Erro ao reativar oportunidade', error);
                                                     }
                                                 }}
-                                                className="w-full mt-2 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-colors"
+                                                className="w-full mt-2 py-1.5 bg-[var(--tenant-primary)] text-white rounded-lg text-[10px] font-bold hover:brightness-95 transition-colors"
                                             >
                                                 Reativar Oportunidade (Unfreeze)
                                             </button>
                                         </div>
                                     )}
 
-                                    {false && <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
-                                        <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
+                                    {false && <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg p-5 shadow-sm">
+                                        <div className="flex items-center justify-between mb-4 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pb-2">
                                             <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                                 <Activity size={14} /> Próximas atividades
                                             </h4>
@@ -1478,19 +1685,19 @@ const CRM: React.FC<CRMProps> = ({
                                             </button>
                                         </div>
                                         {getPendingProposalTasks(selectedProposal.id).length === 0 ? (
-                                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">Nenhuma atividade pendente.</p>
+                                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded-lg">Nenhuma atividade pendente.</p>
                                         ) : (
                                             <div className="space-y-3">
                                                 {getPendingProposalTasks(selectedProposal.id).slice(0, 3).map(task => {
                                                     const contact = contacts.find(c => c.id === task.contactId);
                                                     return (
-                                                        <div key={task.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+                                                        <div key={task.id} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                                                             <div className="flex items-start justify-between gap-3">
                                                                 <div className="min-w-0">
                                                                     <p className="truncate text-sm font-bold text-slate-700 dark:text-slate-200">{task.title}</p>
                                                                     <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{contact?.name || 'Sem contato'} ? {task.type}</p>
                                                                 </div>
-                                                                <span className="shrink-0 rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                                                <span className="shrink-0 rounded bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">
                                                                     {new Date(task.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                                                                 </span>
                                                             </div>
@@ -1504,8 +1711,8 @@ const CRM: React.FC<CRMProps> = ({
                                     {renderProposalAttachments(selectedProposal.id)}
 
                                     {/* MILESTONES SECTION */}
-                                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
-                                        <div className="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
+                                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg p-5 shadow-sm">
+                                        <div className="flex items-center justify-between mb-4 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pb-2">
                                             <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
                                                 <Calendar size={14} /> Eventos e Prazos
                                             </h4>
@@ -1518,17 +1725,17 @@ const CRM: React.FC<CRMProps> = ({
                                         </div>
 
                                         {isAddingMilestone && (
-                                            <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700 mb-4 space-y-3">
+                                            <div className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] p-3 rounded-lg border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] mb-4 space-y-3">
                                                 <input
                                                     type="text"
                                                     placeholder="Ex: Confirmação de Visita Técnica"
-                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[var(--tenant-primary)]"
+                                                    className="w-full bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[var(--tenant-primary)]"
                                                     value={tempMilestoneTitle}
                                                     onChange={(e) => setTempMilestoneTitle(e.target.value)}
                                                 />
                                                 <input
                                                     type="date"
-                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[var(--tenant-primary)]"
+                                                    className="w-full bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-[var(--tenant-primary)]"
                                                     value={tempMilestoneDate}
                                                     onChange={(e) => setTempMilestoneDate(e.target.value)}
                                                 />
@@ -1556,7 +1763,7 @@ const CRM: React.FC<CRMProps> = ({
                                         )}
 
                                         {(!selectedProposal.milestones || selectedProposal.milestones.length === 0) && !isAddingMilestone && (
-                                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg">Nenhum evento registrado.</p>
+                                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-4 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded-lg">Nenhum evento registrado.</p>
                                         )}
 
                                         {selectedProposal.milestones && selectedProposal.milestones.length > 0 && (
@@ -1564,14 +1771,14 @@ const CRM: React.FC<CRMProps> = ({
                                                 {[...selectedProposal.milestones]
                                                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                                                     .map((m) => (
-                                                        <div key={m.id} className="flex gap-3 group relative pl-4 border-l-2 border-slate-100 dark:border-slate-700 hover:border-[var(--tenant-primary)] transition-colors">
-                                                            <div className="absolute -left-[9px] top-0.5 bg-white dark:bg-slate-800 rounded-full">
+                                                        <div key={m.id} className="flex gap-3 group relative pl-4 border-l-2 border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] hover:border-[var(--tenant-primary)] transition-colors">
+                                                            <div className="absolute -left-[9px] top-0.5 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-full">
                                                                 <button
                                                                     onClick={async () => {
                                                                         const updated = selectedProposal.milestones!.map(ms => ms.id === m.id ? { ...ms, completed: !ms.completed } : ms);
                                                                         await onUpdateMilestones(selectedProposal.id, updated);
                                                                     }}
-                                                                    className={`w-4 h-4 rounded-full flex items-center justify-center border transition-colors ${m.completed ? 'bg-[var(--tenant-primary)] border-[var(--tenant-primary)] text-white' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-transparent hover:border-[var(--tenant-primary)]'}`}
+                                                                    className={`w-4 h-4 rounded-full flex items-center justify-center border transition-colors ${m.completed ? 'bg-[var(--tenant-primary)] border-[var(--tenant-primary)] text-white' : 'bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-transparent hover:border-[var(--tenant-primary)]'}`}
                                                                 >
                                                                     <CheckCircle size={10} className={m.completed ? 'opacity-100' : 'opacity-0 hover:opacity-100 text-[var(--tenant-primary)]'} />
                                                                 </button>
@@ -1623,30 +1830,30 @@ const CRM: React.FC<CRMProps> = ({
                                                 .filter(task => task.status === status)
                                                 .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
                                             return (
-                                                <div key={status} className="min-h-[360px] rounded-xl border border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-950/40">
-                                                    <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+                                                <div key={status} className="min-h-[360px] rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                                    <div className="flex items-center justify-between border-b border-[var(--tenant-border)] px-3 py-2 dark:border-[var(--tenant-border-dark)]">
                                                         <span className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-300">{getTaskStatusLabel(status)}</span>
-                                                        <span className="rounded bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 border border-slate-200 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400">{statusTasks.length}</span>
+                                                        <span className="rounded bg-[var(--tenant-panel)] px-2 py-0.5 text-[10px] font-bold text-slate-500 border border-[var(--tenant-border)] dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-400">{statusTasks.length}</span>
                                                     </div>
                                                     <div className="space-y-2 p-2">
                                                         {statusTasks.length === 0 ? (
-                                                            <div className="rounded-lg border border-dashed border-slate-200 bg-white/60 px-2 py-6 text-center text-[11px] font-semibold text-slate-400 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-500">
+                                                            <div className="rounded-lg border border-dashed border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-6 text-center text-[11px] font-semibold text-slate-400 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-500">
                                                                 Sem atividades.
                                                             </div>
                                                         ) : statusTasks.map(task => {
                                                             const contact = contacts.find(c => c.id === task.contactId);
                                                             const overdue = isTaskOverdue(task);
                                                             return (
-                                                                <div key={task.id} className={`rounded-lg border bg-white p-3 shadow-sm dark:bg-slate-900 ${overdue ? 'border-red-200 dark:border-red-900/60' : 'border-slate-200 dark:border-slate-800'}`}>
+                                                                <div key={task.id} className={`rounded-lg border bg-[var(--tenant-panel)] p-3 shadow-sm dark:bg-[var(--tenant-panel-dark)] ${overdue ? 'border-red-200 dark:border-red-900/60' : 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}`}>
                                                                     <div className="flex items-start justify-between gap-2">
-                                                                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">{getTaskTypeLabel(task.type)}</span>
+                                                                        <span className="rounded bg-[var(--tenant-control)] px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">{getTaskTypeLabel(task.type)}</span>
                                                                         <span className={`text-[10px] font-bold ${overdue ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
                                                                             {new Date(task.dueDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                                                                         </span>
                                                                     </div>
                                                                     <p className="mt-2 text-xs font-black leading-snug text-slate-800 dark:text-slate-100">{task.title}</p>
                                                                     {task.description && <p className="mt-1 line-clamp-2 text-[11px] text-slate-500 dark:text-slate-400">{task.description}</p>}
-                                                                    <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-[10px] font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                                                                    <div className="mt-3 space-y-1 border-t border-[var(--tenant-border)] pt-2 text-[10px] font-semibold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:text-slate-400">
                                                                         <div className="flex items-center gap-1.5"><User size={11} /> {contact?.name || 'Sem contato'}</div>
                                                                         <div className="flex items-center gap-1.5"><Clock size={11} /> {task.assignee || selectedProposal.responsible}</div>
                                                                     </div>
@@ -1666,26 +1873,35 @@ const CRM: React.FC<CRMProps> = ({
                                 const hasEvents = traceability.timeline.length > 0;
                                 return (
                                     <div className="space-y-5">
-                                        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                                        <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-4 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                                             <div className="mb-3 flex items-center justify-between gap-3">
                                                 <div>
                                                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Conversas</h4>
                                                     <p className="text-xs text-slate-500 dark:text-slate-400">Threads de e-mail vinculadas a esta proposta.</p>
                                                 </div>
-                                                <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500 dark:bg-slate-800 dark:text-slate-400">{traceability.threads.length}</span>
+                                                <span className="rounded-md bg-[var(--tenant-control)] px-2 py-1 text-[10px] font-black text-slate-500 dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">{traceability.threads.length}</span>
                                             </div>
                                             {traceability.threads.length === 0 ? (
-                                                <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-xs font-semibold text-slate-400 dark:border-slate-800 dark:bg-slate-950/40">Nenhuma conversa vinculada.</p>
+                                                <p className="rounded-md border border-dashed border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-5 text-center text-xs font-semibold text-slate-400 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">Nenhuma conversa vinculada.</p>
                                             ) : (
                                                 <div className="space-y-3">
-                                                    {traceability.threads.map(thread => (
-                                                        <div key={thread.key} className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/40">
+                                                    {traceability.threads.map(thread => {
+                                                        const threadExternalUrl = thread.messages.slice().reverse().find(message => message.externalUrl)?.externalUrl;
+                                                        const threadTaskSource = thread.messages.slice().reverse().find(message => message.direction === 'inbound') || thread.lastMessage;
+                                                        return (
+                                                        <div key={thread.key} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                                                             <div className="flex items-start justify-between gap-3">
                                                                 <div className="min-w-0">
                                                                     <p className="break-words text-sm font-black text-slate-800 dark:text-slate-100">{thread.subject}</p>
                                                                     <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">{thread.participants.slice(0, 3).join(', ')}</p>
                                                                 </div>
-                                                                <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black uppercase text-slate-500 dark:bg-slate-900">{thread.provider === 'microsoft' ? 'Outlook' : 'Gmail'}</span>
+                                                                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                                                                    <button type="button" onClick={() => openThreadReplyComposer(selectedProposal, thread)} className="rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-1 text-[10px] font-black uppercase text-[var(--tenant-primary)] transition hover:brightness-95 dark:text-[var(--tenant-primary-on-dark)]">Responder</button>
+                                                                    <button type="button" onClick={() => setExpandedThreadKey(thread.key)} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]">Ver conversa</button>
+                                                                    <button type="button" onClick={() => openReplyTaskFromCommunication(threadTaskSource)} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]">Criar tarefa</button>
+                                                                    {threadExternalUrl && <a href={threadExternalUrl} target="_blank" rel="noreferrer" className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]">Abrir</a>}
+                                                                    <span className="rounded-md bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-panel-dark)]">{thread.provider === 'microsoft' ? 'Outlook' : 'Gmail'}</span>
+                                                                </div>
                                                             </div>
                                                             <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
                                                                 <span>{thread.messages.length} mensagens</span>
@@ -1694,13 +1910,14 @@ const CRM: React.FC<CRMProps> = ({
                                                             </div>
                                                             <div className="mt-3 space-y-2">
                                                                 {thread.messages.slice(-3).map(message => (
-                                                                    <div key={message.id} className={`rounded-md border px-3 py-2 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'}`}>
+                                                                    <div key={message.id} className={`rounded-md border px-3 py-2 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]'}`}>
                                                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                                                             <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{message.direction === 'inbound' ? 'Resposta recebida' : 'E-mail enviado'}</span>
                                                                             <span className="text-[10px] font-semibold text-slate-500">{new Date(getCommunicationDate(message)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                                                         </div>
                                                                         {message.bodyPreview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-400">{message.bodyPreview}</p>}
                                                                         <div className="mt-2 flex flex-wrap gap-2">
+                                                                            <button type="button" onClick={() => setExpandedThreadKey(thread.key)} className="text-[10px] font-black text-slate-600 hover:text-[var(--tenant-primary)] dark:text-slate-300">Ver conversa</button>
                                                                             {message.externalUrl && <a href={message.externalUrl} target="_blank" rel="noreferrer" className="text-[10px] font-black text-[var(--tenant-primary)] hover:underline">Abrir no e-mail</a>}
                                                                             {message.direction === 'inbound' && (message.taskId ? (
                                                                                 <button type="button" onClick={() => setActiveRightPanelTab('activities')} className="text-[10px] font-black text-slate-600 hover:text-[var(--tenant-primary)] dark:text-slate-300">Abrir tarefa relacionada</button>
@@ -1712,12 +1929,13 @@ const CRM: React.FC<CRMProps> = ({
                                                                 ))}
                                                             </div>
                                                         </div>
-                                                    ))}
+                                                    );
+                                                    })}
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                                        <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-4 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                                             <div className="mb-4">
                                                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Linha do tempo comercial</h4>
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">E-mails, reunioes, tarefas e mudancas da proposta em ordem cronologica.</p>
@@ -1732,8 +1950,8 @@ const CRM: React.FC<CRMProps> = ({
                                                     {Object.entries(traceability.groupedTimeline).map(([day, items]) => (
                                                         <div key={day}>
                                                             <div className="mb-3 flex items-center gap-3">
-                                                                <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-black uppercase text-slate-500 dark:bg-slate-800 dark:text-slate-400">{day}</span>
-                                                                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                                                                <span className="rounded-md bg-[var(--tenant-control)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">{day}</span>
+                                                                <div className="h-px flex-1 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)]" />
                                                             </div>
                                                             <div className="space-y-3">
                                                                 {items.map(item => {
@@ -1742,20 +1960,20 @@ const CRM: React.FC<CRMProps> = ({
                                                                     const task = item.kind === 'task' ? item.task : null;
                                                                     const legacy = item.kind === 'timeline' ? item.event : null;
                                                                     return (
-                                                                        <div key={item.id} className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950/40">
-                                                                            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${communication.direction === 'inbound' ? 'border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)]'}`}>
+                                                                        <div key={item.id} className="flex gap-3 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                                                            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${communication?.direction === 'inbound' ? 'border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)]'}`}>
                                                                                 {communication ? <MailCheck size={14} /> : event ? <CalendarDays size={14} /> : task ? <CheckCircle size={14} /> : <Activity size={14} />}
                                                                             </div>
                                                                             <div className="min-w-0 flex-1">
                                                                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                                                                     <p className="break-words text-xs font-black text-slate-800 dark:text-slate-100">
-                                                                                        {communication ? `${communication.direction === 'inbound' ? 'Resposta recebida' : 'E-mail enviado'}: ${communication.subject || '(sem assunto)'}` : event ? event.title : task ? task.title : legacy.title}
+                                                                                        {communication ? `${communication.direction === 'inbound' ? 'Resposta recebida' : 'E-mail enviado'}: ${communication.subject || '(sem assunto)'}` : event ? event.title : task ? task.title : legacy?.title}
                                                                                     </p>
                                                                                     <span className="text-[10px] font-semibold text-slate-500">{new Date(item.date).toLocaleString([], { timeStyle: 'short' })}</span>
                                                                                 </div>
-                                                                                {communication.bodyPreview && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{communication.bodyPreview}</p>}
-                                                                                {event.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{event.description}</p>}
-                                                                                {task.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{task.description}</p>}
+                                                                                {communication?.bodyPreview && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{communication.bodyPreview}</p>}
+                                                                                {event?.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{event.description}</p>}
+                                                                                {task?.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{task.description}</p>}
                                                                             </div>
                                                                         </div>
                                                                     );
@@ -1774,35 +1992,6 @@ const CRM: React.FC<CRMProps> = ({
 
 
                     </div>
-                    <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 shrink-0 transition-colors">
-                        <button
-                            onClick={() => onSelectProposal(selectedProposal.id)}
-                            className="w-full py-3 bg-[var(--tenant-primary)] text-white rounded-lg font-bold hover:brightness-95 shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
-                        >
-                            Abrir Editor Completo <ArrowRight size={16} />
-                        </button>
-                        <div className="grid grid-cols-2 gap-2 mt-3">
-                            <button
-                                onClick={() => {
-                                    setActionProposalId(selectedProposal.id);
-                                    setTempNotes('');
-                                    setIsNewVersionModalOpen(true);
-                                }}
-                                className="py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-[var(--tenant-primary)] transition-colors flex items-center justify-center gap-1"
-                                title="Cria versão 2, 3... da mesma proposta"
-                            >
-                                <Repeat size={14} /> Nova Versão
-                            </button>
-                            <button
-                                onClick={() => onDuplicateProposal(selectedProposal.id)}
-                                className="py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-[var(--tenant-primary)] transition-colors flex items-center justify-center gap-1"
-                                title="Cria uma cotação v1 com um novo ID"
-                            >
-                                <Copy size={14} /> Duplicar
-                            </button>
-                        </div>
-                        <button onClick={() => onDeleteProposal(selectedProposal.id)} className="w-full mt-2 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 transition-colors">Arquivar / Descartar</button>
-                    </div>
                 </ResponsiveDrawer>
             )
             }
@@ -1810,9 +1999,9 @@ const CRM: React.FC<CRMProps> = ({
             {/* CREATE MODAL */}
             {
                 showCreateModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border dark:border-slate-800 transition-colors">
-                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 relative">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-lg overflow-hidden border dark:border-[var(--tenant-border-dark)] transition-colors">
+                            <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] relative">
                                 <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 text-center">Nova Oportunidade Comercial</h3>
                                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 text-center">
                                     {createStep === 1 ? 'Selecione o tipo de projeto' : 'Detalhes da Oportunidade'}
@@ -1825,27 +2014,27 @@ const CRM: React.FC<CRMProps> = ({
                             </div>
 
                             {createStep === 1 && (
-                                <div className={`p-6 grid grid-cols-1 ${businessUnit === 'SERVICES' ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
+                                <div className={`p-6 grid grid-cols-1 ${businessUnit === 'SERVICES' || productPricingModules.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
                                     {businessUnit === 'SERVICES' && hasServicesModule && (
                                         <>
                                             <button
                                                 onClick={() => { setCreateType('CONTINUOUS'); setCreatePricingModule('SERVICES_COMPLEX'); setCreateStep(2); }}
-                                                className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-blue-100 dark:border-blue-900/30 bg-blue-50 dark:bg-blue-900/20 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-lg transition-all group"
+                                                className="flex flex-col items-center justify-center gap-3 p-4 rounded-lg border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] hover:border-[var(--tenant-primary)] hover:shadow-lg transition-all group"
                                             >
-                                                <div className="p-3 bg-white dark:bg-slate-800 rounded-full text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shadow-sm">
+                                                <div className="p-3 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-full text-[var(--tenant-secondary)] group-hover:scale-110 transition-transform shadow-sm">
                                                     <Repeat size={28} />
                                                 </div>
                                                 <div className="text-center">
-                                                    <h4 className="font-bold text-blue-900 dark:text-blue-200 text-sm">Contrato Mensal</h4>
-                                                    <p className="text-[9px] text-blue-600 dark:text-blue-400 mt-1">Mão de obra fixa, custos recorrentes.</p>
+                                                    <h4 className="font-bold text-[var(--tenant-primary)] text-sm">Contrato Mensal</h4>
+                                                    <p className="text-[9px] text-[var(--tenant-secondary)] mt-1">Mão de obra fixa, custos recorrentes.</p>
                                                 </div>
                                             </button>
 
                                             <button
                                                 onClick={() => { setCreateType('SPOT'); setCreatePricingModule('SERVICES_COMPLEX'); setCreateStep(2); }}
-                                                className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-amber-100 dark:border-amber-900/30 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-500 dark:hover:border-amber-400 hover:shadow-lg transition-all group"
+                                                className="flex flex-col items-center justify-center gap-3 p-4 rounded-lg border-2 border-amber-100 dark:border-amber-900/30 bg-amber-50 dark:bg-amber-900/20 hover:border-amber-500 dark:hover:border-amber-400 hover:shadow-lg transition-all group"
                                             >
-                                                <div className="p-3 bg-white dark:bg-slate-800 rounded-full text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform shadow-sm">
+                                                <div className="p-3 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-full text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform shadow-sm">
                                                     <Zap size={28} />
                                                 </div>
                                                 <div className="text-center">
@@ -1859,14 +2048,29 @@ const CRM: React.FC<CRMProps> = ({
                                     {businessUnit === 'PRODUCTS' && hasSaasModule && (
                                         <button
                                             onClick={() => { setCreateType('PRODUCT'); setCreatePricingModule('SAAS_SUBSCRIPTION'); setCreateStep(2); }}
-                                            className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:border-slate-500 dark:hover:border-slate-500 hover:shadow-lg transition-all group"
+                                            className="flex flex-col items-center justify-center gap-3 p-4 rounded-lg border-2 border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] hover:border-[var(--tenant-border)] dark:hover:border-[var(--tenant-border)] hover:shadow-lg transition-all group"
                                         >
-                                            <div className="p-3 bg-white dark:bg-slate-800 rounded-full text-slate-800 dark:text-slate-100 group-hover:scale-110 transition-transform shadow-sm">
+                                            <div className="p-3 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-full text-slate-800 dark:text-slate-100 group-hover:scale-110 transition-transform shadow-sm">
                                                 <CreditCard size={28} />
                                             </div>
                                             <div className="text-center">
-                                                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Assinatura SaaS</h4>
+                                                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">{getPricingModuleLabel('SAAS_SUBSCRIPTION')}</h4>
                                                 <p className="text-[9px] text-slate-500 dark:text-slate-400 mt-1">Mensalidade, licenças e implantação.</p>
+                                            </div>
+                                        </button>
+                                    )}
+
+                                    {businessUnit === 'PRODUCTS' && hasIotModule && (
+                                        <button
+                                            onClick={() => { setCreateType('PRODUCT'); setCreatePricingModule('IOT_SUBSCRIPTION'); setCreateStep(2); }}
+                                            className="flex flex-col items-center justify-center gap-3 p-4 rounded-lg border-2 border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-secondary-soft)] hover:border-[var(--tenant-secondary-border)] dark:hover:border-[var(--tenant-secondary-border)] hover:shadow-lg transition-all group"
+                                        >
+                                            <div className="p-3 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-full text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] group-hover:scale-110 transition-transform shadow-sm">
+                                                <Activity size={28} />
+                                            </div>
+                                            <div className="text-center">
+                                                <h4 className="font-bold text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] text-sm">{getPricingModuleLabel('IOT_SUBSCRIPTION')}</h4>
+                                                <p className="text-[9px] text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] mt-1">Sensores, instalacao e recorrencia.</p>
                                             </div>
                                         </button>
                                     )}
@@ -1874,13 +2078,13 @@ const CRM: React.FC<CRMProps> = ({
                                     {businessUnit === 'PRODUCTS' && hasProductSalesModule && (
                                         <button
                                             onClick={() => { setCreateType('PRODUCT'); setCreatePricingModule('PRODUCT_SALES'); setCreateStep(2); }}
-                                            className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-900/20 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg transition-all group"
+                                            className="flex flex-col items-center justify-center gap-3 p-4 rounded-lg border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-900/20 hover:border-emerald-500 dark:hover:border-emerald-400 hover:shadow-lg transition-all group"
                                         >
-                                            <div className="p-3 bg-white dark:bg-slate-800 rounded-full text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shadow-sm">
+                                            <div className="p-3 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-full text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shadow-sm">
                                                 <Package size={28} />
                                             </div>
                                             <div className="text-center">
-                                                <h4 className="font-bold text-emerald-900 dark:text-emerald-200 text-sm">Produtos</h4>
+                                                <h4 className="font-bold text-emerald-900 dark:text-emerald-200 text-sm">{getPricingModuleLabel('PRODUCT_SALES')}</h4>
                                                 <p className="text-[9px] text-emerald-600 dark:text-emerald-400 mt-1">Cotação de produtos, peças e hardware.</p>
                                             </div>
                                         </button>
@@ -1900,7 +2104,7 @@ const CRM: React.FC<CRMProps> = ({
                                                         setCreateClientId(e.target.value);
                                                         if (e.target.value) setCreateInlineClientName('');
                                                     }}
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-colors"
+                                                    className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] transition-colors"
                                                 >
                                                     <option value="">Selecione um cliente</option>
                                                     {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1912,7 +2116,7 @@ const CRM: React.FC<CRMProps> = ({
                                                         if (e.target.value.trim()) setCreateClientId('');
                                                     }}
                                                     placeholder="Ou cadastre novo cliente nesta cotação"
-                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-colors"
+                                                    className="w-full bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] transition-colors"
                                                 />
                                             </div>
                                         ) : (
@@ -1920,7 +2124,7 @@ const CRM: React.FC<CRMProps> = ({
                                                 value={createInlineClientName}
                                                 onChange={(e) => setCreateInlineClientName(e.target.value)}
                                                 placeholder="Nome do primeiro cliente deste tenant"
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-colors"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] transition-colors"
                                             />
                                         )}
                                     </div>
@@ -1934,7 +2138,7 @@ const CRM: React.FC<CRMProps> = ({
                                                     setCreateMotion(e.target.value as OpportunityMotion);
                                                     setCreateReferenceId('');
                                                 }}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-colors"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-sm font-bold text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] transition-colors"
                                             >
                                                 <option value="NewBusiness">Novo Negócio</option>
                                                 <option value="Renewal">Renovação</option>
@@ -1951,12 +2155,12 @@ const CRM: React.FC<CRMProps> = ({
                                             <select
                                                 value={createReferenceId}
                                                 onChange={(e) => setCreateReferenceId(e.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-colors"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-sm font-medium text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] transition-colors"
                                                 required
                                             >
                                                 <option value="" disabled>Selecione uma proposta ativa relacionada...</option>
                                                 {activeProposals
-                                                    .filter(p => p.clientId === createClientId && p.stage === 'Won') // Suggesting Won ones only as references initially
+                                                    .filter(p => p.clientId === createClientId && isWonStage(p.stage, getProposalPipeline(p)))
                                                     .map(p => (
                                                         <option key={p.id} value={p.id}>#{p.proposalId} - {p.clientName}</option>
                                                     ))
@@ -1971,7 +2175,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <select
                                                 value={createExpansionType}
                                                 onChange={(e) => setCreateExpansionType(e.target.value as any)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-colors"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-sm font-medium text-slate-700 dark:text-slate-200 rounded-lg px-3 py-2.5 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] transition-colors"
                                             >
                                                 <option value="Volume">Aumento de Volume/Quantidade</option>
                                                 <option value="Scope">Novo Escopo/Serviço Adicional</option>
@@ -1989,7 +2193,7 @@ const CRM: React.FC<CRMProps> = ({
                                         <button
                                             disabled={isCreatingProposal || (createMotion !== 'NewBusiness' && !createReferenceId) || (!createClientId && !createInlineClientName.trim())}
                                             onClick={submitCreateProposal}
-                                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-sm hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="w-full bg-[var(--tenant-primary)] text-white font-bold py-3 rounded-lg shadow-sm hover:brightness-95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             {isCreatingProposal ? 'Criando...' : 'Confirmar e Criar'}
                                         </button>
@@ -1997,7 +2201,7 @@ const CRM: React.FC<CRMProps> = ({
                                 </div>
                             )}
 
-                            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex justify-center transition-colors">
+                            <div className="p-4 border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] flex justify-center transition-colors">
                                 <button onClick={closeCreateModal} className="text-slate-500 dark:text-slate-400 text-sm font-bold hover:text-slate-800 dark:hover:text-slate-100 transition-colors">Cancelar</button>
                             </div>
                         </div>
@@ -2009,15 +2213,15 @@ const CRM: React.FC<CRMProps> = ({
             {
                 contextMenu && (
                     <div
-                        className="fixed isolate bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-600 shadow-2xl shadow-slate-950/45 rounded-lg z-[100] py-1 w-60 animate-in fade-in zoom-in-95 duration-100 font-medium transition-colors"
+                        className="fixed isolate bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] shadow-2xl rounded-lg z-[100] py-1 w-60 animate-in fade-in zoom-in-95 duration-100 font-medium transition-colors"
                         style={{ top: contextMenu.y, left: contextMenu.x }}
                     >
-                        <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-700 text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
+                        <div className="px-3 py-2 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
                                 Ações Rápidas
                         </div>
                         <button
                             onClick={() => onSelectProposal(contextMenu.id)}
-                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/90 hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
+                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
                         >
                             <ExternalLink size={14} className="text-slate-400" /> Abrir Editor
                         </button>
@@ -2027,25 +2231,25 @@ const CRM: React.FC<CRMProps> = ({
                                 setTempNotes('');
                                 setIsNewVersionModalOpen(true);
                             }}
-                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/90 hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
+                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
                         >
                             <Repeat size={14} className="text-slate-400" /> Criar Nova Versão
                         </button>
                         <button
                             onClick={() => onDuplicateProposal(contextMenu.id)}
-                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/90 hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
+                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
                         >
                             <Copy size={14} className="text-slate-400" /> Duplicar (Nova Cotação)
                         </button>
                         {onSaveContact && (
                             <button
                                 onClick={() => openContactModal(contextMenu.id)}
-                                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/90 hover:text-emerald-600 dark:hover:text-emerald-300 flex items-center gap-2 transition-colors"
+                                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-100 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] hover:text-emerald-600 dark:hover:text-emerald-300 flex items-center gap-2 transition-colors"
                             >
                                 <UserPlus size={14} className="text-slate-400" /> Cadastrar Contato
                             </button>
                         )}
-                        <div className="h-px bg-slate-100 dark:bg-slate-700 my-1"></div>
+                        <div className="h-px bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] my-1"></div>
                         <div className="px-3 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
                             Criar atividade
                         </div>
@@ -2062,13 +2266,13 @@ const CRM: React.FC<CRMProps> = ({
                                     onClick={() => item.type === 'Email' ? openEmailComposer(contextMenu.id)
                                         : item.type === 'Meeting' ? openMeetingScheduler(contextMenu.id)
                                             : openActivityModal(contextMenu.id, item.type)}
-                                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/90 hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
+                                    className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] hover:text-[var(--tenant-primary)] flex items-center gap-2 transition-colors"
                                 >
                                     <Icon size={14} className="text-slate-400" /> {item.label}
                                 </button>
                             );
                         })}
-                        <div className="h-px bg-slate-100 dark:bg-slate-700 my-1"></div>
+                        <div className="h-px bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] my-1"></div>
                         <button
                             onClick={() => onDeleteProposal(contextMenu.id)}
                             className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/60 flex items-center gap-2 transition-colors"
@@ -2088,9 +2292,9 @@ const CRM: React.FC<CRMProps> = ({
                     const clientContacts = contacts.filter(contact => contact.clientId === selectedClientId);
                     const clientProposals = activeProposals.filter(item => item.clientId === selectedClientId);
                     return (
-                        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
-                            <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border bg-white shadow-2xl animate-in slide-in-from-bottom-4 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:rounded-xl sm:animate-in sm:zoom-in-95">
-                                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/50 sm:p-6">
+                        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] p-0 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
+                            <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border bg-[var(--tenant-panel)] shadow-2xl animate-in slide-in-from-bottom-4 duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:rounded-lg sm:animate-in sm:zoom-in-95">
+                                <div className="flex items-center justify-between border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:p-6">
                                     <div className="min-w-0">
                                         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Criar atividade</h3>
                                         <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
@@ -2114,7 +2318,7 @@ const CRM: React.FC<CRMProps> = ({
                                                         setActivityProposalId('');
                                                         setActivityContactId('');
                                                     }}
-                                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                    className="w-full rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-200"
                                                 >
                                                     <option value="">Selecione um cliente</option>
                                                     {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
@@ -2126,7 +2330,7 @@ const CRM: React.FC<CRMProps> = ({
                                                     value={activityProposalId}
                                                     onChange={event => setActivityProposalId(event.target.value)}
                                                     disabled={!activityClientId}
-                                                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                    className="w-full rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] disabled:opacity-60 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-200"
                                                 >
                                                     <option value="">Sem proposta especifica</option>
                                                     {clientProposals.map(item => <option key={item.id} value={item.id}>#{item.proposalId} - {item.clientName}</option>)}
@@ -2140,7 +2344,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <select
                                                 value={activityModal.type}
                                                 onChange={event => setActivityModal({ ...activityModal, type: event.target.value as CRMTask['type'] })}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             >
                                                 <option value="Meeting">Reunião</option>
                                                 <option value="Call">Ligação</option>
@@ -2155,7 +2359,7 @@ const CRM: React.FC<CRMProps> = ({
                                                 type="date"
                                                 value={activityDueDate}
                                                 onChange={event => setActivityDueDate(event.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             />
                                         </label>
                                     </div>
@@ -2164,7 +2368,7 @@ const CRM: React.FC<CRMProps> = ({
                                         <input
                                             value={activityTitle}
                                             onChange={event => setActivityTitle(event.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                            className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             placeholder="Ex: Follow-up da proposta"
                                         />
                                     </label>
@@ -2173,7 +2377,7 @@ const CRM: React.FC<CRMProps> = ({
                                         <select
                                             value={activityContactId}
                                             onChange={event => setActivityContactId(event.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                            className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                         >
                                             <option value="">Sem contato específico</option>
                                             {clientContacts.map(contact => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
@@ -2185,23 +2389,23 @@ const CRM: React.FC<CRMProps> = ({
                                             value={activityDescription}
                                             onChange={event => setActivityDescription(event.target.value)}
                                             rows={3}
-                                            className="w-full resize-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                            className="w-full resize-none bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             placeholder="Pauta, contexto da chamada ou próximo passo."
                                         />
                                     </label>
                                     {microsoftConnection.connected && onCreateMicrosoftTodoTask && (
-                                        <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                                        <label className="flex items-center gap-3 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                             <input
                                                 type="checkbox"
                                                 checked={activitySyncMicrosoftTodo}
                                                 onChange={event => setActivitySyncMicrosoftTodo(event.target.checked)}
-                                                className="h-4 w-4 rounded border-slate-300 text-[var(--tenant-primary)] focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                                className="h-4 w-4 rounded border-[var(--tenant-border)] text-[var(--tenant-primary)] focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             />
                                             <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Criar tambem no Microsoft To Do</span>
                                         </label>
                                     )}
                                 </div>
-                                <div className="flex gap-3 border-t border-slate-100 bg-slate-50 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900">
+                                <div className="flex gap-3 border-t border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                                     <button disabled={workspaceLoading} onClick={closeActivityModal} className="min-h-11 flex-1 px-4 py-2 text-sm font-bold text-slate-500 transition-colors hover:text-slate-800 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-100 sm:flex-none">Cancelar</button>
                                     <button
                                         disabled={workspaceLoading || !activityTitle.trim() || !selectedClientId}
@@ -2220,16 +2424,19 @@ const CRM: React.FC<CRMProps> = ({
             {
                 emailModal && (() => {
                     const proposal = proposals.find(p => p.id === emailModal.proposalId);
+                    if (!proposal) return null;
                     const clientContacts = contacts.filter(contact => contact.clientId === proposal.clientId);
+                    const automation = normalizeProposalSendAutomation(globalConfig.proposalSendAutomation);
+                    const followUpTemplate = getDefaultProposalSendAutomationTemplate(automation);
                     return (
-                        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border dark:border-slate-800 animate-in zoom-in-95 duration-200">
-                                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+                        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden border dark:border-[var(--tenant-border-dark)] animate-in zoom-in-95 duration-200">
+                                <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex items-center justify-between bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)]">
                                     <div>
-                                        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Enviar e-mail pelo {getEmailProviderLabel(emailProvider)}</h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{proposal.clientName} - #{proposal.proposalId}</p>
+                                        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Enviar proposta pelo {getEmailProviderLabel(emailProvider)}</h3>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{proposal.clientName} - #{proposal.proposalId}. O PDF sera anexado automaticamente.</p>
                                     </div>
-                                    <button disabled={workspaceLoading} onClick={closeEmailModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-50 transition-colors">
+                                    <button disabled={workspaceLoading || emailSubmitting} onClick={closeEmailModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-50 transition-colors">
                                         <X size={20} />
                                     </button>
                                 </div>
@@ -2243,9 +2450,8 @@ const CRM: React.FC<CRMProps> = ({
                                                 onChange={event => {
                                                     const provider = event.target.value as WorkspaceProvider;
                                                     setEmailProvider(provider);
-                                                    setEmailSyncMicrosoftTodo(Boolean(provider === 'microsoft' && microsoftConnection.connected && onCreateMicrosoftTodoTask));
                                                 }}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             >
                                                 {googleConnection.connected && <option value="google">Google Workspace / Gmail</option>}
                                                 {microsoftConnection.connected && <option value="microsoft">Microsoft 365 / Outlook</option>}
@@ -2260,9 +2466,9 @@ const CRM: React.FC<CRMProps> = ({
                                                 onChange={event => {
                                                     const contact = contacts.find(item => item.id === event.target.value);
                                                     setEmailContactId(event.target.value);
-                                                    if (contact.email) setEmailTo(contact.email);
+                                                    if (contact?.email) setEmailTo(contact.email);
                                                 }}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             >
                                                 <option value="">Sem contato especifico</option>
                                                 {clientContacts.map(contact => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
@@ -2273,7 +2479,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <input
                                                 value={emailTo}
                                                 onChange={event => setEmailTo(event.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                                 placeholder="email@empresa.com"
                                             />
                                         </label>
@@ -2283,7 +2489,7 @@ const CRM: React.FC<CRMProps> = ({
                                         <input
                                             value={emailCc}
                                             onChange={event => setEmailCc(event.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                            className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                             placeholder="Opcional, separado por virgula"
                                         />
                                     </label>
@@ -2292,7 +2498,7 @@ const CRM: React.FC<CRMProps> = ({
                                         <input
                                             value={emailSubject}
                                             onChange={event => setEmailSubject(event.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                            className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                         />
                                     </label>
                                     <label className="space-y-1.5 block">
@@ -2301,34 +2507,28 @@ const CRM: React.FC<CRMProps> = ({
                                             value={emailBody}
                                             onChange={event => setEmailBody(event.target.value)}
                                             rows={8}
-                                            className="w-full resize-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
+                                            className="w-full resize-none bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
                                         />
                                     </label>
-                                    {emailProvider === 'microsoft' && microsoftConnection.connected && onCreateMicrosoftTodoTask && (
-                                        <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                                            <input
-                                                type="checkbox"
-                                                checked={emailSyncMicrosoftTodo}
-                                                onChange={event => setEmailSyncMicrosoftTodo(event.target.checked)}
-                                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[var(--tenant-primary)] focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)]"
-                                            />
-                                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                                                Criar tarefa no Microsoft To Do
-                                                <span className="block pt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                                    Follow-up automático em {new Date(`${addDaysDateInput(2)}T12:00:00`).toLocaleDateString('pt-BR')}.
-                                                </span>
-                                            </span>
-                                        </label>
-                                    )}
+                                    <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-xs font-bold text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300">
+                                        {automation.enabled ? (
+                                            <>
+                                                Follow-up automatico: {followUpTemplate.name} em {followUpTemplate.delayDays === 0 ? 'hoje' : `${followUpTemplate.delayDays} dia(s)`}
+                                                {followUpTemplate.syncMicrosoftTodo && <span className="block pt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">Tambem sera sincronizado com Microsoft To Do quando a conta estiver conectada.</span>}
+                                            </>
+                                        ) : (
+                                            'Follow-up automatico desativado nas configuracoes do tenant.'
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 transition-colors">
-                                    <button disabled={workspaceLoading} onClick={closeEmailModal} className="px-4 py-2 text-slate-500 dark:text-slate-400 text-sm font-bold hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-50 transition-colors">Cancelar</button>
+                                <div className="p-4 border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] flex justify-end gap-3 transition-colors">
+                                    <button disabled={workspaceLoading || emailSubmitting} onClick={closeEmailModal} className="px-4 py-2 text-slate-500 dark:text-slate-400 text-sm font-bold hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-50 transition-colors">Cancelar</button>
                                     <button
-                                        disabled={workspaceLoading || emailSentAfterError || !emailTo.trim() || !emailSubject.trim() || !emailBody.trim()}
+                                        disabled={workspaceLoading || emailSubmitting || emailSentAfterError || !emailTo.trim() || !emailSubject.trim() || !emailBody.trim()}
                                         onClick={submitEmail}
                                         className="px-5 py-2 bg-[var(--tenant-primary)] text-white rounded-lg text-sm font-bold hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                     >
-                                        {emailSentAfterError ? 'E-mail já enviado' : workspaceLoading ? 'Enviando...' : 'Enviar'}
+                                        {emailSentAfterError ? 'E-mail ja enviado' : emailSubmitting ? 'Gerando PDF...' : workspaceLoading ? 'Enviando...' : 'Enviar com PDF'}
                                     </button>
                                 </div>
                             </div>
@@ -2342,9 +2542,9 @@ const CRM: React.FC<CRMProps> = ({
                     const clientContacts = contacts.filter(contact => contact.clientId === proposal.clientId);
                     const selectedInvitees = clientContacts.filter(contact => meetingContactIds.includes(contact.id) && contact.email);
                     return (
-                        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border dark:border-slate-800 animate-in zoom-in-95 duration-200">
-                                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+                        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden border dark:border-[var(--tenant-border-dark)] animate-in zoom-in-95 duration-200">
+                                <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex items-center justify-between bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)]">
                                     <div>
                                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Agendar reunião {getMeetingProviderLabel(meetingProvider)}</h3>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{proposal.clientName} - #{proposal.proposalId}</p>
@@ -2361,7 +2561,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <select
                                                 value={meetingProvider}
                                                 onChange={event => setMeetingProvider(event.target.value as WorkspaceProvider)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                             >
                                                 {googleConnection.connected && <option value="google">Google Calendar / Meet</option>}
                                                 {microsoftConnection.connected && <option value="microsoft">Outlook Calendar / Teams</option>}
@@ -2373,7 +2573,7 @@ const CRM: React.FC<CRMProps> = ({
                                         <input
                                             value={meetingTitle}
                                             onChange={event => setMeetingTitle(event.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                            className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                         />
                                     </label>
                                     <div className="grid grid-cols-2 gap-4">
@@ -2383,7 +2583,7 @@ const CRM: React.FC<CRMProps> = ({
                                                 type="datetime-local"
                                                 value={meetingStartsAt}
                                                 onChange={event => setMeetingStartsAt(event.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                             />
                                         </label>
                                         <label className="space-y-1.5">
@@ -2391,7 +2591,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <select
                                                 value={meetingDurationMinutes}
                                                 onChange={event => setMeetingDurationMinutes(Number(event.target.value))}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                             >
                                                 <option value={30}>30 minutos</option>
                                                 <option value={45}>45 minutos</option>
@@ -2407,7 +2607,7 @@ const CRM: React.FC<CRMProps> = ({
                                                 {selectedInvitees.length > 0 ? `${selectedInvitees.length} selecionado${selectedInvitees.length > 1 ? 's' : ''}` : 'Nenhum convidado selecionado'}
                                             </span>
                                         </div>
-                                        <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/60">
+                                        <div className="max-h-44 overflow-y-auto rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                             {clientContacts.length === 0 ? (
                                                 <p className="px-3 py-4 text-center text-xs font-semibold text-slate-400 dark:text-slate-500">Nenhum contato cadastrado para este cliente.</p>
                                             ) : (
@@ -2418,7 +2618,7 @@ const CRM: React.FC<CRMProps> = ({
                                                         return (
                                                             <label
                                                                 key={contact.id}
-                                                                className={`flex items-center gap-3 rounded-md border px-3 py-2 transition-colors ${hasEmail ? 'cursor-pointer border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-emerald-700' : 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-60 dark:border-slate-700 dark:bg-slate-900/40'}`}
+                                                                className={`flex items-center gap-3 rounded-md border px-3 py-2 transition-colors ${hasEmail ? 'cursor-pointer border-[var(--tenant-border)] bg-[var(--tenant-panel)] hover:border-emerald-300 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:hover:border-emerald-700' : 'cursor-not-allowed border-[var(--tenant-border)] bg-[var(--tenant-control)] opacity-60 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]'}`}
                                                             >
                                                                 <input
                                                                     type="checkbox"
@@ -2428,7 +2628,7 @@ const CRM: React.FC<CRMProps> = ({
                                                                         setMeetingContactIds(prev => event.target.checked ? [...prev, contact.id]
                                                                             : prev.filter(id => id !== contact.id));
                                                                     }}
-                                                                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                                    className="h-4 w-4 rounded border-[var(--tenant-border)] text-emerald-600 focus:ring-emerald-500"
                                                                 />
                                                                 <span className="min-w-0 flex-1">
                                                                     <span className="block truncate text-sm font-bold text-slate-700 dark:text-slate-200">{contact.name}</span>
@@ -2447,11 +2647,11 @@ const CRM: React.FC<CRMProps> = ({
                                             value={meetingDescription}
                                             onChange={event => setMeetingDescription(event.target.value)}
                                             rows={4}
-                                            className="w-full resize-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                            className="w-full resize-none bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                         />
                                     </label>
                                 </div>
-                                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 transition-colors">
+                                <div className="p-4 border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] flex justify-end gap-3 transition-colors">
                                     <button disabled={workspaceLoading} onClick={closeMeetingModal} className="px-4 py-2 text-slate-500 dark:text-slate-400 text-sm font-bold hover:text-slate-800 dark:hover:text-slate-100 disabled:opacity-50 transition-colors">Cancelar</button>
                                     <button
                                         disabled={workspaceLoading || !meetingTitle.trim() || !meetingStartsAt}
@@ -2471,9 +2671,9 @@ const CRM: React.FC<CRMProps> = ({
                     const proposal = proposals.find(p => p.id === contactModal.proposalId);
                     const clientName = proposal.clientName || clients.find(client => client.id === proposal.clientId).name;
                     return (
-                        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border dark:border-slate-700 animate-in zoom-in-95 duration-200">
-                                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
+                        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-lg overflow-hidden border dark:border-[var(--tenant-border-dark)] animate-in zoom-in-95 duration-200">
+                                <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex items-center justify-between bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)]">
                                     <div>
                                         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Cadastrar contato</h3>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{clientName} {proposal?.proposalId ? `- #${proposal.proposalId}` : ''}</p>
@@ -2493,7 +2693,7 @@ const CRM: React.FC<CRMProps> = ({
                                         <input
                                             value={contactName}
                                             onChange={event => setContactName(event.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                            className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                             placeholder="Nome do contato"
                                         />
                                     </label>
@@ -2503,7 +2703,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <input
                                                 value={contactRole}
                                                 onChange={event => setContactRole(event.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                                 placeholder="Ex: Compras"
                                             />
                                         </label>
@@ -2512,7 +2712,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <select
                                                 value={contactInfluenceLevel}
                                                 onChange={event => setContactInfluenceLevel(event.target.value as Contact['influenceLevel'])}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                             >
                                                 <option value="Decision Maker">Decisor</option>
                                                 <option value="Influencer">Influenciador</option>
@@ -2528,7 +2728,7 @@ const CRM: React.FC<CRMProps> = ({
                                                 type="email"
                                                 value={contactEmail}
                                                 onChange={event => setContactEmail(event.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                                 placeholder="email@empresa.com"
                                             />
                                         </label>
@@ -2537,7 +2737,7 @@ const CRM: React.FC<CRMProps> = ({
                                             <input
                                                 value={contactPhone}
                                                 onChange={event => setContactPhone(event.target.value)}
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                                className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                                 placeholder="(00) 00000-0000"
                                             />
                                         </label>
@@ -2547,12 +2747,12 @@ const CRM: React.FC<CRMProps> = ({
                                         <input
                                             value={contactLinkedin}
                                             onChange={event => setContactLinkedin(event.target.value)}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                            className="w-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                                             placeholder="https://linkedin.com/in/..."
                                         />
                                     </label>
                                 </div>
-                                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 transition-colors">
+                                <div className="p-4 border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] flex justify-end gap-3 transition-colors">
                                     <button disabled={isSavingQuickContact} onClick={closeContactModal} className="px-4 py-2 text-slate-500 dark:text-slate-400 text-sm font-bold hover:text-slate-800 dark:hover:text-slate-100 transition-colors disabled:opacity-50">Cancelar</button>
                                     <button
                                         disabled={isSavingQuickContact || !contactName.trim() || !contactRole.trim()}
@@ -2567,12 +2767,123 @@ const CRM: React.FC<CRMProps> = ({
                     );
                 })()
             }
+            {selectedProposal && expandedThreadKey && createPortal((() => {
+                const traceability = getProposalTraceability(selectedProposal);
+                const thread = traceability.threads.find(item => item.key === expandedThreadKey);
+                if (!thread) return null;
+                const externalUrl = thread.messages.slice().reverse().find(message => message.externalUrl)?.externalUrl;
+                const isReplyOpen = replyThreadKey === thread.key;
+                const providerLabel = thread.provider === 'microsoft' ? 'Outlook' : thread.provider === 'google' ? 'Gmail' : 'E-mail';
+                return (
+                    <div
+                        className="fixed inset-0 z-[130] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_76%,transparent)] p-3 backdrop-blur-sm sm:p-5"
+                        style={portalTenantTheme.cssVars}
+                        onClick={closeExpandedThread}
+                    >
+                        <div className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-[var(--tenant-text)] shadow-2xl dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-[var(--tenant-text-dark)]" onClick={event => event.stopPropagation()}>
+                            <div className="shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)] sm:p-5">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <p className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-1 text-[10px] font-black uppercase text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]">
+                                            <MailCheck size={13} />
+                                            Conversa vinculada
+                                        </p>
+                                        <h3 className="break-words text-lg font-black text-[var(--tenant-text)] dark:text-[var(--tenant-text-dark)]">{thread.subject}</h3>
+                                        <p className="mt-1 line-clamp-2 text-xs font-semibold text-[color-mix(in_srgb,var(--tenant-text)_68%,transparent)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_70%,transparent)]">
+                                            {thread.participants.join(', ') || selectedProposal.clientName}
+                                        </p>
+                                    </div>
+                                    <button type="button" onClick={closeExpandedThread} className="rounded-md border border-transparent p-2 text-[color-mix(in_srgb,var(--tenant-text)_55%,transparent)] transition hover:border-[var(--tenant-border)] hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-text)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_55%,transparent)] dark:hover:border-[var(--tenant-border-dark)] dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-[var(--tenant-text-dark)]" aria-label="Fechar conversa">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                                <div className="mt-4 flex flex-wrap items-center gap-2">
+                                    <span className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2.5 py-1.5 text-[11px] font-black uppercase text-[color-mix(in_srgb,var(--tenant-text)_72%,transparent)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_78%,transparent)]">{providerLabel}</span>
+                                    <span className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2.5 py-1.5 text-[11px] font-bold text-[color-mix(in_srgb,var(--tenant-text)_72%,transparent)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_78%,transparent)]">{thread.messages.length} mensagens</span>
+                                    <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-300">{thread.inboundCount} recebidas</span>
+                                    <button type="button" onClick={() => openThreadReplyComposer(selectedProposal, thread)} className="inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary)] px-3 py-1.5 text-xs font-black text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50" disabled={replySending}>
+                                        <MailCheck size={13} />
+                                        Responder
+                                    </button>
+                                    <button type="button" onClick={() => {
+                                        openReplyTaskFromCommunication(thread.messages.slice().reverse().find(message => message.direction === 'inbound') || thread.lastMessage);
+                                        closeExpandedThread();
+                                    }} className="inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-1.5 text-xs font-black text-[var(--tenant-text)] transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)] dark:hover:text-[var(--tenant-primary-on-dark)]">
+                                        <Clock size={13} />
+                                        Criar tarefa
+                                    </button>
+                                    {externalUrl && (
+                                        <a href={externalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-1.5 text-xs font-black text-[var(--tenant-text)] transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)] dark:hover:text-[var(--tenant-primary-on-dark)]">
+                                            <ExternalLink size={13} />
+                                            Abrir no e-mail
+                                        </a>
+                                    )}
+                                </div>
+                                {isReplyOpen && (
+                                    <div className="mt-4 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                                            <span className="rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-3 py-1.5 text-xs font-black uppercase text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]">
+                                                Enviar por {getEmailProviderLabel(replyProvider)}
+                                            </span>
+                                            {!isProviderConnected(replyProvider) && (
+                                                <span className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">Conta nao conectada</span>
+                                            )}
+                                        </div>
+                                        <div className="space-y-3">
+                                            <input value={replyTo} onChange={event => setReplyTo(event.target.value)} className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100" placeholder="Para" />
+                                            <input value={replyCc} onChange={event => setReplyCc(event.target.value)} className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100" placeholder="Cc" />
+                                            <input value={replySubject} onChange={event => setReplySubject(event.target.value)} className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100" placeholder="Assunto" />
+                                            <textarea value={replyBody} onChange={event => setReplyBody(event.target.value)} rows={5} className="w-full resize-y rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100" placeholder="Mensagem" />
+                                        </div>
+                                        {replyError && <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">{replyError}</p>}
+                                        <div className="mt-4 flex justify-end gap-2">
+                                            <button type="button" onClick={resetThreadReplyComposer} disabled={replySending} className="rounded-md px-3 py-2 text-xs font-black text-slate-500 transition hover:bg-[var(--tenant-control)] disabled:opacity-50 dark:hover:bg-[var(--tenant-control-dark)]">Cancelar</button>
+                                            <button type="button" onClick={submitThreadReply} disabled={replySending || !replyTo.trim() || !replySubject.trim() || !replyBody.trim()} className="inline-flex items-center gap-2 rounded-md bg-[var(--tenant-primary)] px-3 py-2 text-xs font-black text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60">
+                                                <MailCheck size={14} />
+                                                {replySending ? 'Enviando...' : 'Enviar resposta'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                                <div className="space-y-3">
+                                    {thread.messages.map(message => (
+                                        <article key={message.id} className={`rounded-lg border p-4 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]'}`}>
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black uppercase text-slate-700 dark:text-slate-200">{message.direction === 'inbound' ? 'Resposta recebida' : 'E-mail enviado'}</p>
+                                                    <p className="mt-1 break-words text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                                        {message.direction === 'inbound' ? `De: ${message.fromEmail || '-'}` : `Para: ${message.toEmails.join(', ') || '-'}`}
+                                                    </p>
+                                                </div>
+                                                <span className="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">{new Date(getCommunicationDate(message)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                            </div>
+                                            {message.bodyPreview ? (
+                                                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{message.bodyPreview}</p>
+                                            ) : (
+                                                <p className="mt-3 text-sm font-semibold text-slate-400">Sem preview de mensagem.</p>
+                                            )}
+                                            {message.externalUrl && (
+                                                <a href={message.externalUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-[var(--tenant-primary)] hover:underline dark:text-[var(--tenant-primary-on-dark)]">
+                                                    <ExternalLink size={13} />
+                                                    Abrir mensagem original
+                                                </a>
+                                            )}
+                                        </article>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })(), document.body)}
             {/* NEW VERSION MODAL */}
             {
                 isNewVersionModalOpen && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md overflow-hidden border dark:border-slate-800 animate-in zoom-in-95 duration-200">
-                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-md overflow-hidden border dark:border-[var(--tenant-border-dark)] animate-in zoom-in-95 duration-200">
+                            <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex items-center justify-between bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)]">
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Formalizar Nova Versão</h3>
                                 <button onClick={closeNewVersionModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                                     <X size={20} />
@@ -2588,13 +2899,13 @@ const CRM: React.FC<CRMProps> = ({
                                     value={tempNotes}
                                     onChange={(e) => setTempNotes(e.target.value)}
                                     placeholder="Ex: Ajuste de margem conforme solicitação do cliente..."
-                                    className="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none transition-all resize-none"
+                                    className="w-full h-32 p-3 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none transition-all resize-none"
                                 />
                             </div>
-                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                            <div className="p-6 bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex gap-3">
                                 <button
                                     onClick={closeNewVersionModal}
-                                    className="flex-1 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    className="flex-1 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors"
                                 >
                                     Cancelar
                                 </button>
@@ -2609,7 +2920,7 @@ const CRM: React.FC<CRMProps> = ({
                                             }
                                         }
                                     }}
-                                    className="flex-1 py-2.5 bg-[var(--tenant-primary)] text-white rounded-lg font-bold text-sm hover:brightness-95 transition-colors shadow-lg shadow-slate-200 dark:shadow-none flex items-center justify-center gap-2"
+                                    className="flex-1 py-2.5 bg-[var(--tenant-primary)] text-white rounded-lg font-bold text-sm hover:brightness-95 transition-colors shadow-lg dark:shadow-none flex items-center justify-center gap-2"
                                 >
                                     <Save size={16} /> Confirmar Versão
                                 </button>
@@ -2622,14 +2933,14 @@ const CRM: React.FC<CRMProps> = ({
             {/* FROZEN MODAL */}
             {
                 isFrozenModalOpen && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md overflow-hidden border dark:border-slate-800 animate-in zoom-in-95 duration-200">
-                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-blue-50 dark:bg-blue-900/20">
-                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-md overflow-hidden border dark:border-[var(--tenant-border-dark)] animate-in zoom-in-95 duration-200">
+                            <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex items-center justify-between bg-[var(--tenant-secondary-soft)]">
+                                <div className="flex items-center gap-2 text-[var(--tenant-secondary)]">
                                     <Snowflake size={20} />
                                     <h3 className="text-lg font-bold">Congelar Oportunidade</h3>
                                 </div>
-                                <button onClick={closeFrozenModal} className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors">
+                                <button onClick={closeFrozenModal} className="text-[var(--tenant-secondary)] hover:brightness-90 transition-colors">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -2645,7 +2956,7 @@ const CRM: React.FC<CRMProps> = ({
                                         value={tempNotes}
                                         onChange={(e) => setTempNotes(e.target.value)}
                                         placeholder="Ex: Cliente aguardando aprovação de budget do próximo ano..."
-                                        className="w-full h-24 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                                        className="w-full h-24 p-3 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none transition-all resize-none"
                                     />
                                 </div>
 
@@ -2655,14 +2966,14 @@ const CRM: React.FC<CRMProps> = ({
                                         type="date"
                                         value={tempFrozenUntil}
                                         onChange={(e) => setTempFrozenUntil(e.target.value)}
-                                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        className="w-full p-3 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] outline-none transition-all"
                                     />
                                 </div>
                             </div>
-                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                            <div className="p-6 bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex gap-3">
                                 <button
                                     onClick={closeFrozenModal}
-                                    className="flex-1 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    className="flex-1 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors"
                                 >
                                     Cancelar
                                 </button>
@@ -2682,7 +2993,7 @@ const CRM: React.FC<CRMProps> = ({
                                             }
                                         }
                                     }}
-                                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-2"
+                                    className="flex-1 py-2.5 bg-[var(--tenant-primary)] text-white rounded-lg font-bold text-sm hover:brightness-95 transition-colors shadow-lg dark:shadow-none flex items-center justify-center gap-2"
                                 >
                                     <Snowflake size={16} /> Congelar Agora
                                 </button>

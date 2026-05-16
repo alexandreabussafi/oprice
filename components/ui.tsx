@@ -8,10 +8,19 @@ export const cn = (...classes: Array<string | false | null | undefined>) => clas
 
 const defaultTheme = createTenantTheme();
 
-export const surfaceClass = 'rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-surface)] shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]';
-export const inputClass = 'rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-surface)] px-3 py-2 text-sm font-semibold text-[var(--tenant-text)] outline-none transition focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)] dark:text-[var(--tenant-text-dark)]';
+export const surfaceClass = 'rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]';
+export const subpanelClass = 'rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-surface)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]';
+export const controlClass = 'rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]';
+export const activeControlClass = 'rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-control-active)] text-[var(--tenant-primary)] dark:bg-[var(--tenant-control-active-dark)] dark:text-[var(--tenant-primary-on-dark)]';
+export const inputClass = 'rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-semibold text-[var(--tenant-text)] outline-none transition focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]';
 export const labelClass = 'text-[10px] font-black uppercase text-slate-500 dark:text-slate-400';
 export const pageShellClass = 'w-full max-w-[1560px] space-y-5 px-3 pb-6 pt-4 sm:space-y-6 sm:px-6 sm:pt-5 lg:px-8 animate-in fade-in slide-in-from-bottom-2 duration-300';
+export const modalPanelClass = 'max-h-[92dvh] overflow-hidden rounded-t-xl border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:rounded-lg';
+export const modalHeaderClass = 'border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]';
+export const tableClass = 'overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]';
+export const tableHeaderClass = 'border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400';
+export const tooltipClass = 'rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-[var(--tenant-text)] shadow-lg dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-[var(--tenant-text-dark)]';
+export const neutralBadgeClass = 'rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300';
 
 interface BrandedProps {
   theme?: TenantTheme;
@@ -25,22 +34,22 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, Bra
 export const Button: React.FC<ButtonProps> = ({ variant = 'primary', theme = defaultTheme, icon: Icon, className, children, style, ...props }) => {
   const variantStyle: React.CSSProperties =
     variant === 'primary'
-      ? { backgroundColor: theme.primary, borderColor: theme.primary, color: '#fff' }
+      ? { backgroundColor: 'var(--tenant-primary)', borderColor: 'var(--tenant-primary)', color: '#fff' }
       : variant === 'secondary'
-        ? { backgroundColor: theme.secondarySoft, borderColor: theme.secondaryBorder, color: theme.secondary }
+        ? { backgroundColor: 'var(--tenant-secondary-soft)', borderColor: 'var(--tenant-secondary-border)', color: 'var(--tenant-secondary)' }
         : variant === 'danger'
           ? {}
-          : variant === 'ghost'
-            ? { color: theme.primary }
+        : variant === 'ghost'
+            ? { color: 'var(--tenant-primary)' }
             : {};
 
   const variantClass =
     variant === 'danger'
       ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300'
       : variant === 'neutral'
-        ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200 dark:hover:bg-slate-800'
+        ? 'border-[var(--tenant-border)] bg-[var(--tenant-control)] text-[var(--tenant-text)] hover:brightness-95 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]'
         : variant === 'ghost'
-          ? 'border-transparent bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/70'
+          ? 'border-transparent bg-transparent hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)]'
           : 'border hover:brightness-95';
 
   return (
@@ -75,7 +84,7 @@ export const IconButton: React.FC<IconButtonProps> = ({ icon: Icon, label, activ
       ...style
     }}
     className={cn(
-      'inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300 dark:hover:bg-slate-800',
+      'inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-500 transition hover:brightness-95 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300',
       className
     )}
   >
@@ -103,7 +112,7 @@ export const Badge: React.FC<BadgeProps> = ({ tone = 'neutral', theme = defaultT
         : tone === 'danger'
           ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300'
           : tone === 'neutral'
-            ? 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+            ? 'border-[var(--tenant-border)] bg-[var(--tenant-control)] text-[var(--tenant-text)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]'
             : 'border';
 
   return (
@@ -131,7 +140,7 @@ export const Field: React.FC<FieldProps> = ({ label, icon: Icon, hint, className
       {hint && (
         <span className="group relative inline-flex">
           <Info size={13} className="cursor-help text-slate-400 transition hover:text-[var(--tenant-primary)]" />
-          <span className="invisible absolute bottom-full left-1/2 z-50 mb-2 w-64 -translate-x-1/2 rounded-md border border-slate-700 bg-slate-900 p-2.5 text-center text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100">
+          <span className={cn('invisible absolute bottom-full left-1/2 z-50 mb-2 w-64 -translate-x-1/2 p-2.5 text-center text-[11px] font-medium leading-relaxed opacity-0 transition group-hover:visible group-hover:opacity-100', tooltipClass)}>
             {hint}
           </span>
         </span>
@@ -176,7 +185,7 @@ interface SegmentedControlProps<T extends string> extends BrandedProps {
 
 export function SegmentedControl<T extends string>({ value, options, onChange, theme = defaultTheme, className }: SegmentedControlProps<T>) {
   return (
-    <div className={cn('inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800/70', className)}>
+    <div className={cn('inline-flex rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]', className)}>
       {options.map(option => {
         const Icon = option.icon;
         const active = option.value === value;
@@ -185,10 +194,10 @@ export function SegmentedControl<T extends string>({ value, options, onChange, t
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            style={active ? { color: theme.primary, backgroundColor: '#fff', borderColor: theme.primaryBorder } : undefined}
+            style={active ? { color: theme.primary, borderColor: theme.primaryBorder } : undefined}
             className={cn(
               'inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-black uppercase transition',
-              active ? 'border shadow-sm dark:bg-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+              active ? 'border bg-[var(--tenant-control-active)] shadow-sm dark:bg-[var(--tenant-control-active-dark)]' : 'border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
             )}
           >
             {Icon && <Icon size={14} />}
@@ -269,12 +278,12 @@ export const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = ({
     : 'fixed inset-0 z-[500]';
 
   const panelClass = mode === 'static-md'
-    ? 'fixed inset-y-0 right-0 z-[91] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-slate-200 bg-white shadow-2xl animate-in slide-in-from-right duration-200 dark:border-slate-800 dark:bg-slate-900 sm:w-[50vw] sm:min-w-[360px] sm:max-w-[520px] lg:static lg:z-auto lg:h-full lg:w-[min(720px,calc(100vw_-_280px))] lg:max-w-none lg:shadow-xl'
-    : 'fixed inset-y-0 right-0 z-[501] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-slate-200 bg-white shadow-2xl animate-in slide-in-from-right duration-200 dark:border-slate-800 dark:bg-slate-900 sm:w-[50vw] sm:min-w-[360px] sm:max-w-[560px] lg:w-[min(640px,54vw)] lg:max-w-[680px]';
+    ? 'fixed inset-y-0 right-0 z-[91] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl animate-in slide-in-from-right duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:w-[50vw] sm:min-w-[360px] sm:max-w-[520px] lg:static lg:z-auto lg:h-full lg:w-[min(720px,calc(100vw_-_280px))] lg:max-w-none lg:shadow-xl'
+    : 'fixed inset-y-0 right-0 z-[501] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl animate-in slide-in-from-right duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:w-[50vw] sm:min-w-[360px] sm:max-w-[560px] lg:w-[min(640px,54vw)] lg:max-w-[680px]';
 
   return (
     <div {...props} className={cn(wrapperClass, className)} onClick={onClose}>
-      <div className={cn('absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]', mode === 'static-md' && 'lg:hidden')} />
+      <div className={cn('absolute inset-0 bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-[1px]', mode === 'static-md' && 'lg:hidden')} />
       <aside className={cn(panelClass, panelClassName)} onClick={event => event.stopPropagation()}>
         {showCloseButton && (
           <button
@@ -282,7 +291,7 @@ export const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = ({
             onClick={onClose}
             title={closeLabel}
             aria-label={closeLabel}
-            className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white/90 text-slate-500 shadow-sm transition hover:bg-slate-100 hover:text-slate-800 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-500 shadow-sm transition hover:brightness-95 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"
           >
             <X size={18} />
           </button>
@@ -309,8 +318,8 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, de
         ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300'
         : tone === 'danger'
           ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300'
-          : tone === 'neutral'
-            ? 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+        : tone === 'neutral'
+            ? 'border-[var(--tenant-border)] bg-[var(--tenant-control)] text-[var(--tenant-text)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]'
             : 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)]';
 
   return (
@@ -340,7 +349,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ children, className, ...props 
 );
 
 export const SkeletonBlock: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div {...props} className={cn('animate-pulse rounded-md bg-slate-200/80 dark:bg-slate-800', className)} />
+  <div {...props} className={cn('animate-pulse rounded-md bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)]', className)} />
 );
 
 export const SkeletonCard: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (

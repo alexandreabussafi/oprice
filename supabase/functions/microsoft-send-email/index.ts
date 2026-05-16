@@ -1,4 +1,10 @@
 import {
+  assertAttachmentAuditDelivered,
+  assertProposalPdfAttachment,
+  createAttachmentAudit,
+  normalizeEmailAttachments
+} from '../_shared/emailAttachments.ts';
+import {
   corsHeaders,
   describeCaughtError,
   fetchMicrosoftJson,
@@ -20,14 +26,18 @@ const addDaysDate = (days: number) => {
   return date.toISOString().slice(0, 10);
 };
 
-const findRecentSentMessage = async (accessToken: string, subject: string) => {
-  const url = 'https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$top=10&$orderby=sentDateTime desc&$select=id,conversationId,internetMessageId,sentDateTime,subject,webLink';
+const findRecentSentMessage = async (accessToken: string, subject: string, sentAfter?: string) => {
+  const url = 'https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$top=10&$orderby=sentDateTime desc&$select=id,conversationId,internetMessageId,sentDateTime,subject,webLink,hasAttachments';
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       const sentMessage = await fetchMicrosoftJson(url, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
-      const message = (sentMessage?.value || []).find((item: any) => item.subject === subject) || null;
+      const message = (sentMessage?.value || []).find((item: any) => {
+        if (item.subject !== subject) return false;
+        if (!sentAfter || !item.sentDateTime) return true;
+        return new Date(item.sentDateTime).getTime() >= new Date(sentAfter).getTime();
+      }) || null;
       if (message?.conversationId || message?.id) return message;
     } catch (_) {
       // Sent Items indexing may lag immediately after /sendMail.
@@ -36,6 +46,61 @@ const findRecentSentMessage = async (accessToken: string, subject: string) => {
   }
   return null;
 };
+
+const createMicrosoftDraftMessage = async (
+  accessToken: string,
+  input: any,
+  to: string[],
+  cc: string[]
+) => fetchMicrosoftJson('https://graph.microsoft.com/v1.0/me/messages', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    subject: input.subject,
+    body: {
+      contentType: 'Text',
+      content: input.bodyText || ''
+    },
+    toRecipients: to.map(email => ({ emailAddress: { address: email } })),
+    ccRecipients: cc.map(email => ({ emailAddress: { address: email } }))
+  })
+});
+
+const addMicrosoftDraftAttachment = async (
+  accessToken: string,
+  messageId: string,
+  attachment: { fileName: string; contentType: string; base64Content: string }
+) => fetchMicrosoftJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    '@odata.type': '#microsoft.graph.fileAttachment',
+    name: attachment.fileName,
+    contentType: attachment.contentType || 'application/octet-stream',
+    contentBytes: attachment.base64Content
+  })
+});
+
+const listMicrosoftDraftAttachmentNames = async (accessToken: string, messageId: string) => {
+  const result = await fetchMicrosoftJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments?$select=id,name`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  return (result?.value || []).map((attachment: any) => String(attachment.name || '')).filter(Boolean);
+};
+
+const sendMicrosoftDraftMessage = async (accessToken: string, messageId: string) => fetchMicrosoftJson(
+  `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/send`,
+  {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  }
+);
 
 const createMicrosoftTodoFollowUp = async (input: {
   accessToken: string;
@@ -146,38 +211,52 @@ Deno.serve(async (req) => {
     const accessToken = await refreshMicrosoftAccessToken(context.serviceClient, account);
     const to = parseEmailList(input.to);
     const cc = parseEmailList(input.cc);
-    const attachments = Array.isArray(input.attachments) ? input.attachments : [];
+    const attachments = normalizeEmailAttachments(input.attachments);
+    assertProposalPdfAttachment(Boolean(input.markProposalSent), attachments);
     if (to.length === 0) throw new Error('Informe pelo menos um destinatario.');
     if (!input.subject?.trim()) throw new Error('Informe o assunto do e-mail.');
 
-    await fetchMicrosoftJson('https://graph.microsoft.com/v1.0/me/sendMail', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: {
-          subject: input.subject,
-          body: {
-            contentType: 'Text',
-            content: input.bodyText || ''
-          },
-          toRecipients: to.map(email => ({ emailAddress: { address: email } })),
-          ccRecipients: cc.map(email => ({ emailAddress: { address: email } })),
-          attachments: attachments.map((attachment: any) => ({
-            '@odata.type': '#microsoft.graph.fileAttachment',
-            name: attachment.fileName,
-            contentType: attachment.contentType || 'application/octet-stream',
-            contentBytes: attachment.base64Content
-          }))
+    let attachmentAudit = createAttachmentAudit(attachments);
+    const sentAfter = new Date(Date.now() - 2000).toISOString();
+    if (attachments.length > 0) {
+      const draftMessage = await createMicrosoftDraftMessage(accessToken, input, to, cc);
+      if (!draftMessage?.id) throw new Error('Nao foi possivel criar o rascunho do e-mail no Outlook.');
+      for (const attachment of attachments) {
+        await addMicrosoftDraftAttachment(accessToken, draftMessage.id, attachment);
+      }
+      attachmentAudit = createAttachmentAudit(
+        attachments,
+        await listMicrosoftDraftAttachmentNames(accessToken, draftMessage.id)
+      );
+      assertAttachmentAuditDelivered(Boolean(input.markProposalSent), attachmentAudit);
+      await sendMicrosoftDraftMessage(accessToken, draftMessage.id);
+    } else {
+      await fetchMicrosoftJson('https://graph.microsoft.com/v1.0/me/sendMail', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
         },
-        saveToSentItems: true
-      })
-    });
+        body: JSON.stringify({
+          message: {
+            subject: input.subject,
+            body: {
+              contentType: 'Text',
+              content: input.bodyText || ''
+            },
+            toRecipients: to.map(email => ({ emailAddress: { address: email } })),
+            ccRecipients: cc.map(email => ({ emailAddress: { address: email } }))
+          },
+          saveToSentItems: true
+        })
+      });
+    }
     emailSent = true;
 
-    const message = await findRecentSentMessage(accessToken, input.subject);
+    const message = await findRecentSentMessage(accessToken, input.subject, sentAfter);
+    if (attachments.length > 0 && message?.hasAttachments === false) {
+      throw new Error('O Outlook enviou a mensagem, mas o item enviado nao confirma anexos.');
+    }
 
     const taskId = crypto.randomUUID();
     const dueDate = new Date().toISOString().slice(0, 10);
@@ -257,7 +336,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return jsonResponse({ task: savedTask, communication, ...(todoResult || {}) });
+    return jsonResponse({ task: savedTask, communication, attachmentAudit, ...(todoResult || {}) });
   } catch (error) {
     const detail = describeCaughtError(error, 'Erro ao enviar e-mail Microsoft.');
     const publicMessage = emailSent

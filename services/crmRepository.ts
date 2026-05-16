@@ -1,11 +1,30 @@
-import { Client, Contact, CRMCommunication, CRMExternalEvent, CRMTask, ProposalData, TaskAttachment } from '../types';
+﻿import { Client, Contact, CRMCommunication, CRMExternalEvent, CRMTask, ProposalData, TaskAttachment } from '../types';
 import { supabase } from '../lib/supabase';
+import { runOptionalSupabaseResponse, runSupabaseRequest, runSupabaseResponse, SupabaseRequestOptions, withAbortSignal } from './supabaseRequest';
 
 export const isUuid = (value?: string) =>
   !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const TASK_ATTACHMENTS_BUCKET = 'crm-task-attachments';
 const SIGNED_URL_EXPIRES_IN = 60 * 5;
+
+type CrmRequestOptions = {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+};
+
+const requestOptions = (
+  label: string,
+  resource: string,
+  tenantId?: string,
+  options: CrmRequestOptions = {}
+): SupabaseRequestOptions => ({
+  label,
+  resource,
+  tenantId,
+  signal: options.signal,
+  timeoutMs: options.timeoutMs
+});
 
 const ALLOWED_TASK_ATTACHMENT_TYPES = new Set([
   'application/pdf',
@@ -70,9 +89,9 @@ const normalizeProposalPersistenceError = (error: any) => {
   const constraint = getConstraintName(error);
   const normalized = new Error(
     constraint === 'proposals_human_id_key'
-      ? 'Constraint legada proposals_human_id_key está bloqueando o versionamento. Remova a unicidade de human_id no Supabase.'
+      ? 'Constraint legada proposals_human_id_key esta bloqueando o versionamento. Remova a unicidade de human_id no Supabase.'
       : constraint === 'proposals_tenant_proposal_number_version_key'
-        ? 'Já existe uma proposta com este número e versão neste tenant.'
+        ? 'Ja existe uma proposta com este numero e versao neste tenant.'
         : error?.message || 'Registro duplicado no Supabase.'
   ) as any;
   normalized.code = error.code;
@@ -251,6 +270,9 @@ export const fromCommunicationRow = (row: any): CRMCommunication => ({
   gmailMessageId: row.gmail_message_id || undefined,
   gmailThreadId: row.gmail_thread_id || undefined,
   gmailHistoryId: row.gmail_history_id || undefined,
+  gmailInternetMessageId: row.gmail_internet_message_id || undefined,
+  emailInReplyTo: row.email_in_reply_to || undefined,
+  emailReferences: row.email_references || undefined,
   microsoftMessageId: row.microsoft_message_id || undefined,
   microsoftConversationId: row.microsoft_conversation_id || undefined,
   microsoftInternetMessageId: row.microsoft_internet_message_id || undefined,
@@ -376,157 +398,205 @@ const fromProposalRow = (row: any): ProposalData => {
 
 const readBack = async <T>(loader: () => Promise<T | null>, entityName: string): Promise<T> => {
   const saved = await loader();
-  if (!saved) throw new Error(`${entityName} não foi encontrado após salvar.`);
+  if (!saved) throw new Error(`${entityName} nao foi encontrado apos salvar.`);
   return saved;
 };
 
 export const crmRepository = {
-  async listClients(tenantId: string): Promise<Client[]> {
-    let { data, error } = await supabase.from('clients').select('*').eq('tenant_id', tenantId).order('name');
-    if (error && isSchemaCompatibilityError(error)) {
-      const fallback = await supabase.from('clients').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false });
-      data = fallback.data;
-      error = fallback.error;
+  async listClients(tenantId: string, options: CrmRequestOptions = {}): Promise<Client[]> {
+    let data;
+    try {
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('clients').select('*').eq('tenant_id', tenantId).order('name'), signal),
+        requestOptions('Listar clientes', 'clients', tenantId, options)
+      );
+    } catch (error) {
+      if (!isSchemaCompatibilityError(error)) throw error;
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('clients').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false }), signal),
+        requestOptions('Listar clientes fallback', 'clients', tenantId, options)
+      );
     }
-    if (error) throw error;
     return (data || []).map(fromClientRow);
   },
 
-  async upsertClient(client: Client, tenantId: string): Promise<Client> {
-    let { data, error } = await supabase.from('clients').upsert(toClientRow(client, tenantId)).select('*').single();
-    if (error && isSchemaCompatibilityError(error) && !isMissingPayloadColumn(error)) {
-      const fallback = await supabase.from('clients').upsert(toClientFallbackRow(client, tenantId)).select('*').single();
-      data = fallback.data;
-      error = fallback.error;
+  async upsertClient(client: Client, tenantId: string, options: CrmRequestOptions = {}): Promise<Client> {
+    let data;
+    try {
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('clients').upsert(toClientRow(client, tenantId)).select('*').single(), signal),
+        requestOptions('Salvar cliente', 'clients', tenantId, options)
+      );
+    } catch (error) {
+      if (options.signal?.aborted || !isSchemaCompatibilityError(error) || isMissingPayloadColumn(error)) throw error;
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('clients').upsert(toClientFallbackRow(client, tenantId)).select('*').single(), signal),
+        requestOptions('Salvar cliente fallback', 'clients', tenantId, options)
+      );
     }
-    if (error) throw error;
     return fromClientRow(data);
   },
 
-  async getClient(id: string, tenantId: string): Promise<Client | null> {
+  async getClient(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<Client | null> {
     if (!isUuid(id)) return null;
-    const { data, error } = await supabase.from('clients').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle();
-    if (error) throw error;
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('clients').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle(), signal),
+      requestOptions('Buscar cliente', 'clients', tenantId, options)
+    );
     return data ? fromClientRow(data) : null;
   },
 
-  async createClient(client: Client, tenantId: string): Promise<Client> {
-    const saved = await this.upsertClient(client, tenantId);
-    return readBack(() => this.getClient(saved.id, tenantId), 'Cliente');
+  async createClient(client: Client, tenantId: string, options: CrmRequestOptions = {}): Promise<Client> {
+    const saved = await this.upsertClient(client, tenantId, options);
+    return readBack(() => this.getClient(saved.id, tenantId, options), 'Cliente');
   },
 
-  async updateClient(client: Client, tenantId: string): Promise<Client> {
-    const saved = await this.upsertClient(client, tenantId);
-    return readBack(() => this.getClient(saved.id, tenantId), 'Cliente');
+  async updateClient(client: Client, tenantId: string, options: CrmRequestOptions = {}): Promise<Client> {
+    const saved = await this.upsertClient(client, tenantId, options);
+    return readBack(() => this.getClient(saved.id, tenantId, options), 'Cliente');
   },
 
-  async deleteClient(id: string, tenantId: string): Promise<void> {
+  async deleteClient(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<void> {
     if (!isUuid(id)) return;
-    const { error } = await supabase.from('clients').delete().eq('id', id).eq('tenant_id', tenantId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('clients').delete().eq('id', id).eq('tenant_id', tenantId), signal),
+      requestOptions('Excluir cliente', 'clients', tenantId, options)
+    );
   },
 
-  async listContacts(tenantId: string): Promise<Contact[]> {
-    let { data, error } = await supabase.from('contacts').select('*').eq('tenant_id', tenantId).order('name');
-    if (error && isSchemaCompatibilityError(error)) {
-      const fallback = await supabase.from('contacts').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false });
-      data = fallback.data;
-      error = fallback.error;
+  async listContacts(tenantId: string, options: CrmRequestOptions = {}): Promise<Contact[]> {
+    let data;
+    try {
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('contacts').select('*').eq('tenant_id', tenantId).order('name'), signal),
+        requestOptions('Listar contatos', 'contacts', tenantId, options)
+      );
+    } catch (error) {
+      if (!isSchemaCompatibilityError(error)) throw error;
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('contacts').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false }), signal),
+        requestOptions('Listar contatos fallback', 'contacts', tenantId, options)
+      );
     }
-    if (error) throw error;
     return (data || []).map(fromContactRow);
   },
 
-  async upsertContact(contact: Contact, tenantId: string): Promise<Contact> {
-    let { data, error } = await supabase.from('contacts').upsert(toContactRow(contact, tenantId)).select('*').single();
-    if (error && isSchemaCompatibilityError(error) && !isMissingPayloadColumn(error)) {
-      const fallback = await supabase.from('contacts').upsert(toContactFallbackRow(contact, tenantId)).select('*').single();
-      data = fallback.data;
-      error = fallback.error;
+  async upsertContact(contact: Contact, tenantId: string, options: CrmRequestOptions = {}): Promise<Contact> {
+    let data;
+    try {
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('contacts').upsert(toContactRow(contact, tenantId)).select('*').single(), signal),
+        requestOptions('Salvar contato', 'contacts', tenantId, options)
+      );
+    } catch (error) {
+      if (options.signal?.aborted || !isSchemaCompatibilityError(error) || isMissingPayloadColumn(error)) throw error;
+      data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('contacts').upsert(toContactFallbackRow(contact, tenantId)).select('*').single(), signal),
+        requestOptions('Salvar contato fallback', 'contacts', tenantId, options)
+      );
     }
-    if (error) throw error;
     return fromContactRow(data);
   },
 
-  async getContact(id: string, tenantId: string): Promise<Contact | null> {
+  async getContact(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<Contact | null> {
     if (!isUuid(id)) return null;
-    const { data, error } = await supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle();
-    if (error) throw error;
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle(), signal),
+      requestOptions('Buscar contato', 'contacts', tenantId, options)
+    );
     return data ? fromContactRow(data) : null;
   },
 
-  async createContact(contact: Contact, tenantId: string): Promise<Contact> {
-    const saved = await this.upsertContact(contact, tenantId);
-    return readBack(() => this.getContact(saved.id, tenantId), 'Contato');
+  async createContact(contact: Contact, tenantId: string, options: CrmRequestOptions = {}): Promise<Contact> {
+    const saved = await this.upsertContact(contact, tenantId, options);
+    return readBack(() => this.getContact(saved.id, tenantId, options), 'Contato');
   },
 
-  async updateContact(contact: Contact, tenantId: string): Promise<Contact> {
-    const saved = await this.upsertContact(contact, tenantId);
-    return readBack(() => this.getContact(saved.id, tenantId), 'Contato');
+  async updateContact(contact: Contact, tenantId: string, options: CrmRequestOptions = {}): Promise<Contact> {
+    const saved = await this.upsertContact(contact, tenantId, options);
+    return readBack(() => this.getContact(saved.id, tenantId, options), 'Contato');
   },
 
-  async deleteContact(id: string, tenantId: string): Promise<void> {
+  async deleteContact(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<void> {
     if (!isUuid(id)) return;
-    const { error } = await supabase.from('contacts').delete().eq('id', id).eq('tenant_id', tenantId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('contacts').delete().eq('id', id).eq('tenant_id', tenantId), signal),
+      requestOptions('Excluir contato', 'contacts', tenantId, options)
+    );
   },
 
-  async listTasks(tenantId: string): Promise<CRMTask[]> {
-    const { data, error } = await supabase.from('crm_tasks').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false });
-    if (error) throw error;
+  async listTasks(tenantId: string, options: CrmRequestOptions = {}): Promise<CRMTask[]> {
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('crm_tasks').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false }), signal),
+      requestOptions('Listar tarefas', 'crm_tasks', tenantId, options)
+    );
     return (data || []).map(fromTaskRow);
   },
 
-  async upsertTask(task: CRMTask, tenantId: string): Promise<CRMTask> {
-    const { data, error } = await supabase.from('crm_tasks').upsert(toTaskRow(task, tenantId)).select('*').single();
-    if (error) throw error;
+  async upsertTask(task: CRMTask, tenantId: string, options: CrmRequestOptions = {}): Promise<CRMTask> {
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('crm_tasks').upsert(toTaskRow(task, tenantId)).select('*').single(), signal),
+      requestOptions('Salvar tarefa', 'crm_tasks', tenantId, options)
+    );
     return fromTaskRow(data);
   },
 
-  async getTask(id: string, tenantId: string): Promise<CRMTask | null> {
+  async getTask(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<CRMTask | null> {
     if (!isUuid(id)) return null;
-    const { data, error } = await supabase.from('crm_tasks').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle();
-    if (error) throw error;
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('crm_tasks').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle(), signal),
+      requestOptions('Buscar tarefa', 'crm_tasks', tenantId, options)
+    );
     return data ? fromTaskRow(data) : null;
   },
 
-  async createTask(task: CRMTask, tenantId: string): Promise<CRMTask> {
-    const saved = await this.upsertTask(task, tenantId);
-    return readBack(() => this.getTask(saved.id, tenantId), 'Tarefa');
+  async createTask(task: CRMTask, tenantId: string, options: CrmRequestOptions = {}): Promise<CRMTask> {
+    const saved = await this.upsertTask(task, tenantId, options);
+    return readBack(() => this.getTask(saved.id, tenantId, options), 'Tarefa');
   },
 
-  async updateTask(task: CRMTask, tenantId: string): Promise<CRMTask> {
-    const saved = await this.upsertTask(task, tenantId);
-    return readBack(() => this.getTask(saved.id, tenantId), 'Tarefa');
+  async updateTask(task: CRMTask, tenantId: string, options: CrmRequestOptions = {}): Promise<CRMTask> {
+    const saved = await this.upsertTask(task, tenantId, options);
+    return readBack(() => this.getTask(saved.id, tenantId, options), 'Tarefa');
   },
 
-  async deleteTask(id: string, tenantId: string): Promise<void> {
+  async deleteTask(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<void> {
     if (!isUuid(id)) return;
-    const attachments = await this.listTaskAttachments(tenantId, id);
+    const attachments = await this.listTaskAttachments(tenantId, id, options);
     if (attachments.length > 0) {
-      const { error: storageError } = await supabase.storage
-        .from(TASK_ATTACHMENTS_BUCKET)
-        .remove(attachments.map(attachment => attachment.storagePath));
+      const { error: storageError } = await runSupabaseRequest(
+        () => supabase.storage
+          .from(TASK_ATTACHMENTS_BUCKET)
+          .remove(attachments.map(attachment => attachment.storagePath)),
+        requestOptions('Remover arquivos de tarefa', `storage/${TASK_ATTACHMENTS_BUCKET}`, tenantId, options)
+      );
       if (storageError) throw storageError;
     }
-    const { error } = await supabase.from('crm_tasks').delete().eq('id', id).eq('tenant_id', tenantId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('crm_tasks').delete().eq('id', id).eq('tenant_id', tenantId), signal),
+      requestOptions('Excluir tarefa', 'crm_tasks', tenantId, options)
+    );
   },
 
-  async listTaskAttachments(tenantId: string, taskId?: string): Promise<TaskAttachment[]> {
-    let query = supabase
-      .from('crm_task_attachments')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
-    if (taskId) query = query.eq('task_id', taskId);
-    const { data, error } = await query;
-    if (error && isMissingTableError(error, 'crm_task_attachments')) return [];
-    if (error) throw error;
+  async listTaskAttachments(tenantId: string, taskId?: string, options: CrmRequestOptions = {}): Promise<TaskAttachment[]> {
+    const data = await runOptionalSupabaseResponse(
+      signal => {
+        let query = supabase
+          .from('crm_task_attachments')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false });
+        if (taskId) query = query.eq('task_id', taskId);
+        return withAbortSignal(query, signal);
+      },
+      { ...requestOptions('Listar anexos de tarefas', 'crm_task_attachments', tenantId, options), optional: true },
+      [] as any[],
+      error => isMissingTableError(error, 'crm_task_attachments')
+    );
     return (data || []).map(toTaskAttachment);
   },
 
-  async uploadTaskAttachment(task: CRMTask, file: File, tenantId: string, userId?: string): Promise<TaskAttachment> {
+  async uploadTaskAttachment(task: CRMTask, file: File, tenantId: string, userId?: string, options: CrmRequestOptions = {}): Promise<TaskAttachment> {
     if (!isUuid(task.id)) throw new Error('Salve a tarefa antes de anexar arquivos.');
     const fileType = getAllowedTaskAttachmentType(file);
     if (!fileType) {
@@ -536,12 +606,15 @@ export const crmRepository = {
     const id = createAttachmentId();
     const safeName = sanitizeFileName(file.name);
     const storagePath = `tenant/${tenantId}/tasks/${task.id}/${id}-${safeName}`;
-    const { error: uploadError } = await supabase.storage
-      .from(TASK_ATTACHMENTS_BUCKET)
-      .upload(storagePath, file, {
-        contentType: fileType,
-        upsert: false
-      });
+    const { error: uploadError } = await runSupabaseRequest(
+      () => supabase.storage
+        .from(TASK_ATTACHMENTS_BUCKET)
+        .upload(storagePath, file, {
+          contentType: fileType,
+          upsert: false
+        }),
+      requestOptions('Enviar anexo de tarefa', `storage/${TASK_ATTACHMENTS_BUCKET}`, tenantId, options)
+    );
     if (uploadError) throw uploadError;
 
     const row = {
@@ -556,149 +629,218 @@ export const crmRepository = {
       created_by: userId || null
     };
 
-    const { data, error } = await supabase
-      .from('crm_task_attachments')
-      .insert(row)
-      .select('*')
-      .single();
-    if (error) {
+    try {
+      const data = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('crm_task_attachments').insert(row).select('*').single(), signal),
+        requestOptions('Registrar anexo de tarefa', 'crm_task_attachments', tenantId, options)
+      );
+      return toTaskAttachment(data);
+    } catch (error) {
       await supabase.storage.from(TASK_ATTACHMENTS_BUCKET).remove([storagePath]);
       throw error;
     }
-    return toTaskAttachment(data);
   },
 
-  async createTaskAttachmentSignedUrl(attachment: TaskAttachment, tenantId: string): Promise<string> {
+  async createTaskAttachmentSignedUrl(attachment: TaskAttachment, tenantId: string, options: CrmRequestOptions = {}): Promise<string> {
     if (attachment.tenantId !== tenantId) throw new Error('Anexo nao pertence ao tenant ativo.');
-    const { data, error } = await supabase.storage
-      .from(TASK_ATTACHMENTS_BUCKET)
-      .createSignedUrl(attachment.storagePath, SIGNED_URL_EXPIRES_IN, {
-        download: attachment.fileName
-      });
+    const { data, error } = await runSupabaseRequest(
+      () => supabase.storage
+        .from(TASK_ATTACHMENTS_BUCKET)
+        .createSignedUrl(attachment.storagePath, SIGNED_URL_EXPIRES_IN, {
+          download: attachment.fileName
+        }),
+      requestOptions('Abrir anexo de tarefa', `storage/${TASK_ATTACHMENTS_BUCKET}`, tenantId, options)
+    );
     if (error) throw error;
     return data.signedUrl;
   },
 
-  async deleteTaskAttachment(attachment: TaskAttachment, tenantId: string): Promise<void> {
+  async deleteTaskAttachment(attachment: TaskAttachment, tenantId: string, options: CrmRequestOptions = {}): Promise<void> {
     if (attachment.tenantId !== tenantId) throw new Error('Anexo nao pertence ao tenant ativo.');
-    const { error: storageError } = await supabase.storage
-      .from(TASK_ATTACHMENTS_BUCKET)
-      .remove([attachment.storagePath]);
+    const { error: storageError } = await runSupabaseRequest(
+      () => supabase.storage
+        .from(TASK_ATTACHMENTS_BUCKET)
+        .remove([attachment.storagePath]),
+      requestOptions('Remover arquivo de anexo', `storage/${TASK_ATTACHMENTS_BUCKET}`, tenantId, options)
+    );
     if (storageError) throw storageError;
 
-    const { error } = await supabase
-      .from('crm_task_attachments')
-      .delete()
-      .eq('id', attachment.id)
-      .eq('tenant_id', tenantId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(
+        supabase
+          .from('crm_task_attachments')
+          .delete()
+          .eq('id', attachment.id)
+          .eq('tenant_id', tenantId),
+        signal
+      ),
+      requestOptions('Excluir anexo de tarefa', 'crm_task_attachments', tenantId, options)
+    );
   },
 
-  async listCommunications(tenantId: string): Promise<CRMCommunication[]> {
-    const { data, error } = await supabase
-      .from('crm_communications')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
-    if (error && isMissingTableError(error, 'crm_communications')) return [];
-    if (error) throw error;
+  async listCommunications(tenantId: string, options: CrmRequestOptions = {}): Promise<CRMCommunication[]> {
+    const data = await runOptionalSupabaseResponse(
+      signal => withAbortSignal(
+        supabase
+          .from('crm_communications')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        signal
+      ),
+      { ...requestOptions('Listar comunicacoes', 'crm_communications', tenantId, options), optional: true },
+      [] as any[],
+      error => isMissingTableError(error, 'crm_communications')
+    );
     return (data || []).map(fromCommunicationRow);
   },
 
-  async listExternalEvents(tenantId: string): Promise<CRMExternalEvent[]> {
-    const { data, error } = await supabase
-      .from('crm_external_events')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('starts_at', { ascending: false });
-    if (error && isMissingTableError(error, 'crm_external_events')) return [];
-    if (error) throw error;
+  async listExternalEvents(tenantId: string, options: CrmRequestOptions = {}): Promise<CRMExternalEvent[]> {
+    const data = await runOptionalSupabaseResponse(
+      signal => withAbortSignal(
+        supabase
+          .from('crm_external_events')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('starts_at', { ascending: false }),
+        signal
+      ),
+      { ...requestOptions('Listar eventos externos', 'crm_external_events', tenantId, options), optional: true },
+      [] as any[],
+      error => isMissingTableError(error, 'crm_external_events')
+    );
     return (data || []).map(fromExternalEventRow);
   },
 
-  async listProposals(tenantId: string): Promise<ProposalData[]> {
-    const { data, error } = await supabase.from('proposals').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false });
-    if (error) throw error;
+  async listProposals(tenantId: string, options: CrmRequestOptions = {}): Promise<ProposalData[]> {
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('proposals').select('*').eq('tenant_id', tenantId).order('updated_at', { ascending: false }), signal),
+      requestOptions('Listar propostas', 'proposals', tenantId, options)
+    );
     return (data || []).map(fromProposalRow);
   },
 
-  async listProposalVersions(tenantId: string, proposalNumber: string): Promise<ProposalData[]> {
-    const { data, error } = await supabase
-      .from('proposals')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('proposal_number', proposalNumber)
-      .order('version', { ascending: false });
-    if (error) throw error;
+  async listProposalVersions(tenantId: string, proposalNumber: string, options: CrmRequestOptions = {}): Promise<ProposalData[]> {
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(
+        supabase
+          .from('proposals')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('proposal_number', proposalNumber)
+          .order('version', { ascending: false }),
+        signal
+      ),
+      requestOptions('Listar versoes da proposta', 'proposals', tenantId, options)
+    );
     return (data || []).map(fromProposalRow);
   },
 
-  async createProposal(proposal: ProposalData, tenantId: string): Promise<ProposalData> {
-    let { data, error } = await supabase.from('proposals').insert(toProposalRow(proposal, tenantId)).select('*').single();
-    if (error && isSchemaCompatibilityError(error)) {
-      const fallback = await supabase.from('proposals').insert(toProposalFallbackRow(proposal, tenantId)).select('*').single();
-      data = fallback.data;
-      error = fallback.error;
+  async createProposal(proposal: ProposalData, tenantId: string, options: CrmRequestOptions = {}): Promise<ProposalData> {
+    let persistedProposalRow: any;
+    try {
+      persistedProposalRow = await runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('proposals').insert(toProposalRow(proposal, tenantId)).select('*').single(), signal),
+        requestOptions('Criar proposta', 'proposals', tenantId, options)
+      );
+    } catch (error: any) {
+      if (!options.signal?.aborted && isSchemaCompatibilityError(error)) {
+        persistedProposalRow = await runSupabaseResponse(
+          signal => withAbortSignal(supabase.from('proposals').insert(toProposalFallbackRow(proposal, tenantId)).select('*').single(), signal),
+          requestOptions('Criar proposta sem payload', 'proposals', tenantId, options)
+        );
+      } else {
+        throw normalizeProposalPersistenceError(error);
+      }
     }
-    if (error) throw normalizeProposalPersistenceError(error);
-    if (!data) throw new Error('Proposta foi salva, mas o Supabase não retornou os dados criados.');
-    return fromProposalRow(data);
+    if (!persistedProposalRow) throw new Error('Proposta foi salva, mas o Supabase nao retornou os dados criados.');
+    return fromProposalRow(persistedProposalRow);
+
   },
 
-  async getProposal(id: string, tenantId: string): Promise<ProposalData | null> {
+  async getProposal(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<ProposalData | null> {
     if (!isUuid(id)) return null;
-    const { data, error } = await supabase.from('proposals').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle();
-    if (error) throw normalizeProposalPersistenceError(error);
-    return data ? fromProposalRow(data) : null;
+    const proposalRow = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('proposals').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle(), signal),
+      requestOptions('Buscar proposta', 'proposals', tenantId, options)
+    ).catch(error => {
+      throw normalizeProposalPersistenceError(error);
+    });
+    return proposalRow ? fromProposalRow(proposalRow) : null;
   },
 
-  async updateProposal(proposal: ProposalData, tenantId: string): Promise<ProposalData> {
+  async updateProposal(proposal: ProposalData, tenantId: string, options: CrmRequestOptions = {}): Promise<ProposalData> {
     if (!isUuid(proposal.id)) {
-      return this.createProposal(proposal, tenantId);
+      return this.createProposal(proposal, tenantId, options);
     }
 
-    let { data, error } = await supabase
-      .from('proposals')
-      .update(toProposalRow(proposal, tenantId))
-      .eq('id', proposal.id)
-      .eq('tenant_id', tenantId)
-      .select('*')
-      .maybeSingle();
-    if (error && isSchemaCompatibilityError(error)) {
-      const fallback = await supabase
-        .from('proposals')
-        .update(toProposalFallbackRow(proposal, tenantId))
-        .eq('id', proposal.id)
-        .eq('tenant_id', tenantId)
-        .select('*')
-        .maybeSingle();
-      data = fallback.data;
-      error = fallback.error;
+    let persistedProposalRow: any;
+    try {
+      persistedProposalRow = await runSupabaseResponse(
+        signal => withAbortSignal(
+          supabase
+            .from('proposals')
+            .update(toProposalRow(proposal, tenantId))
+            .eq('id', proposal.id)
+            .eq('tenant_id', tenantId)
+            .select('*')
+            .maybeSingle(),
+          signal
+        ),
+        requestOptions('Atualizar proposta', 'proposals', tenantId, options)
+      );
+    } catch (error: any) {
+      if (!options.signal?.aborted && isSchemaCompatibilityError(error)) {
+        persistedProposalRow = await runSupabaseResponse(
+          signal => withAbortSignal(
+            supabase
+              .from('proposals')
+              .update(toProposalFallbackRow(proposal, tenantId))
+              .eq('id', proposal.id)
+              .eq('tenant_id', tenantId)
+              .select('*')
+              .maybeSingle(),
+            signal
+          ),
+          requestOptions('Atualizar proposta sem payload', 'proposals', tenantId, options)
+        );
+      } else {
+        throw normalizeProposalPersistenceError(error);
+      }
     }
-    if (error) throw normalizeProposalPersistenceError(error);
-    if (!data) throw new Error('Proposta não foi encontrada para atualização neste tenant.');
-    return fromProposalRow(data);
+    if (!persistedProposalRow) throw new Error('Proposta nao foi encontrada para atualizacao neste tenant.');
+    return fromProposalRow(persistedProposalRow);
+
   },
 
-  async deleteProposal(id: string, tenantId: string): Promise<void> {
+  async deleteProposal(id: string, tenantId: string, options: CrmRequestOptions = {}): Promise<void> {
     if (!isUuid(id)) return;
-    const { error } = await supabase.from('proposals').delete().eq('id', id).eq('tenant_id', tenantId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('proposals').delete().eq('id', id).eq('tenant_id', tenantId), signal),
+      requestOptions('Excluir proposta', 'proposals', tenantId, options)
+    );
   },
 
-  async getTenantSettings<T>(tenantId: string): Promise<T | null> {
-    const { data, error } = await supabase.from('tenant_settings').select('settings').eq('tenant_id', tenantId).maybeSingle();
-    if (error) throw error;
+  async getTenantSettings<T>(tenantId: string, options: CrmRequestOptions = {}): Promise<T | null> {
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenant_settings').select('settings').eq('tenant_id', tenantId).maybeSingle(), signal),
+      requestOptions('Buscar configuracoes do tenant', 'tenant_settings', tenantId, options)
+    );
     return (data?.settings as T) || null;
   },
 
-  async upsertTenantSettings<T>(tenantId: string, settings: T): Promise<T> {
-    const { data, error } = await supabase
-      .from('tenant_settings')
-      .upsert({ tenant_id: tenantId, settings, updated_at: nowIso() })
-      .select('settings')
-      .single();
-    if (error) throw error;
+  async upsertTenantSettings<T>(tenantId: string, settings: T, options: CrmRequestOptions = {}): Promise<T> {
+    const data = await runSupabaseResponse(
+      signal => withAbortSignal(
+        supabase
+          .from('tenant_settings')
+          .upsert({ tenant_id: tenantId, settings, updated_at: nowIso() })
+          .select('settings')
+          .single(),
+        signal
+      ),
+      requestOptions('Salvar configuracoes do tenant', 'tenant_settings', tenantId, options)
+    );
     return data.settings as T;
   }
 };

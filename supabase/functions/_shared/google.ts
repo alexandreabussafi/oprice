@@ -174,6 +174,31 @@ export const parseEmailList = (value?: string[] | string | null) => {
   return raw.split(',').map(item => item.trim()).filter(Boolean);
 };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const toNullableUuid = (value?: string | null) =>
+  typeof value === 'string' && UUID_PATTERN.test(value) ? value : null;
+
+export const describeCaughtError = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message || fallback;
+  if (error && typeof error === 'object') {
+    const value = error as Record<string, unknown>;
+    const parts = [
+      typeof value.message === 'string' ? value.message : '',
+      typeof value.details === 'string' ? value.details : '',
+      typeof value.hint === 'string' ? value.hint : '',
+      typeof value.code === 'string' ? `Codigo: ${value.code}` : ''
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(' ');
+    try {
+      return JSON.stringify(error);
+    } catch (_) {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
 export const createMimeMessage = (input: {
   from?: string;
   to: string[];
@@ -181,12 +206,17 @@ export const createMimeMessage = (input: {
   subject: string;
   bodyText: string;
   inReplyTo?: string;
+  references?: string;
   attachments?: Array<{
     fileName: string;
     contentType: string;
     base64Content: string;
   }>;
 }) => {
+  const wrapBase64 = (value: string) => {
+    const normalized = String(value || '').replace(/\s+/g, '');
+    return normalized.match(/.{1,76}/g)?.join('\r\n') || '';
+  };
   const attachments = input.attachments || [];
   const boundary = `oprice_${crypto.randomUUID()}`;
   const headers = [
@@ -195,11 +225,11 @@ export const createMimeMessage = (input: {
     input.cc?.length ? `Cc: ${input.cc.join(', ')}` : null,
     `Subject: ${input.subject}`,
     'MIME-Version: 1.0',
+    input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
+    input.references ? `References: ${input.references}` : input.inReplyTo ? `References: ${input.inReplyTo}` : null,
     attachments.length
       ? `Content-Type: multipart/mixed; boundary="${boundary}"`
-      : 'Content-Type: text/plain; charset="UTF-8"',
-    input.inReplyTo ? `In-Reply-To: ${input.inReplyTo}` : null,
-    input.inReplyTo ? `References: ${input.inReplyTo}` : null
+      : 'Content-Type: text/plain; charset="UTF-8"'
   ].filter(Boolean);
 
   if (!attachments.length) {
@@ -218,7 +248,7 @@ export const createMimeMessage = (input: {
       'Content-Transfer-Encoding: base64',
       `Content-Disposition: attachment; filename="${attachment.fileName}"`,
       '',
-      attachment.base64Content
+      wrapBase64(attachment.base64Content)
     ]),
     `--${boundary}--`
   ];

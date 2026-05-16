@@ -1,12 +1,29 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+﻿import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { AppRole, BusinessUnitAccess, PlatformRole, Tenant, TenantBranding, TenantMember, TenantMembership, TenantModule } from '../types';
+import { classifySupabaseError, getPersistenceErrorMessage, runSupabaseRequest, runSupabaseResponse, withAbortSignal } from '../services/supabaseRequest';
 
 export const PLATFORM_SUPERADMIN_EMAIL = 'alexandre.abussafi@gmail.com';
 export const LUBRIM_TENANT_ID = 'tenant-lubrim';
 export const SAAS_TENANT_ID = 'tenant-saas';
 export const IOT_TENANT_ID = 'tenant-iot';
+const RESERVED_PATHS = new Set(['login', 'superadmin', 'help', 'auth', 'api', 'assets']);
+
+const getPathTenantSlug = () => {
+  if (typeof window === 'undefined') return null;
+  const slug = window.location.pathname.split('/').filter(Boolean)[0]?.toLowerCase();
+  if (!slug || RESERVED_PATHS.has(slug)) return null;
+  return slug;
+};
+
+const pushTenantPath = (slug?: string | null, replace = false) => {
+  if (typeof window === 'undefined') return;
+  const nextPath = slug ? `/${slug}` : '/';
+  if (window.location.pathname === nextPath) return;
+  const nextUrl = `${nextPath}${window.location.search}${window.location.hash}`;
+  window.history[replace ? 'replaceState' : 'pushState']({}, '', nextUrl);
+};
 
 export const fallbackTenants: Tenant[] = [
   {
@@ -133,6 +150,7 @@ interface TenantContextValue {
   updateTenantUser: (payload: { tenantId: string; userId: string; role: AppRole; allowed_types: BusinessUnitAccess[]; active: boolean }) => Promise<void>;
   removeUserFromTenant: (tenantId: string, userId: string) => Promise<void>;
   uploadTenantLogo: (tenantId: string, file: File) => Promise<string>;
+  uploadTenantBrandingAsset: (tenantId: string, file: File, folder?: 'logos' | 'favicons' | 'letterhead') => Promise<string>;
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null);
@@ -169,12 +187,15 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setTenantError(null);
 
     try {
-      const tenantsQuery = isPlatformSuperAdmin
-        ? supabase.from('tenants').select('*').order('name')
-        : supabase.from('tenant_users').select('tenant_id, role, allowed_types, active, tenants(*)').eq('user_id', user.id).eq('active', true);
-
-      const { data, error } = await tenantsQuery;
-      if (error) throw error;
+      const data = await runSupabaseResponse(
+        signal => {
+          const tenantsQuery = isPlatformSuperAdmin
+            ? supabase.from('tenants').select('*').order('name')
+            : supabase.from('tenant_users').select('tenant_id, role, allowed_types, active, tenants(*)').eq('user_id', user.id).eq('active', true);
+          return withAbortSignal(tenantsQuery, signal);
+        },
+        { label: 'Carregar tenants', resource: isPlatformSuperAdmin ? 'tenants' : 'tenant_users', timeoutMs: 10000 }
+      );
       setUsingLocalFallback(false);
 
       if (isPlatformSuperAdmin) {
@@ -194,7 +215,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     } catch (error: any) {
       console.warn('TenantContext: falling back to local tenants:', error.message);
-      setTenantError(error.message);
+      setTenantError(getPersistenceErrorMessage(error, 'Erro ao carregar tenants.'));
       setUsingLocalFallback(true);
       const localTenants = loadLocalTenants();
       setTenants(localTenants);
@@ -221,13 +242,26 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [activeTenantId, tenants]);
 
+  useEffect(() => {
+    if (tenantLoading || tenants.length === 0 || activeTenantId) return;
+    const slug = getPathTenantSlug();
+    if (!slug) return;
+    const tenant = tenants.find(item => item.slug.toLowerCase() === slug);
+    if (tenant) setActiveTenantId(tenant.id);
+  }, [tenantLoading, tenants, activeTenantId]);
+
   const selectTenant = (tenantId: string) => {
-    if (tenants.some(t => t.id === tenantId)) {
+    const tenant = tenants.find(t => t.id === tenantId);
+    if (tenant) {
       setActiveTenantId(tenantId);
+      pushTenantPath(tenant.slug);
     }
   };
 
-  const clearTenantSelection = () => setActiveTenantId(null);
+  const clearTenantSelection = () => {
+    setActiveTenantId(null);
+    pushTenantPath(null);
+  };
 
   const upsertTenant = async (tenant: Partial<Tenant> & { name: string; slug: string }) => {
     if (usingLocalFallback) {
@@ -264,8 +298,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       default_business_unit: tenant.defaultBusinessUnit || 'SERVICES',
       branding: tenant.branding || {}
     };
-    const { error } = await supabase.from('tenants').upsert(payload).select().single();
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenants').upsert(payload).select().single(), signal),
+      { label: 'Salvar tenant', resource: 'tenants', tenantId: payload.id, timeoutMs: 10000 }
+    );
     await refreshTenants();
   };
 
@@ -281,8 +317,40 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const { error } = await supabase.from('tenants').update({ branding: nextBranding }).eq('id', tenantId);
-    if (error) throw error;
+    const updateDirectly = () => runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenants').update({ branding: nextBranding }).eq('id', tenantId), signal),
+      { label: 'Atualizar marca do tenant diretamente', resource: 'tenants', tenantId, timeoutMs: 20000 }
+    );
+
+    if (isPlatformSuperAdmin) {
+      try {
+        await updateDirectly();
+      } catch (error: any) {
+        throw new Error(getPersistenceErrorMessage(error, 'Erro ao salvar marca do tenant.'));
+      }
+    } else {
+      try {
+        await runSupabaseResponse(
+          signal => withAbortSignal(supabase.rpc('update_tenant_branding', {
+            next_branding: nextBranding,
+            target_tenant_id: tenantId
+          }), signal),
+          { label: 'Atualizar marca do tenant via RPC', resource: 'rpc/update_tenant_branding', tenantId, timeoutMs: 20000 }
+        );
+      } catch (error: any) {
+        const isMissingRpc = error.message?.includes('update_tenant_branding') || error.code === 'PGRST202';
+        const kind = classifySupabaseError(error);
+        if (!isMissingRpc || kind === 'timeout' || kind === 'abort' || kind === 'network') {
+          throw new Error(getPersistenceErrorMessage(error, 'Erro ao salvar marca do tenant.'));
+        }
+
+        try {
+          await updateDirectly();
+        } catch (fallbackError: any) {
+          throw new Error(`${getPersistenceErrorMessage(fallbackError, 'Erro ao salvar marca do tenant.')} A RPC update_tenant_branding ainda nao esta disponivel no Supabase; aplique a migration de branding.`);
+        }
+      }
+    }
     setTenants(prev => prev.map(tenant => tenant.id === tenantId ? { ...tenant, branding: nextBranding } : tenant));
   };
 
@@ -294,8 +362,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const { error } = await supabase.from('tenants').update({ enabled_modules: enabledModules }).eq('id', tenantId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenants').update({ enabled_modules: enabledModules }).eq('id', tenantId), signal),
+      { label: 'Atualizar modulos do tenant', resource: 'tenants', tenantId, timeoutMs: 10000 }
+    );
     await refreshTenants();
   };
 
@@ -307,8 +377,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const { error } = await supabase.from('tenants').update({ status }).eq('id', tenantId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenants').update({ status }).eq('id', tenantId), signal),
+      { label: 'Atualizar status do tenant', resource: 'tenants', tenantId, timeoutMs: 10000 }
+    );
     await refreshTenants();
   };
 
@@ -317,14 +389,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const { error } = await supabase.from('tenant_users').upsert({
-      tenant_id: payload.tenantId,
-      user_id: payload.userId,
-      role: payload.role,
-      allowed_types: payload.allowed_types,
-      active: true
-    });
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenant_users').upsert({
+        tenant_id: payload.tenantId,
+        user_id: payload.userId,
+        role: payload.role,
+        allowed_types: payload.allowed_types,
+        active: true
+      }), signal),
+      { label: 'Vincular usuario ao tenant', resource: 'tenant_users', tenantId: payload.tenantId, timeoutMs: 10000 }
+    );
     await refreshTenantMembers(payload.tenantId);
   };
 
@@ -333,7 +407,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       throw new Error('Criacao de usuarios exige Supabase ativo.');
     }
 
-    const { data, error } = await supabase.functions.invoke('platform-create-user', { body: payload });
+    const { data, error } = await runSupabaseRequest(
+      signal => supabase.functions.invoke('platform-create-user', { body: payload, signal } as any),
+      { label: 'Criar usuario na plataforma', resource: 'functions/platform-create-user', tenantId: payload.tenantId, timeoutMs: 15000 }
+    );
     if (error) {
       const message = error.message?.includes('Failed to send a request')
         ? 'Nao foi possivel acessar a Edge Function platform-create-user. Verifique se ela foi publicada no Supabase e se o projeto esta acessivel.'
@@ -349,18 +426,22 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateTenantUser = async (payload: { tenantId: string; userId: string; role: AppRole; allowed_types: BusinessUnitAccess[]; active: boolean }) => {
-    const { error } = await supabase.from('tenant_users').update({
-      role: payload.role,
-      allowed_types: payload.allowed_types,
-      active: payload.active
-    }).eq('tenant_id', payload.tenantId).eq('user_id', payload.userId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenant_users').update({
+        role: payload.role,
+        allowed_types: payload.allowed_types,
+        active: payload.active
+      }).eq('tenant_id', payload.tenantId).eq('user_id', payload.userId), signal),
+      { label: 'Atualizar usuario do tenant', resource: 'tenant_users', tenantId: payload.tenantId, timeoutMs: 10000 }
+    );
     await refreshTenantMembers(payload.tenantId);
   };
 
   const removeUserFromTenant = async (tenantId: string, userId: string) => {
-    const { error } = await supabase.from('tenant_users').delete().eq('tenant_id', tenantId).eq('user_id', userId);
-    if (error) throw error;
+    await runSupabaseResponse(
+      signal => withAbortSignal(supabase.from('tenant_users').delete().eq('tenant_id', tenantId).eq('user_id', userId), signal),
+      { label: 'Remover usuario do tenant', resource: 'tenant_users', tenantId, timeoutMs: 10000 }
+    );
     await refreshTenantMembers(tenantId);
   };
 
@@ -371,13 +452,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const [{ data: membersData, error: membersError }, { data: profilesData, error: profilesError }] = await Promise.all([
-      supabase.from('tenant_user_profiles').select('*').eq('tenant_id', tenantId).order('email'),
-      supabase.from('profiles').select('id,email,full_name,role,allowed_types,platform_role').order('email')
+    const [membersData, profilesData] = await Promise.all([
+      runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('tenant_user_profiles').select('*').eq('tenant_id', tenantId).order('email'), signal),
+        { label: 'Listar membros do tenant', resource: 'tenant_user_profiles', tenantId, timeoutMs: 10000 }
+      ),
+      runSupabaseResponse(
+        signal => withAbortSignal(supabase.from('profiles').select('id,email,full_name,role,allowed_types,platform_role').order('email'), signal),
+        { label: 'Listar perfis disponiveis', resource: 'profiles', tenantId, timeoutMs: 10000 }
+      )
     ]);
-
-    if (membersError) throw membersError;
-    if (profilesError) throw profilesError;
 
     const members = ((membersData || []) as any[]).map((row): TenantMember => ({
       tenantId: row.tenant_id,
@@ -408,14 +492,22 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setAvailableProfiles(available);
   };
 
-  const uploadTenantLogo = async (tenantId: string, file: File) => {
+  const uploadTenantBrandingAsset = async (tenantId: string, file: File, folder: 'logos' | 'favicons' | 'letterhead' = 'logos') => {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
-    const path = `tenants/${tenantId}/logos/${Date.now()}-${safeName}`;
-    const { error: uploadError } = await supabase.storage.from('branding-assets').upload(path, file, { upsert: true });
+    const path = `tenants/${tenantId}/${folder}/${Date.now()}-${safeName}`;
+    const { error: uploadError } = await runSupabaseRequest(
+      () => supabase.storage.from('branding-assets').upload(path, file, { upsert: true }),
+      { label: 'Enviar arquivo de marca', resource: 'storage/branding-assets', tenantId, timeoutMs: 15000 }
+    );
     if (uploadError) throw uploadError;
     const { data } = supabase.storage.from('branding-assets').getPublicUrl(path);
-    await updateTenantBranding(tenantId, { logoUrl: data.publicUrl });
     return data.publicUrl;
+  };
+
+  const uploadTenantLogo = async (tenantId: string, file: File) => {
+    const publicUrl = await uploadTenantBrandingAsset(tenantId, file, 'logos');
+    await updateTenantBranding(tenantId, { logoUrl: publicUrl });
+    return publicUrl;
   };
 
   const value = useMemo<TenantContextValue>(() => ({
@@ -441,7 +533,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     assignUserToTenant,
     updateTenantUser,
     removeUserFromTenant,
-    uploadTenantLogo
+    uploadTenantLogo,
+    uploadTenantBrandingAsset
   }), [tenants, memberships, tenantMembers, availableProfiles, activeTenant, activeTenantId, tenantLoading, tenantError, isPlatformSuperAdmin]);
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

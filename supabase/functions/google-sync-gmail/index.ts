@@ -14,6 +14,14 @@ const extractEmail = (value: string) => {
   return (match?.[1] || value).split(',')[0].trim().toLowerCase();
 };
 
+const normalizeHeaderValue = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const getMessageHeaders = (message: any) => ({
+  messageId: normalizeHeaderValue(getHeader(message, 'Message-ID')),
+  inReplyTo: normalizeHeaderValue(getHeader(message, 'In-Reply-To')),
+  references: normalizeHeaderValue(getHeader(message, 'References'))
+});
+
 const syncAccount = async (serviceClient: ReturnType<typeof getServiceClient>, account: any) => {
   const accessToken = await refreshGoogleAccessToken(serviceClient, account);
   const { data: threadRows, error: threadError } = await serviceClient
@@ -33,17 +41,37 @@ const syncAccount = async (serviceClient: ReturnType<typeof getServiceClient>, a
     });
 
     for (const message of thread.messages || []) {
-      const fromEmail = extractEmail(getHeader(message, 'From'));
-      if (!message.id || fromEmail === account.google_email.toLowerCase()) continue;
+      if (!message.id) continue;
+      const headers = getMessageHeaders(message);
 
       const { data: existing, error: existingError } = await serviceClient
         .from('crm_communications')
-        .select('id')
+        .select('id, gmail_internet_message_id, email_in_reply_to, email_references')
         .eq('tenant_id', account.tenant_id)
         .eq('gmail_message_id', message.id)
         .maybeSingle();
       if (existingError) throw existingError;
-      if (existing) continue;
+      if (existing) {
+        if (
+          (!existing.gmail_internet_message_id && headers.messageId) ||
+          (!existing.email_in_reply_to && headers.inReplyTo) ||
+          (!existing.email_references && headers.references)
+        ) {
+          const { error: updateError } = await serviceClient
+            .from('crm_communications')
+            .update({
+              gmail_internet_message_id: existing.gmail_internet_message_id || headers.messageId || null,
+              email_in_reply_to: existing.email_in_reply_to || headers.inReplyTo || null,
+              email_references: existing.email_references || headers.references || null
+            })
+            .eq('id', existing.id);
+          if (updateError) throw updateError;
+        }
+        continue;
+      }
+
+      const fromEmail = extractEmail(getHeader(message, 'From'));
+      if (fromEmail === account.google_email.toLowerCase()) continue;
 
       const toHeader = getHeader(message, 'To');
       const ccHeader = getHeader(message, 'Cc');
@@ -68,6 +96,9 @@ const syncAccount = async (serviceClient: ReturnType<typeof getServiceClient>, a
           gmail_message_id: message.id,
           gmail_thread_id: message.threadId,
           gmail_history_id: message.historyId,
+          gmail_internet_message_id: headers.messageId || null,
+          email_in_reply_to: headers.inReplyTo || null,
+          email_references: headers.references || null,
           external_url: message.threadId ? `https://mail.google.com/mail/u/0/#inbox/${message.threadId}` : null,
           received_at: receivedAt
         });
