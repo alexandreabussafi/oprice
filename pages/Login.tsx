@@ -1,34 +1,146 @@
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle2, Cog, Eye, EyeOff, Loader2, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const loginParticles = [
-    { left: '8%', top: '18%', size: 5, color: '#67e8f9', delay: '0s', duration: '6.8s', drift: '18px' },
-    { left: '16%', top: '72%', size: 7, color: '#60a5fa', delay: '1.2s', duration: '7.5s', drift: '-12px' },
-    { left: '22%', top: '34%', size: 4, color: '#f59e0b', delay: '0.6s', duration: '6.1s', drift: '26px' },
-    { left: '30%', top: '88%', size: 6, color: '#a78bfa', delay: '2.1s', duration: '8.2s', drift: '-20px' },
-    { left: '40%', top: '22%', size: 5, color: '#22d3ee', delay: '1.8s', duration: '7.1s', drift: '16px' },
-    { left: '48%', top: '62%', size: 8, color: '#34d399', delay: '0.3s', duration: '6.5s', drift: '-16px' },
-    { left: '58%', top: '12%', size: 4, color: '#f472b6', delay: '2.8s', duration: '7.8s', drift: '22px' },
-    { left: '66%', top: '76%', size: 6, color: '#38bdf8', delay: '1.5s', duration: '6.9s', drift: '-24px' },
-    { left: '74%', top: '28%', size: 7, color: '#fbbf24', delay: '0.9s', duration: '7.4s', drift: '14px' },
-    { left: '86%', top: '54%', size: 5, color: '#818cf8', delay: '2.4s', duration: '8s', drift: '-18px' },
-    { left: '92%', top: '84%', size: 4, color: '#5eead4', delay: '3s', duration: '6.6s', drift: '20px' },
-    { left: '10%', top: '48%', size: 4, color: '#c084fc', delay: '3.4s', duration: '7.7s', drift: '-14px' },
+const loginCodeFragments: Array<{
+    left?: string;
+    right?: string;
+    top?: string;
+    bottom?: string;
+    width: string;
+    rotate: string;
+    opacity: number;
+    lines: string[];
+}> = [
+    {
+        left: 'max(1.25rem, 4vw)',
+        top: '12%',
+        width: '18rem',
+        rotate: '-5deg',
+        opacity: 0.52,
+        lines: [
+            'const gearbox = await pricing.readAsset({',
+            "  unit: 'industrial-drive',",
+            "  mode: 'capex',",
+            '  safetyFactor: 1.18',
+            '});',
+        ],
+    },
+    {
+        right: 'max(1.5rem, 5vw)',
+        top: '16%',
+        width: '19rem',
+        rotate: '4deg',
+        opacity: 0.46,
+        lines: [
+            'pipeline.quote.create({',
+            "  stage: 'technical-review',",
+            '  margin: rules.targetMargin,',
+            '  leadTimeDays: 21',
+            '});',
+        ],
+    },
+    {
+        left: 'max(2rem, 7vw)',
+        bottom: '13%',
+        width: '20rem',
+        rotate: '3deg',
+        opacity: 0.38,
+        lines: [
+            'if (proposal.approved) {',
+            '  crm.nextStep.scheduleVisit();',
+            '  inventory.reserveComponents();',
+            '}',
+        ],
+    },
+    {
+        right: 'max(1rem, 6vw)',
+        bottom: '12%',
+        width: '17rem',
+        rotate: '-4deg',
+        opacity: 0.42,
+        lines: [
+            'risk.matrix.score({',
+            '  downtimeCost,',
+            '  replacementWindow,',
+            '  warrantyPlan',
+            '});',
+        ],
+    },
 ];
 
-const loginStreaks = [
-    { left: '6%', top: '26%', width: 96, color: '#38bdf8', angle: '-18deg', delay: '0.2s', duration: '6.2s' },
-    { left: '62%', top: '18%', width: 122, color: '#f59e0b', angle: '14deg', delay: '1.5s', duration: '7.2s' },
-    { left: '18%', top: '82%', width: 110, color: '#a78bfa', angle: '10deg', delay: '2.6s', duration: '6.8s' },
-    { left: '72%', top: '68%', width: 86, color: '#34d399', angle: '-22deg', delay: '3.2s', duration: '7.8s' },
+const loginFlowPaths: Array<{
+    d: string;
+    tone: 'cyan' | 'amber';
+    width: number;
+    dash: string;
+    duration: string;
+    delay: string;
+    opacity: number;
+}> = [
+    {
+        d: 'M -80 560 C 125 468 252 356 430 302 C 552 266 638 268 742 304',
+        tone: 'cyan',
+        width: 8,
+        dash: '110 560',
+        duration: '16s',
+        delay: '-3s',
+        opacity: 0.26,
+    },
+    {
+        d: 'M 2010 440 C 1772 410 1622 492 1460 585 C 1372 636 1284 650 1210 618',
+        tone: 'cyan',
+        width: 8,
+        dash: '96 510',
+        duration: '18s',
+        delay: '-7s',
+        opacity: 0.24,
+    },
+    {
+        d: 'M 40 838 C 270 800 412 790 596 824 C 765 855 922 884 1118 825 C 1308 768 1495 762 1790 818',
+        tone: 'amber',
+        width: 7,
+        dash: '72 500',
+        duration: '20s',
+        delay: '-9s',
+        opacity: 0.2,
+    },
+    {
+        d: 'M 190 206 C 374 188 520 214 652 288 C 710 320 760 344 820 346',
+        tone: 'cyan',
+        width: 5,
+        dash: '62 430',
+        duration: '14s',
+        delay: '-4s',
+        opacity: 0.18,
+    },
+    {
+        d: 'M 1805 178 C 1605 206 1512 300 1435 392 C 1372 468 1305 490 1230 466',
+        tone: 'amber',
+        width: 5,
+        dash: '58 430',
+        duration: '17s',
+        delay: '-6s',
+        opacity: 0.16,
+    },
 ];
 
-const loginGears = [
-    { left: '10%', top: '12%', size: 132, color: '#22d3ee', opacity: 0.24, duration: '30s', delay: '-4s', reverse: false },
-    { left: '78%', top: '13%', size: 96, color: '#f59e0b', opacity: 0.22, duration: '24s', delay: '-11s', reverse: true },
-    { left: '72%', top: '66%', size: 118, color: '#34d399', opacity: 0.2, duration: '34s', delay: '-16s', reverse: false },
-    { left: '17%', top: '76%', size: 76, color: '#a78bfa', opacity: 0.26, duration: '22s', delay: '-7s', reverse: true },
+const loginFlowPulses: Array<{
+    left?: string;
+    right?: string;
+    top?: string;
+    bottom?: string;
+    size: number;
+    color: 'cyan' | 'amber';
+    delay: string;
+    duration: string;
+    driftX: string;
+    driftY: string;
+}> = [
+    { left: '11%', top: '46%', size: 9, color: 'cyan', delay: '-1s', duration: '10s', driftX: '64px', driftY: '-92px' },
+    { left: '24%', top: '73%', size: 7, color: 'amber', delay: '-5s', duration: '13s', driftX: '118px', driftY: '-36px' },
+    { right: '18%', top: '55%', size: 8, color: 'cyan', delay: '-3s', duration: '12s', driftX: '-92px', driftY: '44px' },
+    { right: '11%', bottom: '18%', size: 6, color: 'amber', delay: '-8s', duration: '15s', driftX: '-78px', driftY: '-58px' },
 ];
 
 export default function Login() {
@@ -65,7 +177,7 @@ export default function Login() {
                 if (error) throw error;
             }
         } catch (error: any) {
-            setError(error.message || 'Erro de autenticação.');
+            setError(error.message || 'Erro de autenticacao.');
         } finally {
             setLoading(false);
         }
@@ -78,53 +190,118 @@ export default function Login() {
                 body,
                 #root {
                     min-height: 100%;
-                    background: #08111f;
+                    background: #04101d;
                 }
-                @keyframes loginParticleFloat {
-                    0% { transform: translate3d(0, 30px, 0) scale(0.72); opacity: 0; }
-                    18% { opacity: 0.95; }
-                    72% { opacity: 0.85; }
-                    100% { transform: translate3d(var(--particle-drift), -88px, 0) scale(1.25); opacity: 0; }
+                .login-industrial-bg {
+                    background-image: url('/login-industrial-bg.png');
+                    background-size: cover;
+                    background-position: center;
+                    transform: scale(1.01);
                 }
-                @keyframes loginStreakSweep {
-                    0% { transform: translate3d(-24px, 20px, 0) rotate(var(--streak-angle)); opacity: 0; }
-                    20% { opacity: 0.8; }
-                    70% { opacity: 0.55; }
-                    100% { transform: translate3d(46px, -54px, 0) rotate(var(--streak-angle)); opacity: 0; }
+                .login-industrial-overlay {
+                    background:
+                        radial-gradient(ellipse at center, rgba(5, 15, 27, 0.16) 0%, rgba(4, 11, 22, 0.34) 34%, rgba(2, 6, 23, 0.78) 100%),
+                        linear-gradient(90deg, rgba(2, 6, 23, 0.7) 0%, rgba(2, 6, 23, 0.2) 34%, rgba(2, 6, 23, 0.22) 66%, rgba(2, 6, 23, 0.74) 100%),
+                        linear-gradient(180deg, rgba(2, 6, 23, 0.54) 0%, rgba(2, 6, 23, 0.04) 46%, rgba(2, 6, 23, 0.74) 100%);
                 }
-                @keyframes loginGearSpin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
+                .login-industrial-grid {
+                    background-image:
+                        linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+                    background-size: 44px 44px;
+                    mask-image: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.58), transparent 78%);
+                    opacity: 0.38;
                 }
-                .login-particle {
-                    animation: loginParticleFloat var(--particle-duration) ease-in-out infinite;
-                    animation-delay: var(--particle-delay);
+                @keyframes loginFlowMove {
+                    from { stroke-dashoffset: 0; }
+                    to { stroke-dashoffset: -680; }
                 }
-                .login-streak {
-                    animation: loginStreakSweep var(--streak-duration) ease-in-out infinite;
-                    animation-delay: var(--streak-delay);
+                @keyframes loginFlowBreath {
+                    0%, 100% { filter: url(#login-flow-blur) brightness(0.86); }
+                    50% { filter: url(#login-flow-blur) brightness(1.16); }
                 }
-                .login-gear {
-                    animation: loginGearSpin var(--gear-duration) linear infinite;
-                    animation-delay: var(--gear-delay);
-                    color: var(--gear-color);
-                    filter: drop-shadow(0 0 18px var(--gear-color)) drop-shadow(0 0 42px rgba(255, 255, 255, 0.08));
+                @keyframes loginOilPulse {
+                    0% {
+                        transform: translate3d(0, 0, 0) scale(0.72);
+                        opacity: 0;
+                    }
+                    18% {
+                        opacity: 0.72;
+                    }
+                    68% {
+                        opacity: 0.44;
+                    }
+                    100% {
+                        transform: translate3d(var(--pulse-drift-x), var(--pulse-drift-y), 0) scale(1.34);
+                        opacity: 0;
+                    }
+                }
+                .login-flow-layer {
                     mix-blend-mode: screen;
-                    opacity: var(--gear-opacity);
-                    transform-origin: center;
+                    opacity: 0.74;
                 }
-                .login-gear-reverse {
-                    animation-direction: reverse;
+                .login-flow-base {
+                    fill: none;
+                    stroke-linecap: round;
+                    stroke-linejoin: round;
+                    opacity: 0.18;
+                }
+                .login-flow-glow {
+                    fill: none;
+                    stroke-linecap: round;
+                    stroke-linejoin: round;
+                    filter: url(#login-flow-blur);
+                    opacity: var(--flow-glow-opacity);
+                    animation: loginFlowBreath 11s ease-in-out infinite;
+                    animation-delay: var(--flow-delay);
+                }
+                .login-flow-active {
+                    fill: none;
+                    stroke-linecap: round;
+                    stroke-linejoin: round;
+                    stroke-dasharray: var(--flow-dash);
+                    stroke-dashoffset: 0;
+                    opacity: var(--flow-opacity);
+                    animation: loginFlowMove var(--flow-duration) linear infinite;
+                    animation-delay: var(--flow-delay);
+                }
+                .login-flow-cyan {
+                    stroke: rgba(103, 232, 249, 0.72);
+                }
+                .login-flow-amber {
+                    stroke: rgba(245, 158, 11, 0.58);
+                }
+                .login-oil-pulse {
+                    width: var(--pulse-size);
+                    height: var(--pulse-size);
+                    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9), var(--pulse-color) 42%, rgba(2, 6, 23, 0) 72%);
+                    filter: blur(0.5px) drop-shadow(0 0 18px var(--pulse-color));
+                    animation: loginOilPulse var(--pulse-duration) ease-in-out infinite;
+                    animation-delay: var(--pulse-delay);
+                    opacity: 0;
+                }
+                .login-code-collage {
+                    border: 1px solid rgba(103, 232, 249, 0.16);
+                    background: linear-gradient(135deg, rgba(5, 18, 31, 0.46), rgba(2, 6, 23, 0.16));
+                    box-shadow: 0 18px 56px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+                    color: rgba(186, 245, 255, 0.82);
+                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+                    text-shadow: 0 0 20px rgba(103, 232, 249, 0.2);
+                    backdrop-filter: blur(5px);
+                }
+                .login-code-collage pre {
+                    margin: 0;
+                    white-space: pre-wrap;
                 }
                 .login-logo-mark {
-                    background: rgba(255, 255, 255, 0.06);
-                    box-shadow: 0 18px 60px rgba(56, 189, 248, 0.32), 0 0 0 1px rgba(103, 232, 249, 0.2);
+                    background: rgba(255, 255, 255, 0.07);
+                    box-shadow: 0 18px 60px rgba(56, 189, 248, 0.26), 0 0 0 1px rgba(103, 232, 249, 0.2);
                 }
                 .login-brand-accent {
                     color: #67e8f9;
                 }
                 .login-card {
-                    background: rgba(2, 6, 23, 0.65);
+                    background: rgba(2, 6, 23, 0.76);
                 }
                 .login-auth-input {
                     background: rgba(15, 23, 42, 0.82);
@@ -161,76 +338,122 @@ export default function Login() {
                 .login-link-button:hover {
                     background: rgba(255, 255, 255, 0.1);
                 }
-                @media (prefers-reduced-motion: reduce) {
-                    .login-particle,
-                    .login-streak,
-                    .login-gear {
-                        animation: none !important;
-                        opacity: 0.45 !important;
+                @media (max-width: 1023px) {
+                    .login-code-collage {
+                        display: none !important;
                     }
-                    .login-gear {
+                }
+                @media (max-width: 640px) {
+                    .login-industrial-bg {
+                        background-position: 22% center;
+                    }
+                    .login-industrial-overlay {
+                        background:
+                            radial-gradient(ellipse at center, rgba(5, 15, 27, 0.22) 0%, rgba(4, 11, 22, 0.5) 42%, rgba(2, 6, 23, 0.86) 100%),
+                            linear-gradient(180deg, rgba(2, 6, 23, 0.68) 0%, rgba(2, 6, 23, 0.12) 46%, rgba(2, 6, 23, 0.78) 100%);
+                    }
+                    .login-flow-layer {
+                        opacity: 0.62;
+                    }
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .login-flow-active,
+                    .login-flow-glow,
+                    .login-oil-pulse {
+                        animation: none !important;
+                    }
+                    .login-flow-active,
+                    .login-flow-glow {
+                        opacity: 0.18 !important;
+                    }
+                    .login-oil-pulse {
                         opacity: 0.16 !important;
                     }
                 }
             `}</style>
-            <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#08111f] px-4 py-5" style={{ minHeight: 'max(100vh, 100dvh)' }}>
+            <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-5" style={{ minHeight: 'max(100vh, 100dvh)', backgroundColor: '#04101d' }}>
                 <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-                    <div
-                        className="absolute inset-0 opacity-35"
-                        style={{
-                            backgroundImage: 'linear-gradient(rgba(148, 163, 184, 0.11) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px)',
-                            backgroundSize: '42px 42px',
-                        }}
-                    />
-                    {loginStreaks.map((streak, index) => (
-                        <span
-                            key={`streak-${index}`}
-                            className="login-streak absolute h-px rounded-full opacity-0"
+                    <div className="login-industrial-bg absolute inset-0" />
+                    <div className="login-industrial-overlay absolute inset-0" />
+                    <div className="login-flow-layer absolute inset-0">
+                        <svg
+                            className="h-full w-full"
+                            viewBox="0 0 1920 960"
+                            preserveAspectRatio="none"
+                            focusable="false"
+                            role="presentation"
+                        >
+                            <defs>
+                                <filter id="login-flow-blur" x="-20%" y="-40%" width="140%" height="180%">
+                                    <feGaussianBlur stdDeviation="4" />
+                                </filter>
+                            </defs>
+                            {loginFlowPaths.map((flow, index) => (
+                                <g key={`flow-${index}`}>
+                                    <path
+                                        className={`login-flow-base login-flow-${flow.tone}`}
+                                        d={flow.d}
+                                        strokeWidth={flow.width + 10}
+                                    />
+                                    <path
+                                        className={`login-flow-glow login-flow-${flow.tone}`}
+                                        d={flow.d}
+                                        strokeWidth={flow.width + 16}
+                                        style={{
+                                            '--flow-glow-opacity': flow.opacity * 0.62,
+                                            '--flow-delay': flow.delay,
+                                        } as React.CSSProperties}
+                                    />
+                                    <path
+                                        className={`login-flow-active login-flow-${flow.tone}`}
+                                        d={flow.d}
+                                        strokeWidth={flow.width}
+                                        style={{
+                                            '--flow-dash': flow.dash,
+                                            '--flow-duration': flow.duration,
+                                            '--flow-delay': flow.delay,
+                                            '--flow-opacity': flow.opacity,
+                                        } as React.CSSProperties}
+                                    />
+                                </g>
+                            ))}
+                        </svg>
+                        {loginFlowPulses.map((pulse, index) => (
+                            <span
+                                key={`flow-pulse-${index}`}
+                                className="login-oil-pulse absolute rounded-full"
+                                style={{
+                                    left: pulse.left,
+                                    right: pulse.right,
+                                    top: pulse.top,
+                                    bottom: pulse.bottom,
+                                    '--pulse-size': `${pulse.size}px`,
+                                    '--pulse-duration': pulse.duration,
+                                    '--pulse-delay': pulse.delay,
+                                    '--pulse-drift-x': pulse.driftX,
+                                    '--pulse-drift-y': pulse.driftY,
+                                    '--pulse-color': pulse.color === 'cyan' ? 'rgba(103, 232, 249, 0.82)' : 'rgba(245, 158, 11, 0.72)',
+                                } as React.CSSProperties}
+                            />
+                        ))}
+                    </div>
+                    <div className="login-industrial-grid absolute inset-0" />
+                    {loginCodeFragments.map((fragment, index) => (
+                        <div
+                            key={`code-fragment-${index}`}
+                            className="login-code-collage absolute hidden rounded-lg p-4 text-[10px] font-semibold leading-5 tracking-normal lg:block"
                             style={{
-                                left: streak.left,
-                                top: streak.top,
-                                width: streak.width,
-                                background: `linear-gradient(90deg, transparent, ${streak.color}, transparent)`,
-                                boxShadow: `0 0 22px ${streak.color}`,
-                                '--streak-angle': streak.angle,
-                                '--streak-delay': streak.delay,
-                                '--streak-duration': streak.duration,
+                                left: fragment.left,
+                                right: fragment.right,
+                                top: fragment.top,
+                                bottom: fragment.bottom,
+                                width: fragment.width,
+                                opacity: fragment.opacity,
+                                transform: `rotate(${fragment.rotate})`,
                             } as React.CSSProperties}
-                        />
-                    ))}
-                    {loginGears.map((gear, index) => (
-                        <Cog
-                            key={`gear-${index}`}
-                            className={`login-gear absolute ${gear.reverse ? 'login-gear-reverse' : ''}`}
-                            strokeWidth={1.25}
-                            style={{
-                                left: gear.left,
-                                top: gear.top,
-                                width: gear.size,
-                                height: gear.size,
-                                '--gear-color': gear.color,
-                                '--gear-opacity': gear.opacity,
-                                '--gear-duration': gear.duration,
-                                '--gear-delay': gear.delay,
-                            } as React.CSSProperties}
-                        />
-                    ))}
-                    {loginParticles.map((particle, index) => (
-                        <span
-                            key={`particle-${index}`}
-                            className="login-particle absolute rounded-full opacity-0"
-                            style={{
-                                left: particle.left,
-                                top: particle.top,
-                                width: particle.size,
-                                height: particle.size,
-                                backgroundColor: particle.color,
-                                boxShadow: `0 0 24px ${particle.color}, 0 0 48px ${particle.color}`,
-                                '--particle-delay': particle.delay,
-                                '--particle-duration': particle.duration,
-                                '--particle-drift': particle.drift,
-                            } as React.CSSProperties}
-                        />
+                        >
+                            <pre>{fragment.lines.join('\n')}</pre>
+                        </div>
                     ))}
                 </div>
 
@@ -240,7 +463,7 @@ export default function Login() {
                             <Zap size={30} />
                         </div>
                         <h1 className="text-3xl font-black tracking-normal text-white sm:text-4xl">
-                            OP<span className="login-brand-accent">CAPEX</span>
+                            o<span className="login-brand-accent">Price</span>
                         </h1>
                     </div>
 
