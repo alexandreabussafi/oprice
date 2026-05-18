@@ -56,8 +56,8 @@ export const microsoftWorkspaceService = {
     await invokeMicrosoftFunction('microsoft-disconnect', { tenantId });
   },
 
-  async syncMail(tenantId: string): Promise<{ imported: number; tasksUpdated: number; taskErrors?: number; conversationWarnings?: number }> {
-    return invokeMicrosoftFunction<{ imported: number; tasksUpdated: number; taskErrors?: number; conversationWarnings?: number }>('microsoft-sync-mail', { tenantId });
+  async syncMail(tenantId: string): Promise<{ imported: number; tasksUpdated: number; taskErrors?: number; conversationWarnings?: number; mailboxWarnings?: number }> {
+    return invokeMicrosoftFunction<{ imported: number; tasksUpdated: number; taskErrors?: number; conversationWarnings?: number; mailboxWarnings?: number }>('microsoft-sync-mail', { tenantId });
   },
 
   async sendEmail(draft: MicrosoftEmailDraft) {

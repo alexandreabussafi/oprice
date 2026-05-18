@@ -1,6 +1,6 @@
 ﻿
 import React, { useEffect, useMemo, useState } from 'react';
-import { ProposalData, KitTemplate, KitItemTemplate, AccountingMapping, AccountingAccount, defaultAccounting, AppRole, BusinessUnitAccess, TenantMember, ProposalTemplateConfig, ProposalTemplateKind, TenantBranding, SalesPipelineConfig, SalesPipelineStageConfig, ProposalSendAutomationTemplate } from '../types';
+import { ProposalData, KitTemplate, KitItemTemplate, AccountingMapping, AccountingAccount, defaultAccounting, AppRole, BusinessUnitAccess, TenantMember, ProposalTemplateConfig, ProposalTemplateKind, TenantBranding, SalesPipelineConfig, SalesPipelineStageConfig, ProposalSendAutomationTemplate, MicrosoftInboxFilterConfig, MicrosoftSharedMailboxConfig } from '../types';
 import Taxes from './Taxes'; // Reusing the Taxes component logic for global settings
 import { Settings, Package, Plus, Trash2, Box, Info, ShieldAlert, TrendingUp, Landmark, Wrench, Truck, Monitor, HardHat, BookOpen, Palette, Image as ImageIcon, Loader2, Users, UserPlus, Shield, Save, X, Edit2, AlertCircle, Eye, EyeOff, Building2, Upload, Bell, CalendarClock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -18,9 +18,53 @@ interface GlobalSettingsProps {
     setGlobalConfig: (config: ProposalData) => void;
 }
 
+const DEFAULT_MICROSOFT_INBOX_FILTERS: Required<Pick<MicrosoftInboxFilterConfig, 'ignoreNoReply' | 'ignoreAutoReplies' | 'ignoreNewsletters'>> & MicrosoftInboxFilterConfig = {
+    ignoreNoReply: true,
+    ignoreAutoReplies: true,
+    ignoreNewsletters: true,
+    ignoredDomains: [],
+    ignoredSenders: [],
+    subjectExcludes: [],
+    allowedDomains: []
+};
+
+const normalizeMicrosoftInboxFilters = (filters?: MicrosoftInboxFilterConfig): MicrosoftInboxFilterConfig => ({
+    ...DEFAULT_MICROSOFT_INBOX_FILTERS,
+    ...(filters || {}),
+    ignoredDomains: (filters?.ignoredDomains || []).map(item => item.trim().toLowerCase()).filter(Boolean),
+    ignoredSenders: (filters?.ignoredSenders || []).map(item => item.trim().toLowerCase()).filter(Boolean),
+    subjectExcludes: (filters?.subjectExcludes || []).map(item => item.trim()).filter(Boolean),
+    allowedDomains: (filters?.allowedDomains || []).map(item => item.trim().toLowerCase()).filter(Boolean)
+});
+
+const normalizeMicrosoftMailboxConfig = (mailbox: MicrosoftSharedMailboxConfig): MicrosoftSharedMailboxConfig => ({
+    ...mailbox,
+    email: mailbox.email.trim().toLowerCase(),
+    label: mailbox.label?.trim() || mailbox.email.trim().toLowerCase(),
+    enabled: mailbox.enabled !== false,
+    intakeMode: 'filtered',
+    intakeStartAt: mailbox.intakeStartAt || new Date().toISOString(),
+    filters: normalizeMicrosoftInboxFilters(mailbox.filters)
+});
+
+const csvToList = (value: string) => value.split(',').map(item => item.trim()).filter(Boolean);
+const listToCsv = (items?: string[]) => (items || []).join(', ');
+const toDateTimeLocalValue = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+};
+const fromDateTimeLocalValue = (value: string) => {
+    if (!value) return new Date().toISOString();
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+};
+
 const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobalConfig }) => {
     const [mainGroup, setMainGroup] = useState<'marca' | 'gerais' | 'crm' | 'servicos' | 'produtos' | 'propostas' | 'usuarios'>('marca');
-    const [activeTab, setActiveTab] = useState<'brand' | 'finance' | 'taxes' | 'accounting' | 'pipelines' | 'proposal_followup' | 'letterhead' | 'kits' | 'products' | 'product_layout' | 'proposal_templates' | 'user_list'>('brand');
+    const [activeTab, setActiveTab] = useState<'brand' | 'finance' | 'taxes' | 'accounting' | 'pipelines' | 'proposal_followup' | 'microsoft_workspace' | 'letterhead' | 'kits' | 'products' | 'product_layout' | 'proposal_templates' | 'user_list'>('brand');
     const { activeTenant, activeTenantId, memberships, tenantMembers, refreshTenantMembers, createPlatformUser, updateTenantUser, removeUserFromTenant, updateTenantBranding, uploadTenantLogo, uploadTenantBrandingAsset, isPlatformSuperAdmin } = useTenant();
     const [brandingSaving, setBrandingSaving] = useState(false);
     const [assetUploading, setAssetUploading] = useState<'logo' | 'favicon' | null>(null);
@@ -67,10 +111,15 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
     const [selectedTemplateKind, setSelectedTemplateKind] = useState<ProposalTemplateKind>('SAAS_SUBSCRIPTION');
     const [selectedPipelineKey, setSelectedPipelineKey] = useState('');
     const [selectedFollowUpTemplateId, setSelectedFollowUpTemplateId] = useState<string | null>(null);
+    const [newSharedMailboxEmail, setNewSharedMailboxEmail] = useState('');
+    const [newSharedMailboxLabel, setNewSharedMailboxLabel] = useState('');
 
     const selectedKit = globalConfig.kitTemplates?.find(k => k.id === selectedKitId);
     const proposalTemplates = mergeProposalTemplates(globalConfig.proposalTemplates, globalConfig.letterheadConfig?.companyName);
     const proposalSendAutomation = normalizeProposalSendAutomation(globalConfig.proposalSendAutomation);
+    const microsoftSharedMailboxes = (globalConfig.microsoftWorkspace?.sharedMailboxes || [])
+        .filter(mailbox => mailbox.email)
+        .map(normalizeMicrosoftMailboxConfig);
     const selectedFollowUpTemplate = proposalSendAutomation.templates.find(template => template.id === selectedFollowUpTemplateId)
         || proposalSendAutomation.templates.find(template => template.id === proposalSendAutomation.defaultTemplateId)
         || proposalSendAutomation.templates[0];
@@ -216,6 +265,53 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
         if (selectedFollowUpTemplateId === templateId) {
             setSelectedFollowUpTemplateId(nextDefault || nextTemplates[0]?.id || null);
         }
+    };
+
+    const saveMicrosoftSharedMailboxes = (sharedMailboxes: MicrosoftSharedMailboxConfig[]) => {
+        const normalized = sharedMailboxes
+            .map(normalizeMicrosoftMailboxConfig)
+            .filter(mailbox => mailbox.email.includes('@'))
+            .filter((mailbox, index, list) => list.findIndex(item => item.email === mailbox.email) === index);
+        setGlobalConfig({
+            ...globalConfig,
+            microsoftWorkspace: {
+                ...(globalConfig.microsoftWorkspace || {}),
+                personalInboxIntake: {
+                    ...(globalConfig.microsoftWorkspace?.personalInboxIntake || {}),
+                    enabled: false,
+                    filters: normalizeMicrosoftInboxFilters(globalConfig.microsoftWorkspace?.personalInboxIntake?.filters)
+                },
+                sharedMailboxes: normalized
+            }
+        });
+    };
+
+    const addMicrosoftSharedMailbox = () => {
+        const email = newSharedMailboxEmail.trim().toLowerCase();
+        if (!email.includes('@')) return;
+        saveMicrosoftSharedMailboxes([
+            ...microsoftSharedMailboxes,
+            {
+                email,
+                label: newSharedMailboxLabel.trim() || email,
+                enabled: true,
+                intakeMode: 'filtered',
+                intakeStartAt: new Date().toISOString(),
+                filters: DEFAULT_MICROSOFT_INBOX_FILTERS
+            }
+        ]);
+        setNewSharedMailboxEmail('');
+        setNewSharedMailboxLabel('');
+    };
+
+    const updateMicrosoftSharedMailbox = (email: string, updates: Partial<MicrosoftSharedMailboxConfig>) => {
+        saveMicrosoftSharedMailboxes(microsoftSharedMailboxes.map(mailbox =>
+            mailbox.email === email ? { ...mailbox, ...updates } : mailbox
+        ));
+    };
+
+    const removeMicrosoftSharedMailbox = (email: string) => {
+        saveMicrosoftSharedMailboxes(microsoftSharedMailboxes.filter(mailbox => mailbox.email !== email));
     };
 
     // --- CRUD OPERATIONS FOR KITS ---
@@ -784,6 +880,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                         <>
                             <button onClick={() => setActiveTab('pipelines')} className={subTabClass(activeTab === 'pipelines')}>Pipelines de Venda</button>
                             <button onClick={() => setActiveTab('proposal_followup')} className={subTabClass(activeTab === 'proposal_followup')}>Follow-up de Proposta</button>
+                            <button onClick={() => setActiveTab('microsoft_workspace')} className={subTabClass(activeTab === 'microsoft_workspace')}>E-mail e Inbox</button>
                         </>
                     )}
                     {mainGroup === 'servicos' && hasServicesPricing && (
@@ -1435,6 +1532,148 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                 <Trash2 size={14} /> Remover modelo
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'microsoft_workspace' && (
+                <div className="mx-auto max-w-5xl space-y-5 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-6 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--tenant-border)] pb-5 dark:border-[var(--tenant-border-dark)]">
+                        <div>
+                            <h3 className="flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-slate-100">
+                                <Building2 size={22} className="text-[var(--tenant-primary)]" />
+                                E-mail e Inbox Microsoft
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Configure caixas compartilhadas para triagem no CRM sem importar a caixa pessoal inteira.</p>
+                        </div>
+                    </div>
+
+                    <div className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 py-3 text-xs font-semibold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">
+                        A caixa pessoal conectada continua sincronizando propostas e conversas conhecidas. A Inbox CRM de triagem usa apenas caixas compartilhadas ativas a partir da data configurada.
+                    </div>
+
+                    <div className="grid gap-3 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] md:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_auto]">
+                        <label className="space-y-2">
+                            <span className="text-xs font-black uppercase text-slate-500">E-mail da caixa</span>
+                            <input
+                                value={newSharedMailboxEmail}
+                                onChange={event => setNewSharedMailboxEmail(event.target.value)}
+                                placeholder="comercial@empresa.com.br"
+                                className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-100"
+                            />
+                        </label>
+                        <label className="space-y-2">
+                            <span className="text-xs font-black uppercase text-slate-500">Nome</span>
+                            <input
+                                value={newSharedMailboxLabel}
+                                onChange={event => setNewSharedMailboxLabel(event.target.value)}
+                                placeholder="Comercial"
+                                className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-100"
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            disabled={!newSharedMailboxEmail.trim().includes('@')}
+                            onClick={addMicrosoftSharedMailbox}
+                            className="self-end inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[var(--tenant-primary)] px-4 text-sm font-black text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <Plus size={16} /> Adicionar
+                        </button>
+                    </div>
+
+                    <div className="space-y-3">
+                        {microsoftSharedMailboxes.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 py-8 text-center text-sm font-semibold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">
+                                Nenhuma caixa compartilhada configurada para este tenant.
+                            </div>
+                        ) : microsoftSharedMailboxes.map(mailbox => (
+                            <div key={mailbox.email} className="space-y-4 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_160px_auto_auto]">
+                                    <input
+                                        value={mailbox.email}
+                                        onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { email: event.target.value })}
+                                        className="min-h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-100"
+                                    />
+                                    <input
+                                        value={mailbox.label || ''}
+                                        onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { label: event.target.value })}
+                                        className="min-h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-100"
+                                    />
+                                    <input
+                                        type="datetime-local"
+                                        value={toDateTimeLocalValue(mailbox.intakeStartAt)}
+                                        onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { intakeStartAt: fromDateTimeLocalValue(event.target.value) })}
+                                        className="min-h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-100"
+                                        title="Importar recebidos a partir desta data"
+                                    />
+                                    <label className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-xs font-black text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={mailbox.enabled !== false}
+                                            onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { enabled: event.target.checked })}
+                                        />
+                                        Ativa
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeMicrosoftSharedMailbox(mailbox.email)}
+                                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-red-200 px-3 text-xs font-black text-red-600 transition hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30"
+                                    >
+                                        <Trash2 size={14} /> Remover
+                                    </button>
+                                </div>
+                                <div className="grid gap-3 md:grid-cols-3">
+                                    <label className="inline-flex items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={mailbox.filters?.ignoreNoReply !== false}
+                                            onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { filters: { ...mailbox.filters, ignoreNoReply: event.target.checked } })}
+                                        />
+                                        Ignorar no-reply
+                                    </label>
+                                    <label className="inline-flex items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={mailbox.filters?.ignoreAutoReplies !== false}
+                                            onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { filters: { ...mailbox.filters, ignoreAutoReplies: event.target.checked } })}
+                                        />
+                                        Ignorar respostas automáticas
+                                    </label>
+                                    <label className="inline-flex items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={mailbox.filters?.ignoreNewsletters !== false}
+                                            onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { filters: { ...mailbox.filters, ignoreNewsletters: event.target.checked } })}
+                                        />
+                                        Ignorar newsletters
+                                    </label>
+                                </div>
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <label className="space-y-2">
+                                        <span className="text-xs font-black uppercase text-slate-500">Domínios ignorados</span>
+                                        <input
+                                            value={listToCsv(mailbox.filters?.ignoredDomains)}
+                                            onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { filters: { ...mailbox.filters, ignoredDomains: csvToList(event.target.value) } })}
+                                            placeholder="exemplo.com, newsletter.com"
+                                            className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-100"
+                                        />
+                                    </label>
+                                    <label className="space-y-2">
+                                        <span className="text-xs font-black uppercase text-slate-500">Remetentes ignorados</span>
+                                        <input
+                                            value={listToCsv(mailbox.filters?.ignoredSenders)}
+                                            onChange={event => updateMicrosoftSharedMailbox(mailbox.email, { filters: { ...mailbox.filters, ignoredSenders: csvToList(event.target.value) } })}
+                                            placeholder="noreply@exemplo.com"
+                                            className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-100"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 py-3 text-xs font-semibold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">
+                        A conta Microsoft conectada precisa ter acesso delegado a cada caixa compartilhada e o App Registration precisa de Mail.Read.Shared. Se uma nova permissão aparecer no Microsoft, reconecte o Outlook no CRM para renovar o consentimento.
                     </div>
                 </div>
             )}

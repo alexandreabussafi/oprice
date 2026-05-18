@@ -1,4 +1,4 @@
-import { corsHeaders, encryptToken, fetchMicrosoftJson, getServiceClient, htmlResponse, requireEnv } from '../_shared/microsoft.ts';
+import { MICROSOFT_OAUTH_SCOPES, corsHeaders, encryptToken, fetchMicrosoftJson, getServiceClient, htmlResponse, requireEnv } from '../_shared/microsoft.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
         code,
         grant_type: 'authorization_code',
         redirect_uri: requireEnv('MICROSOFT_REDIRECT_URI'),
-        scope: 'openid email profile offline_access User.Read Mail.Send Mail.Read Calendars.ReadWrite Tasks.ReadWrite'
+        scope: MICROSOFT_OAUTH_SCOPES.join(' ')
       })
     });
     if (!tokenData.refresh_token) throw new Error('Microsoft nao retornou refresh token. Conecte novamente.');

@@ -9,6 +9,21 @@ export const LUBRIM_TENANT_ID = 'tenant-lubrim';
 export const SAAS_TENANT_ID = 'tenant-saas';
 export const IOT_TENANT_ID = 'tenant-iot';
 const RESERVED_PATHS = new Set(['login', 'superadmin', 'help', 'auth', 'api', 'assets']);
+const PLATFORM_CREATE_USER_TIMEOUT_MS = 60_000;
+const PLATFORM_CREATE_USER_RECONCILE_TIMEOUT_MS = 20_000;
+const PLATFORM_CREATE_USER_RECONCILE_INTERVAL_MS = 2_000;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const readFunctionErrorMessage = async (response?: Response | null) => {
+  if (!response) return null;
+  try {
+    const body = await response.clone().json();
+    return typeof body?.error === 'string' ? body.error : null;
+  } catch {
+    return null;
+  }
+};
 
 const getPathTenantSlug = () => {
   if (typeof window === 'undefined') return null;
@@ -407,14 +422,85 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       throw new Error('Criacao de usuarios exige Supabase ativo.');
     }
 
-    const { data, error } = await runSupabaseRequest(
-      signal => supabase.functions.invoke('platform-create-user', { body: payload, signal } as any),
-      { label: 'Criar usuario na plataforma', resource: 'functions/platform-create-user', tenantId: payload.tenantId, timeoutMs: 15000 }
-    );
+    const findCreatedUser = async () => {
+      const profile = await runSupabaseResponse(
+        signal => withAbortSignal(
+          supabase
+            .from('profiles')
+            .select('id,email,platform_role')
+            .ilike('email', payload.email)
+            .maybeSingle(),
+          signal
+        ),
+        { label: 'Conferir usuario criado', resource: 'profiles', tenantId: payload.tenantId, timeoutMs: 5000 }
+      ) as any;
+
+      if (!profile?.id) return null;
+      if (payload.platformRole === 'SUPER_ADMIN' && profile.platform_role === 'SUPER_ADMIN') {
+        return { userId: profile.id, email: profile.email || payload.email };
+      }
+      if (payload.platformRole === 'SUPER_ADMIN') return null;
+
+      const membership = await runSupabaseResponse(
+        signal => withAbortSignal(
+          supabase
+            .from('tenant_users')
+            .select('tenant_id,user_id,active')
+            .eq('tenant_id', payload.tenantId)
+            .eq('user_id', profile.id)
+            .maybeSingle(),
+          signal
+        ),
+        { label: 'Conferir vinculo do usuario criado', resource: 'tenant_users', tenantId: payload.tenantId, timeoutMs: 5000 }
+      ) as any;
+
+      return membership?.user_id && membership.active !== false ? { userId: profile.id, email: profile.email || payload.email } : null;
+    };
+
+    const waitForCreatedUserAfterTimeout = async () => {
+      const deadline = Date.now() + PLATFORM_CREATE_USER_RECONCILE_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        try {
+          const created = await findCreatedUser();
+          if (created) return created;
+        } catch (error) {
+          console.warn('TenantContext: nao foi possivel reconciliar criacao de usuario apos timeout.', error);
+        }
+        await sleep(PLATFORM_CREATE_USER_RECONCILE_INTERVAL_MS);
+      }
+      return null;
+    };
+
+    let response: any;
+    try {
+      response = await runSupabaseRequest(
+        signal => supabase.functions.invoke('platform-create-user', {
+          body: payload,
+          signal,
+          timeout: PLATFORM_CREATE_USER_TIMEOUT_MS
+        } as any),
+        { label: 'Criar usuario na plataforma', resource: 'functions/platform-create-user', tenantId: payload.tenantId, timeoutMs: PLATFORM_CREATE_USER_TIMEOUT_MS }
+      );
+    } catch (error: any) {
+      if (classifySupabaseError(error) === 'timeout') {
+        const created = await waitForCreatedUserAfterTimeout();
+        if (created) {
+          await refreshTenantMembers(payload.tenantId);
+          if (payload.platformRole === 'SUPER_ADMIN') {
+            await refreshTenants();
+          }
+          return created;
+        }
+      }
+      throw new Error(getPersistenceErrorMessage(error, 'Erro ao chamar a Edge Function platform-create-user.'));
+    }
+
+    const { data, error } = response;
     if (error) {
+      const functionMessage = await readFunctionErrorMessage(response.response);
       const message = error.message?.includes('Failed to send a request')
         ? 'Nao foi possivel acessar a Edge Function platform-create-user. Verifique se ela foi publicada no Supabase e se o projeto esta acessivel.'
-        : error.message;
+        : functionMessage || error.message;
       throw new Error(message || 'Erro ao chamar a Edge Function platform-create-user.');
     }
     if (data?.error) throw new Error(data.error);

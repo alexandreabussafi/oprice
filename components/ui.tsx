@@ -266,7 +266,7 @@ export const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = ({
   children,
   className,
   panelClassName,
-  mode = 'static-md',
+  mode = 'overlay',
   closeLabel = 'Fechar painel',
   showCloseButton = false,
   ...props
@@ -278,12 +278,12 @@ export const ResponsiveDrawer: React.FC<ResponsiveDrawerProps> = ({
     : 'fixed inset-0 z-[500]';
 
   const panelClass = mode === 'static-md'
-    ? 'fixed inset-y-0 right-0 z-[91] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl animate-in slide-in-from-right duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:w-[50vw] sm:min-w-[360px] sm:max-w-[520px] lg:static lg:z-auto lg:h-full lg:w-[min(720px,calc(100vw_-_280px))] lg:max-w-none lg:shadow-xl'
-    : 'fixed inset-y-0 right-0 z-[501] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl animate-in slide-in-from-right duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:w-[50vw] sm:min-w-[360px] sm:max-w-[560px] lg:w-[min(640px,54vw)] lg:max-w-[680px]';
+    ? 'fixed inset-y-0 right-0 z-[91] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-[var(--tenant-border)] bg-[color-mix(in_srgb,var(--tenant-panel)_94%,transparent)] shadow-2xl backdrop-blur-xl animate-in slide-in-from-right duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[color-mix(in_srgb,var(--tenant-panel-dark)_92%,transparent)] sm:w-[50vw] sm:min-w-[360px] sm:max-w-[520px] lg:static lg:z-auto lg:h-full lg:w-[min(720px,calc(100vw_-_280px))] lg:max-w-none lg:shadow-xl'
+    : 'fixed inset-y-0 right-0 z-[501] flex h-dvh w-[88vw] max-w-[420px] flex-col border-l border-[var(--tenant-border)] bg-[color-mix(in_srgb,var(--tenant-panel)_94%,transparent)] shadow-2xl backdrop-blur-xl animate-in slide-in-from-right duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[color-mix(in_srgb,var(--tenant-panel-dark)_92%,transparent)] sm:w-[50vw] sm:min-w-[360px] sm:max-w-[560px] lg:w-[min(640px,54vw)] lg:max-w-[680px]';
 
   return (
     <div {...props} className={cn(wrapperClass, className)} onClick={onClose}>
-      <div className={cn('absolute inset-0 bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-[1px]', mode === 'static-md' && 'lg:hidden')} />
+      <div className={cn('absolute inset-0 bg-[color-mix(in_srgb,var(--tenant-bg-dark)_18%,transparent)] backdrop-blur-[1px]', mode === 'static-md' && 'lg:hidden')} />
       <aside className={cn(panelClass, panelClassName)} onClick={event => event.stopPropagation()}>
         {showCloseButton && (
           <button

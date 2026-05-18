@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Client, Contact, ProposalData } from '../types';
+import { Client, Contact, OpportunityMotion, ProposalData, ProposalType, TenantModule } from '../types';
 import { Plus, Search, MapPin, Building2, User, Trash2, Edit3, Mail, Phone, XCircle, TrendingUp, LayoutList, LayoutGrid, Clock, Briefcase, Loader2, Network, Package, Users, FileText, UserPlus } from 'lucide-react';
 import { formatCurrency } from '../utils/pricingEngine';
 import { Button, PageHeader, ResponsiveDrawer } from '../components/ui';
@@ -11,10 +11,12 @@ interface ClientsProps {
     onDeleteClient: (id: string) => void | Promise<void>;
     onSaveContact?: (contact: Contact) => void | Promise<void>;
     onSelectProposal?: (id: string) => void;
+    onCreateProposal?: (payload: { type: ProposalType, clientId: string, motion: OpportunityMotion, pricingModule?: TenantModule, openEditor?: boolean }) => ProposalData | void | Promise<ProposalData | void>;
+    businessUnit: 'SERVICES' | 'PRODUCTS';
     proposals: ProposalData[];
 }
 
-const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient, onDeleteClient, onSaveContact, onSelectProposal, proposals }) => {
+const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient, onDeleteClient, onSaveContact, onSelectProposal, onCreateProposal, businessUnit, proposals }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -237,6 +239,16 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
         }
     };
 
+    const createProposalFromClient = async () => {
+        if (!selectedClient || !onCreateProposal) return;
+        await onCreateProposal({
+            type: businessUnit === 'PRODUCTS' ? 'PRODUCT' : 'CONTINUOUS',
+            clientId: selectedClient.id,
+            motion: 'NewBusiness',
+            openEditor: true
+        });
+    };
+
     const fieldClass = 'w-full rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-semibold text-[var(--tenant-text)] outline-none transition-all focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]';
     const labelClass = 'block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1';
 
@@ -305,7 +317,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                                                 openClientDetail(client.id);
                                             }
                                         }}
-                                        className={`rounded-md border bg-[var(--tenant-panel)] px-3 py-2.5 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:bg-[var(--tenant-panel-dark)] ${isSelected ? 'border-[var(--tenant-primary-border)] ring-2 ring-[var(--tenant-primary-soft)]' : 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}`}
+                                        className={`rounded-md border px-3 py-2.5 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] ${isSelected ? 'border-[var(--tenant-primary-border)] bg-[color-mix(in_srgb,var(--tenant-primary)_12%,var(--tenant-panel))] shadow-md ring-1 ring-[var(--tenant-primary-soft)] dark:bg-[color-mix(in_srgb,var(--tenant-primary)_18%,var(--tenant-panel-dark))]' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] hover:-translate-y-0.5 hover:border-[var(--tenant-primary-border)] hover:bg-[color-mix(in_srgb,var(--tenant-primary)_7%,var(--tenant-panel))] hover:shadow-md dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:hover:bg-[color-mix(in_srgb,var(--tenant-primary)_12%,var(--tenant-panel-dark))]'}`}
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0">
@@ -361,7 +373,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                                 {filteredClients.map(client => {
                                     const isSelected = selectedClientId === client.id;
                                     return (
-                                        <tr key={client.id} onClick={(e) => { e.stopPropagation(); openClientDetail(client.id); }} className={`group border-l-[6px] transition-all ${isSelected ? 'bg-[var(--tenant-control-active)] dark:bg-[var(--tenant-control-active-dark)] border-l-[var(--tenant-primary)]' : 'border-l-transparent hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)]'}`}>
+                                        <tr key={client.id} onClick={(e) => { e.stopPropagation(); openClientDetail(client.id); }} className={`group border-l-[6px] transition-all ${isSelected ? 'border-l-[var(--tenant-primary)] bg-[color-mix(in_srgb,var(--tenant-primary)_12%,var(--tenant-panel))] shadow-[inset_0_0_0_1px_var(--tenant-primary-border)] dark:bg-[color-mix(in_srgb,var(--tenant-primary)_16%,var(--tenant-panel-dark))]' : 'border-l-transparent hover:border-l-[var(--tenant-primary-border)] hover:bg-[color-mix(in_srgb,var(--tenant-primary)_6%,var(--tenant-panel))] dark:hover:bg-[color-mix(in_srgb,var(--tenant-primary)_10%,var(--tenant-panel-dark))]'}`}>
                                             <td className="px-6 py-4">{renderClientBadge(client)}</td>
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-slate-800 dark:text-slate-100 text-base">{client.name}</div>
@@ -403,7 +415,8 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredClients.map(client => (
-                            <div key={client.id} onClick={(e) => { e.stopPropagation(); openClientDetail(client.id); }} className={`relative cursor-pointer rounded-lg border bg-[var(--tenant-panel)] p-5 shadow-sm transition-all hover:shadow-md dark:bg-[var(--tenant-panel-dark)] group ${selectedClientId === client.id ? 'ring-2 ring-[var(--tenant-primary)] border-transparent' : 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}`}>
+                            <div key={client.id} onClick={(e) => { e.stopPropagation(); openClientDetail(client.id); }} className={`group relative cursor-pointer overflow-hidden rounded-lg border p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${selectedClientId === client.id ? 'border-[var(--tenant-primary-border)] bg-[color-mix(in_srgb,var(--tenant-primary)_12%,var(--tenant-panel))] ring-1 ring-[var(--tenant-primary-soft)] dark:bg-[color-mix(in_srgb,var(--tenant-primary)_16%,var(--tenant-panel-dark))]' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] hover:border-[var(--tenant-primary-border)] hover:bg-[color-mix(in_srgb,var(--tenant-primary)_6%,var(--tenant-panel))] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:hover:bg-[color-mix(in_srgb,var(--tenant-primary)_10%,var(--tenant-panel-dark))]'}`}>
+                                <span className={`absolute inset-y-0 left-0 w-1 transition ${selectedClientId === client.id ? 'bg-[var(--tenant-primary)]' : 'bg-transparent group-hover:bg-[var(--tenant-primary-border)]'}`} />
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"><Building2 size={22} /></div>
                                     <span className={`inline-flex h-2.5 w-2.5 rounded-full ${client.status === 'Active' ? 'bg-emerald-500' : 'bg-[var(--tenant-border)] dark:bg-[var(--tenant-border-dark)]'}`}></span>
@@ -435,12 +448,44 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                     panelClassName="lg:w-[460px] lg:max-w-[calc(100vw-24px)]"
                 >
                     <div className="border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-6 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="flex gap-2 items-center flex-wrap">
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <span className={`rounded border px-2 py-1 text-[10px] font-bold uppercase ${selectedClient.status === 'Active' ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-600 dark:text-slate-400 border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}`}>{selectedClient.status === 'Active' ? 'Ativo' : 'Inativo'}</span>
                                 {selectedClient.classification && <span className="text-[10px] font-bold px-2 py-1 rounded uppercase border bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] border-[var(--tenant-primary-border)]">{selectedClient.classification}</span>}
                             </div>
-                            <button onClick={() => setSelectedClientId(null)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] rounded-full"><XCircle size={20} /></button>
+                            <div className="flex shrink-0 items-center gap-2">
+                                {onCreateProposal && (
+                                    <button
+                                        type="button"
+                                        onClick={createProposalFromClient}
+                                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-[var(--tenant-primary)] px-3 text-xs font-black text-white shadow-sm transition hover:brightness-95"
+                                        title="Criar oportunidade"
+                                        aria-label="Criar oportunidade"
+                                    >
+                                        <Plus size={14} />
+                                        <span className="hidden sm:inline">Oportunidade</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenModal(selectedClient)}
+                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"
+                                    title="Editar cliente"
+                                    aria-label="Editar cliente"
+                                >
+                                    <Edit3 size={15} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(selectedClient.id)}
+                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+                                    title="Remover cliente"
+                                    aria-label="Remover cliente"
+                                >
+                                    <Trash2 size={15} />
+                                </button>
+                                <button onClick={() => setSelectedClientId(null)} className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-400 transition hover:text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-500 dark:hover:text-slate-300" title="Fechar painel" aria-label="Fechar painel"><XCircle size={18} /></button>
+                            </div>
                         </div>
                         <h2 className="font-black text-xl text-slate-800 dark:text-slate-100 leading-tight mb-1">{selectedClient.name}</h2>
                         <div className="flex items-center gap-3">
@@ -538,15 +583,11 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
                         )}
                     </div>
 
-                    <div className="flex gap-2 border-t border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]">
-                        <button onClick={() => handleOpenModal(selectedClient)} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] py-2 text-xs font-bold text-[var(--tenant-text)] hover:brightness-95 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]"><Edit3 size={14} /> Editar</button>
-                        <button onClick={() => handleDelete(selectedClient.id)} className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-red-400 dark:hover:bg-red-900/20"><Trash2 size={14} /> Remover</button>
-                    </div>
                 </ResponsiveDrawer>
             )}
 
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-[700] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_55%,transparent)] backdrop-blur-sm p-4">
                     <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                         <div className="shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-5 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]">
                             <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">{editingId ? 'Editar cliente' : 'Novo cliente'}</h3>
@@ -630,7 +671,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, contacts = [], onSaveClient,
             )}
 
             {isContactModalOpen && selectedClient && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-[720] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_55%,transparent)] backdrop-blur-sm p-4">
                     <div className="w-full max-w-lg rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                         <div className="flex items-center justify-between border-b border-[var(--tenant-border)] p-5 dark:border-[var(--tenant-border-dark)]">
                             <div>

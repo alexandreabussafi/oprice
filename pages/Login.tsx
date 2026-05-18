@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Cog, Eye, EyeOff, Loader2, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const loginParticles = [
@@ -22,6 +22,13 @@ const loginStreaks = [
     { left: '62%', top: '18%', width: 122, color: '#f59e0b', angle: '14deg', delay: '1.5s', duration: '7.2s' },
     { left: '18%', top: '82%', width: 110, color: '#a78bfa', angle: '10deg', delay: '2.6s', duration: '6.8s' },
     { left: '72%', top: '68%', width: 86, color: '#34d399', angle: '-22deg', delay: '3.2s', duration: '7.8s' },
+];
+
+const loginGears = [
+    { left: '10%', top: '12%', size: 132, color: '#22d3ee', opacity: 0.24, duration: '30s', delay: '-4s', reverse: false },
+    { left: '78%', top: '13%', size: 96, color: '#f59e0b', opacity: 0.22, duration: '24s', delay: '-11s', reverse: true },
+    { left: '72%', top: '66%', size: 118, color: '#34d399', opacity: 0.2, duration: '34s', delay: '-16s', reverse: false },
+    { left: '17%', top: '76%', size: 76, color: '#a78bfa', opacity: 0.26, duration: '22s', delay: '-7s', reverse: true },
 ];
 
 export default function Login() {
@@ -85,6 +92,10 @@ export default function Login() {
                     70% { opacity: 0.55; }
                     100% { transform: translate3d(46px, -54px, 0) rotate(var(--streak-angle)); opacity: 0; }
                 }
+                @keyframes loginGearSpin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
                 .login-particle {
                     animation: loginParticleFloat var(--particle-duration) ease-in-out infinite;
                     animation-delay: var(--particle-delay);
@@ -93,11 +104,72 @@ export default function Login() {
                     animation: loginStreakSweep var(--streak-duration) ease-in-out infinite;
                     animation-delay: var(--streak-delay);
                 }
+                .login-gear {
+                    animation: loginGearSpin var(--gear-duration) linear infinite;
+                    animation-delay: var(--gear-delay);
+                    color: var(--gear-color);
+                    filter: drop-shadow(0 0 18px var(--gear-color)) drop-shadow(0 0 42px rgba(255, 255, 255, 0.08));
+                    mix-blend-mode: screen;
+                    opacity: var(--gear-opacity);
+                    transform-origin: center;
+                }
+                .login-gear-reverse {
+                    animation-direction: reverse;
+                }
+                .login-logo-mark {
+                    background: rgba(255, 255, 255, 0.06);
+                    box-shadow: 0 18px 60px rgba(56, 189, 248, 0.32), 0 0 0 1px rgba(103, 232, 249, 0.2);
+                }
+                .login-brand-accent {
+                    color: #67e8f9;
+                }
+                .login-card {
+                    background: rgba(2, 6, 23, 0.65);
+                }
+                .login-auth-input {
+                    background: rgba(15, 23, 42, 0.82);
+                    color: #f8fafc;
+                    caret-color: #67e8f9;
+                    -webkit-text-fill-color: #f8fafc;
+                }
+                .login-auth-input:focus {
+                    border-color: rgba(103, 232, 249, 0.6);
+                    box-shadow: 0 0 0 2px rgba(103, 232, 249, 0.2);
+                }
+                .login-auth-input::placeholder {
+                    color: rgba(148, 163, 184, 0.72);
+                    -webkit-text-fill-color: rgba(148, 163, 184, 0.72);
+                }
+                .login-auth-input:-webkit-autofill,
+                .login-auth-input:-webkit-autofill:hover,
+                .login-auth-input:-webkit-autofill:focus {
+                    border-color: rgba(103, 232, 249, 0.38);
+                    -webkit-box-shadow: 0 0 0 1000px #101a2b inset;
+                    box-shadow: 0 0 0 1000px #101a2b inset;
+                    -webkit-text-fill-color: #f8fafc;
+                    caret-color: #67e8f9;
+                    transition: background-color 9999s ease-out 0s;
+                }
+                .login-submit {
+                    background: linear-gradient(135deg, #67e8f9 0%, #22d3ee 100%);
+                    color: #062436;
+                }
+                .login-submit:hover:not(:disabled) {
+                    background: linear-gradient(135deg, #a5f3fc 0%, #67e8f9 100%);
+                }
+                .login-icon-button:hover,
+                .login-link-button:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                }
                 @media (prefers-reduced-motion: reduce) {
                     .login-particle,
-                    .login-streak {
+                    .login-streak,
+                    .login-gear {
                         animation: none !important;
                         opacity: 0.45 !important;
+                    }
+                    .login-gear {
+                        opacity: 0.16 !important;
                     }
                 }
             `}</style>
@@ -126,6 +198,23 @@ export default function Login() {
                             } as React.CSSProperties}
                         />
                     ))}
+                    {loginGears.map((gear, index) => (
+                        <Cog
+                            key={`gear-${index}`}
+                            className={`login-gear absolute ${gear.reverse ? 'login-gear-reverse' : ''}`}
+                            strokeWidth={1.25}
+                            style={{
+                                left: gear.left,
+                                top: gear.top,
+                                width: gear.size,
+                                height: gear.size,
+                                '--gear-color': gear.color,
+                                '--gear-opacity': gear.opacity,
+                                '--gear-duration': gear.duration,
+                                '--gear-delay': gear.delay,
+                            } as React.CSSProperties}
+                        />
+                    ))}
                     {loginParticles.map((particle, index) => (
                         <span
                             key={`particle-${index}`}
@@ -147,15 +236,15 @@ export default function Login() {
 
                 <div className="relative z-10 w-full" style={{ maxWidth: '22rem' }}>
                     <div className="mb-6 text-center sm:mb-8">
-                        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-[var(--tenant-panel)] text-white shadow-[0_18px_60px_rgba(56,189,248,0.32)] ring-1 ring-[var(--tenant-primary-soft)] backdrop-blur-xl">
+                        <div className="login-logo-mark mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 text-white backdrop-blur-xl">
                             <Zap size={30} />
                         </div>
                         <h1 className="text-3xl font-black tracking-normal text-white sm:text-4xl">
-                            OP<span className="text-[var(--tenant-secondary)]">CAPEX</span>
+                            OP<span className="login-brand-accent">CAPEX</span>
                         </h1>
                     </div>
 
-                    <div className="rounded-lg border border-white/10 bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] p-5 shadow-[0_24px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:p-7">
+                    <div className="login-card rounded-lg border border-white/10 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:p-7">
                         <form className="space-y-4" onSubmit={handleAuth}>
                             <div>
                                 <label htmlFor="email" className="mb-2 block px-1 text-xs font-bold uppercase tracking-normal text-slate-300">
@@ -167,7 +256,7 @@ export default function Login() {
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-[var(--tenant-panel)]/[0.07] px-4 py-3 text-white placeholder-slate-500 outline-none transition focus:border-[var(--tenant-secondary-border)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
+                                    className="login-auth-input min-h-12 w-full rounded-lg border border-white/10 px-4 py-3 text-white placeholder-slate-500 outline-none transition"
                                     placeholder="email@empresa.com"
                                 />
                             </div>
@@ -182,13 +271,13 @@ export default function Login() {
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="min-h-12 w-full rounded-lg border border-white/10 bg-[var(--tenant-panel)]/[0.07] px-4 py-3 pr-12 text-white placeholder-slate-500 outline-none transition focus:border-[var(--tenant-secondary-border)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
+                                    className="login-auth-input min-h-12 w-full rounded-lg border border-white/10 px-4 py-3 pr-12 text-white placeholder-slate-500 outline-none transition"
                                     placeholder="********"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(prev => !prev)}
-                                    className="absolute bottom-1.5 right-1.5 flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition hover:bg-[var(--tenant-panel)] hover:text-white"
+                                    className="login-icon-button absolute bottom-1.5 right-1.5 flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition hover:text-white"
                                     title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                                     aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                                 >
@@ -213,7 +302,7 @@ export default function Login() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--tenant-secondary-soft)] px-4 py-3 text-sm font-black text-slate-950 shadow-[0_18px_42px_rgba(34,211,238,0.28)] transition hover:bg-[var(--tenant-secondary-soft)] active:scale-[0.98] disabled:opacity-55 disabled:active:scale-100"
+                                className="login-submit flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-black shadow-[0_18px_42px_rgba(34,211,238,0.28)] transition active:scale-[0.98] disabled:opacity-55 disabled:active:scale-100"
                             >
                                 {loading ? <Loader2 size={19} className="animate-spin" /> : (isSignUp ? 'Criar conta' : 'Entrar')}
                             </button>
@@ -226,7 +315,7 @@ export default function Login() {
                                         setError(null);
                                         setMessage(null);
                                     }}
-                                    className="min-h-11 rounded-md px-4 text-sm font-bold text-slate-300 transition hover:bg-[var(--tenant-panel)] hover:text-white"
+                                    className="login-link-button min-h-11 rounded-md px-4 text-sm font-bold text-slate-300 transition hover:text-white"
                                 >
                                     {isSignUp ? 'Entrar' : 'Criar conta'}
                                 </button>

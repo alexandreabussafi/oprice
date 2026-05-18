@@ -20,7 +20,7 @@ import Contacts from './pages/Contacts';
 import Tasks from './pages/Tasks';
 import ProductEditor from './pages/ProductEditor'; // NOVO: Módulo de Produtos
 import SaasSubscriptionEditor from './pages/SaasSubscriptionEditor';
-import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ProposalVersionStatus, AppRole, BusinessUnitAccess, Milestone, Contact, CRMTask, CatalogProduct, defaultAccounting, TimelineEvent, TenantModule, PricingModuleId, TaskAttachment, CRMCommunication, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft } from './types';
+import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ProposalVersionStatus, AppRole, BusinessUnitAccess, Milestone, Contact, CRMTask, CatalogProduct, defaultAccounting, TimelineEvent, TenantModule, PricingModuleId, TaskAttachment, CRMCommunication, CRMCommunicationTriageStatus, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft } from './types';
 import { calculateFinancials } from './utils/pricingEngine';
 import { Moon, Sun, X } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -648,7 +648,7 @@ function App() {
       const savedSettings = await withTenantLoadTimeout(
         signal => crmRepository.upsertTenantSettings(resolvedTenantId, nextConfig, { signal }),
         'Salvar configuracoes do tenant',
-        10000
+        30000
       );
       setTenantConfigs(prev => ({ ...prev, [resolvedTenantId]: withPricingModuleCompatibility({ ...savedSettings, tenantId: resolvedTenantId }) }));
     } catch (error: any) {
@@ -936,7 +936,7 @@ function App() {
     };
   }, [activeTenantId, tenantLoading, session]);
 
-  const saveTenantClient = async (client: Client) => {
+  const saveTenantClient = async (client: Client): Promise<Client> => {
     const previousClients = tenantClients;
     const optimistic = { ...client, tenantId: resolvedTenantId };
     upsertLocalClient(resolvedTenantId, optimistic);
@@ -954,6 +954,7 @@ function App() {
         ...prev.filter(c => c.id !== client.id && c.id !== savedClient.id),
         { ...savedClient, tenantId: resolvedTenantId }
       ]);
+      return { ...savedClient, tenantId: resolvedTenantId };
     } catch (error: any) {
       replaceTenantClients(resolvedTenantId, previousClients);
       const message = getCrmSaveErrorMessage(error, 'Erro ao salvar clientes.');
@@ -980,7 +981,7 @@ function App() {
     }
   };
 
-  const saveTenantContact = async (contact: Contact) => {
+  const saveTenantContact = async (contact: Contact): Promise<Contact> => {
     const previousContacts = tenantContacts;
     const optimistic = { ...contact, tenantId: resolvedTenantId };
     upsertLocalContact(resolvedTenantId, optimistic);
@@ -998,6 +999,7 @@ function App() {
         ...prev.filter(c => c.id !== contact.id && c.id !== savedContact.id),
         { ...savedContact, tenantId: resolvedTenantId }
       ]);
+      return { ...savedContact, tenantId: resolvedTenantId };
     } catch (error: any) {
       replaceTenantContacts(resolvedTenantId, previousContacts);
       const message = getCrmSaveErrorMessage(error, 'Erro ao salvar contatos.');
@@ -1355,6 +1357,8 @@ function App() {
       setMicrosoftConnection(status);
       if (syncResult.taskErrors && syncResult.taskErrors > 0) {
         setCrmDataError(`Sincronizacao Microsoft concluida, mas ${syncResult.taskErrors} tarefa(s) do To Do nao puderam ser atualizadas.`);
+      } else if (syncResult.mailboxWarnings && syncResult.mailboxWarnings > 0) {
+        setCrmDataError('Sincronizacao Microsoft concluida, mas uma caixa compartilhada nao pode ser lida. Verifique o acesso delegado da caixa e reconecte o Outlook se aparecer pedido de permissao.');
       } else if (syncResult.conversationWarnings && syncResult.conversationWarnings > 0) {
         setCrmDataError('Sincronizacao Microsoft concluida, mas algumas conversas do Outlook nao puderam ser verificadas.');
       }
@@ -1362,6 +1366,42 @@ function App() {
       setCrmDataError(error.message || 'Erro ao sincronizar Outlook.');
     } finally {
       setMicrosoftWorkspaceLoading(false);
+    }
+  };
+
+  const triageTenantCommunicationThread = async (payload: {
+    communicationId: string;
+    microsoftConversationId?: string;
+    clientId?: string | null;
+    contactId?: string | null;
+    proposalId?: string | null;
+    taskId?: string | null;
+    triageStatus: CRMCommunicationTriageStatus;
+    triageNotes?: string | null;
+  }): Promise<CRMCommunication[]> => {
+    setCrmSaving(true);
+    setCrmDataError(null);
+    try {
+      const updatedCommunications = await withTenantLoadTimeout(
+        signal => crmRepository.updateCommunicationThreadTriage({
+          tenantId: resolvedTenantId,
+          ...payload,
+          triagedBy: profile?.id || null
+        }, { signal }),
+        'Atualizar triagem de e-mail',
+        10000
+      );
+      setCommunications(prev => [
+        ...prev.filter(existing => !updatedCommunications.some(updated => updated.id === existing.id)),
+        ...updatedCommunications.map(communication => ({ ...communication, tenantId: resolvedTenantId }))
+      ]);
+      return updatedCommunications.map(communication => ({ ...communication, tenantId: resolvedTenantId }));
+    } catch (error: any) {
+      const message = getCrmSaveErrorMessage(error, 'Erro ao atualizar triagem do e-mail.');
+      setCrmDataError(message);
+      throw new Error(message);
+    } finally {
+      setCrmSaving(false);
     }
   };
 
@@ -1522,7 +1562,7 @@ function App() {
     }
   };
 
-  const handleCreateProposal = async (payload: { type: ProposalType, clientId: string, motion: OpportunityMotion, pricingModule?: TenantModule, inlineClientName?: string, referenceId?: string, expansionType?: 'Volume' | 'Scope' | 'Site' }) => {
+  const handleCreateProposal = async (payload: { type: ProposalType, clientId: string, motion: OpportunityMotion, pricingModule?: TenantModule, inlineClientName?: string, referenceId?: string, expansionType?: 'Volume' | 'Scope' | 'Site', openEditor?: boolean }): Promise<ProposalData> => {
     let selectedClient = tenantClients.find(c => c.id === payload.clientId);
     const inlineName = payload.inlineClientName?.trim();
 
@@ -1627,9 +1667,12 @@ function App() {
         { ...savedProposal, tenantId: resolvedTenantId },
         ...prev.filter(p => p.id !== savedProposal.id)
       ]);
-      setCurrentId(savedProposal.id);
-      setView('EDITOR');
-      setActiveTab(getEditorTabForPricingModule(payload.type, savedProposal.pricingModule));
+      if (payload.openEditor !== false) {
+        setCurrentId(savedProposal.id);
+        setView('EDITOR');
+        setActiveTab(getEditorTabForPricingModule(payload.type, savedProposal.pricingModule));
+      }
+      return { ...savedProposal, tenantId: resolvedTenantId };
     } catch (error: any) {
       const message = getCrmSaveErrorMessage(error, 'Erro ao salvar proposta.');
       setCrmDataError(message);
@@ -2122,7 +2165,9 @@ function App() {
             onSelectProposal={handleSelectProposal}
             onCreateProposal={handleCreateProposal}
             onCreateTask={saveTenantTask}
+            onSaveClient={saveTenantClient}
             onSaveContact={saveTenantContact}
+            onTriageCommunicationThread={triageTenantCommunicationThread}
             onOpenTaskAttachment={openTenantTaskAttachment}
             onConnectGoogle={connectTenantGoogle}
             onDisconnectGoogle={disconnectTenantGoogle}
@@ -2143,6 +2188,52 @@ function App() {
             onUpdateProposal={handleUpdateProposal}
             onUpdateMilestones={handleUpdateMilestones}
             initialViewMode="kanban"
+            initialSection="pipeline"
+            businessUnit={businessUnit}
+            currentUser={currentUser}
+            enabledModules={activeTenant.enabledModules}
+          />;
+        case 'crm-inbox':
+          return <CRM
+            clients={tenantClients}
+            contacts={tenantContacts}
+            tasks={tenantTasks}
+            taskAttachments={tenantTaskAttachments}
+            communications={tenantCommunications}
+            externalEvents={tenantExternalEvents}
+            googleConnection={googleConnection}
+            googleWorkspaceLoading={googleWorkspaceLoading}
+            microsoftConnection={microsoftConnection}
+            microsoftWorkspaceLoading={microsoftWorkspaceLoading}
+            proposals={visibleProposals}
+            globalConfig={brandedGlobalConfig}
+            onSelectProposal={handleSelectProposal}
+            onCreateProposal={handleCreateProposal}
+            onCreateTask={saveTenantTask}
+            onSaveClient={saveTenantClient}
+            onSaveContact={saveTenantContact}
+            onTriageCommunicationThread={triageTenantCommunicationThread}
+            onOpenTaskAttachment={openTenantTaskAttachment}
+            onConnectGoogle={connectTenantGoogle}
+            onDisconnectGoogle={disconnectTenantGoogle}
+            onSyncGoogle={syncTenantGmail}
+            onSendGoogleEmail={sendTenantGoogleEmail}
+            onCreateGoogleMeeting={createTenantGoogleMeeting}
+            onConnectMicrosoft={connectTenantMicrosoft}
+            onDisconnectMicrosoft={disconnectTenantMicrosoft}
+            onSyncMicrosoft={syncTenantMicrosoft}
+            onSendMicrosoftEmail={sendTenantMicrosoftEmail}
+            onCreateMicrosoftMeeting={createTenantMicrosoftMeeting}
+            onCreateMicrosoftTodoTask={createTenantMicrosoftTodoTask}
+            onCreateNewVersion={handleCreateNewVersion}
+            onDuplicateProposal={handleDuplicateProposal}
+            onDeleteProposal={handleDeleteProposal}
+            onUpdateStage={handleUpdateStage}
+            onUpdateStatus={handleUpdateStatus}
+            onUpdateProposal={handleUpdateProposal}
+            onUpdateMilestones={handleUpdateMilestones}
+            initialViewMode="list"
+            initialSection="inbox"
             businessUnit={businessUnit}
             currentUser={currentUser}
             enabledModules={activeTenant.enabledModules}
@@ -2155,7 +2246,7 @@ function App() {
             globalConfig={brandedGlobalConfig}
           />;
         case 'crm-clients':
-          return <Clients clients={tenantClients} contacts={tenantContacts} onSaveClient={saveTenantClient} onDeleteClient={deleteTenantClient} onSaveContact={saveTenantContact} onSelectProposal={handleSelectProposal} proposals={visibleProposals} />;
+          return <Clients clients={tenantClients} contacts={tenantContacts} onSaveClient={saveTenantClient} onDeleteClient={deleteTenantClient} onSaveContact={saveTenantContact} onSelectProposal={handleSelectProposal} onCreateProposal={handleCreateProposal} businessUnit={businessUnit} proposals={visibleProposals} />;
         case 'crm-contacts':
           return <Contacts contacts={tenantContacts} onSaveContact={saveTenantContact} onDeleteContact={deleteTenantContact} clients={tenantClients} currentUser={currentUser} />;
         case 'crm-tasks':
@@ -2203,7 +2294,9 @@ function App() {
             onSelectProposal={handleSelectProposal}
             onCreateProposal={handleCreateProposal}
             onCreateTask={saveTenantTask}
+            onSaveClient={saveTenantClient}
             onSaveContact={saveTenantContact}
+            onTriageCommunicationThread={triageTenantCommunicationThread}
             onOpenTaskAttachment={openTenantTaskAttachment}
             onConnectGoogle={connectTenantGoogle}
             onDisconnectGoogle={disconnectTenantGoogle}
@@ -2224,6 +2317,7 @@ function App() {
             onUpdateProposal={handleUpdateProposal}
             onUpdateMilestones={handleUpdateMilestones}
             initialViewMode="kanban"
+            initialSection="pipeline"
             businessUnit={businessUnit}
             currentUser={currentUser}
             enabledModules={activeTenant.enabledModules}

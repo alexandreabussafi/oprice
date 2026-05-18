@@ -310,6 +310,9 @@ Deno.serve(async (req) => {
         microsoft_conversation_id: message?.conversationId || input.microsoftConversationId || null,
         microsoft_internet_message_id: message?.internetMessageId || null,
         external_url: message?.webLink || null,
+        source_mailbox_email: account.microsoft_email,
+        source_mailbox_label: account.microsoft_email,
+        source_mailbox_kind: 'personal',
         sent_at: message?.sentDateTime || new Date().toISOString()
       })
       .select('*')

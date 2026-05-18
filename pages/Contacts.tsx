@@ -192,7 +192,7 @@ const Contacts: React.FC<ContactsProps> = ({ contacts, onSaveContact, onDeleteCo
                                         aria-selected={isSelected}
                                         onClick={() => openContactPreview(contact.id)}
                                         onKeyDown={(event) => handleSelectableKeyDown(event, contact.id)}
-                                        className={`cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--tenant-primary-soft)] ${isSelected ? 'bg-[var(--tenant-primary-soft)] dark:bg-[var(--tenant-control-active-dark)]' : 'hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)]'}`}
+                                        className={`cursor-pointer border-l-[6px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--tenant-primary-soft)] ${isSelected ? 'border-l-[var(--tenant-primary)] bg-[color-mix(in_srgb,var(--tenant-primary)_12%,var(--tenant-panel))] shadow-[inset_0_0_0_1px_var(--tenant-primary-border)] dark:bg-[color-mix(in_srgb,var(--tenant-primary)_16%,var(--tenant-panel-dark))]' : 'border-l-transparent hover:border-l-[var(--tenant-primary-border)] hover:bg-[color-mix(in_srgb,var(--tenant-primary)_6%,var(--tenant-panel))] dark:hover:bg-[color-mix(in_srgb,var(--tenant-primary)_10%,var(--tenant-panel-dark))]'}`}
                                     >
                                         <td className="px-5 py-4">
                                             <div className="flex min-w-0 items-center gap-3">
@@ -274,8 +274,9 @@ const Contacts: React.FC<ContactsProps> = ({ contacts, onSaveContact, onDeleteCo
                         aria-selected={isSelected}
                         onClick={() => openContactPreview(contact.id)}
                         onKeyDown={(event) => handleSelectableKeyDown(event, contact.id)}
-                        className={`group cursor-pointer rounded-lg border bg-[var(--tenant-panel)] p-6 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--tenant-primary-soft)] dark:bg-[var(--tenant-panel-dark)] ${isSelected ? 'border-[var(--tenant-primary-border)] ring-2 ring-[var(--tenant-primary-soft)]' : 'border-[var(--tenant-border)] hover:border-[var(--tenant-primary-border)] hover:shadow-md dark:border-[var(--tenant-border-dark)]'}`}
+                        className={`group relative cursor-pointer overflow-hidden rounded-lg border p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--tenant-primary-soft)] ${isSelected ? 'border-[var(--tenant-primary-border)] bg-[color-mix(in_srgb,var(--tenant-primary)_12%,var(--tenant-panel))] ring-1 ring-[var(--tenant-primary-soft)] dark:bg-[color-mix(in_srgb,var(--tenant-primary)_16%,var(--tenant-panel-dark))]' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] hover:border-[var(--tenant-primary-border)] hover:bg-[color-mix(in_srgb,var(--tenant-primary)_6%,var(--tenant-panel))] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:hover:bg-[color-mix(in_srgb,var(--tenant-primary)_10%,var(--tenant-panel-dark))]'}`}
                     >
+                        <span className={`absolute inset-y-0 left-0 w-1 transition ${isSelected ? 'bg-[var(--tenant-primary)]' : 'bg-transparent group-hover:bg-[var(--tenant-primary-border)]'}`} />
                         <div className="flex justify-between items-start mb-4">
                             <div className="flex items-center gap-4">
                                 <div className="h-12 w-12 rounded-md bg-[var(--tenant-primary-soft)] flex items-center justify-center text-[var(--tenant-primary)] font-black text-xl border border-[var(--tenant-primary-border)]">
@@ -359,15 +360,35 @@ const Contacts: React.FC<ContactsProps> = ({ contacts, onSaveContact, onDeleteCo
                                     </span>
                                 )}
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setSelectedContactId(null)}
-                                className="rounded-md p-1 text-slate-400 transition-colors hover:bg-[var(--tenant-control)] hover:text-slate-600 dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-slate-300"
-                                title="Fechar painel"
-                                aria-label="Fechar painel"
-                            >
-                                <XCircle size={20} />
-                            </button>
+                            <div className="flex shrink-0 items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => openModal(selectedContact)}
+                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"
+                                    title="Editar contato"
+                                    aria-label="Editar contato"
+                                >
+                                    <Edit2 size={15} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(selectedContact.id)}
+                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+                                    title="Remover contato"
+                                    aria-label="Remover contato"
+                                >
+                                    <Trash2 size={15} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedContactId(null)}
+                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] text-slate-400 transition hover:text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-500 dark:hover:text-slate-300"
+                                    title="Fechar painel"
+                                    aria-label="Fechar painel"
+                                >
+                                    <XCircle size={18} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex min-w-0 items-start gap-3">
@@ -490,29 +511,11 @@ const Contacts: React.FC<ContactsProps> = ({ contacts, onSaveContact, onDeleteCo
                         )}
                     </div>
 
-                    <div className="shrink-0 border-t border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)]">
-                        <div className="grid grid-cols-2 gap-2">
-                            <button
-                                type="button"
-                                onClick={() => openModal(selectedContact)}
-                                className="flex items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] py-2.5 text-xs font-bold text-[var(--tenant-text)] transition hover:brightness-95 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)]"
-                            >
-                                <Edit2 size={14} /> Editar
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleDelete(selectedContact.id)}
-                                className="flex items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] py-2.5 text-xs font-bold text-red-600 transition hover:border-red-200 hover:bg-red-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-red-400 dark:hover:border-red-800 dark:hover:bg-red-900/20"
-                            >
-                                <Trash2 size={14} /> Remover
-                            </button>
-                        </div>
-                    </div>
                 </ResponsiveDrawer>
             )}
 
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] p-0 backdrop-blur-sm sm:items-center sm:p-4">
+                <div className="fixed inset-0 z-[700] flex items-end justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_55%,transparent)] p-0 backdrop-blur-sm sm:items-center sm:p-4">
                     <div className="max-h-[92dvh] w-full max-w-xl overflow-hidden rounded-t-xl border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-2xl animate-in slide-in-from-bottom-4 duration-200 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:rounded-lg sm:animate-in sm:zoom-in-95">
                         <div className="flex items-center justify-between border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] px-4 py-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)] sm:px-6 sm:py-4">
                             <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">

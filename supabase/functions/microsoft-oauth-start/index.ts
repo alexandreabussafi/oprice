@@ -1,4 +1,4 @@
-import { corsHeaders, getAuthedContext, jsonResponse, requireEnv } from '../_shared/microsoft.ts';
+import { MICROSOFT_OAUTH_SCOPES, corsHeaders, getAuthedContext, jsonResponse, requireEnv } from '../_shared/microsoft.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -16,23 +16,12 @@ Deno.serve(async (req) => {
       .single();
     if (error) throw error;
 
-    const scopes = [
-      'openid',
-      'email',
-      'profile',
-      'offline_access',
-      'User.Read',
-      'Mail.Send',
-      'Mail.Read',
-      'Calendars.ReadWrite',
-      'Tasks.ReadWrite'
-    ];
     const params = new URLSearchParams({
       client_id: requireEnv('MICROSOFT_CLIENT_ID'),
       redirect_uri: requireEnv('MICROSOFT_REDIRECT_URI'),
       response_type: 'code',
       response_mode: 'query',
-      scope: scopes.join(' '),
+      scope: MICROSOFT_OAUTH_SCOPES.join(' '),
       state: data.id,
       prompt: 'select_account'
     });

@@ -114,11 +114,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
 
   // Menu Global do CRM
   const crmMenuItems = [
-    { id: 'crm-analytics', label: 'Analytics & KPIs', icon: BarChart3 },
-    { id: 'crm-dashboard', label: 'Oportunidades (Funil)', icon: LayoutGrid },
+    { id: 'crm-inbox', label: 'Inbox CRM', icon: MailCheck },
+    { id: 'crm-dashboard', label: 'Oportunidades', icon: LayoutGrid },
     { id: 'crm-clients', label: 'Contas (Empresas)', icon: FolderOpen },
     { id: 'crm-contacts', label: 'Contatos', icon: Users },
     { id: 'crm-tasks', label: 'Tarefas & Atividades', icon: FileCheck },
+    { id: 'crm-analytics', label: 'Analytics & KPIs', icon: BarChart3 },
   ];
 
   const canOpenTenantSettings = currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
@@ -161,10 +162,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
   const userCanProducts = currentUser.allowed_types.includes('PRODUCTS') || currentUser.allowed_types.includes('BOTH');
   const hasMultipleBUs = userCanServices && userCanProducts && tenantSupportsServices && tenantSupportsProducts;
   const mobileNavItems = [
+    { id: 'crm-inbox', label: 'Inbox', icon: MailCheck },
     { id: 'crm-dashboard', label: 'Funil', icon: LayoutGrid },
-    { id: 'crm-tasks', label: 'Tarefas', icon: FileCheck },
     { id: 'crm-clients', label: 'Contas', icon: FolderOpen },
     { id: 'crm-contacts', label: 'Contatos', icon: Users },
+    { id: 'crm-tasks', label: 'Tarefas', icon: FileCheck },
     { id: 'crm-analytics', label: 'KPIs', icon: BarChart3 },
   ];
   const mobileContextLabel = isCRMMode

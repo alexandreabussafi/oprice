@@ -680,6 +680,8 @@ export interface MicrosoftConnectionStatus {
   } | null;
 }
 
+export type CRMCommunicationTriageStatus = 'NEW' | 'LINKED' | 'IGNORED';
+
 export interface CRMCommunication {
   id: string;
   tenantId: string;
@@ -706,6 +708,13 @@ export interface CRMCommunication {
   microsoftConversationId?: string;
   microsoftInternetMessageId?: string;
   externalUrl?: string;
+  sourceMailboxEmail?: string;
+  sourceMailboxLabel?: string;
+  sourceMailboxKind?: 'personal' | 'shared';
+  triageStatus?: CRMCommunicationTriageStatus;
+  triagedAt?: string;
+  triagedBy?: string;
+  triageNotes?: string;
   sentAt?: string;
   receivedAt?: string;
   createdAt: string;
@@ -800,6 +809,36 @@ export interface MicrosoftTodoDraft {
   description?: string;
   type: CRMTask['type'];
   dueDate: string;
+}
+
+export interface MicrosoftSharedMailboxConfig {
+  email: string;
+  label?: string;
+  enabled?: boolean;
+  intakeMode?: 'filtered';
+  intakeStartAt?: string;
+  filters?: MicrosoftInboxFilterConfig;
+}
+
+export interface MicrosoftInboxFilterConfig {
+  ignoreNoReply?: boolean;
+  ignoreAutoReplies?: boolean;
+  ignoreNewsletters?: boolean;
+  ignoredDomains?: string[];
+  ignoredSenders?: string[];
+  subjectExcludes?: string[];
+  allowedDomains?: string[];
+}
+
+export interface MicrosoftPersonalInboxIntakeConfig {
+  enabled?: boolean;
+  intakeStartAt?: string;
+  filters?: MicrosoftInboxFilterConfig;
+}
+
+export interface MicrosoftWorkspaceConfig {
+  personalInboxIntake?: MicrosoftPersonalInboxIntakeConfig;
+  sharedMailboxes?: MicrosoftSharedMailboxConfig[];
 }
 
 export interface ProposalData {
@@ -940,6 +979,7 @@ export interface ProposalData {
   letterheadConfig?: LetterheadConfig;
   proposalTemplates?: ProposalTemplatesConfig;
   proposalSendAutomation?: ProposalSendAutomationConfig;
+  microsoftWorkspace?: MicrosoftWorkspaceConfig;
 
   // Tenant-level modular pricing settings. Kept alongside legacy fields during migration.
   pricingModules?: TenantPricingModulesConfig;

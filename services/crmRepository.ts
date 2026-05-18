@@ -1,5 +1,6 @@
 ﻿import { Client, Contact, CRMCommunication, CRMExternalEvent, CRMTask, ProposalData, TaskAttachment } from '../types';
 import { supabase } from '../lib/supabase';
+import type { CRMCommunicationTriageStatus } from '../types';
 import { runOptionalSupabaseResponse, runSupabaseRequest, runSupabaseResponse, SupabaseRequestOptions, withAbortSignal } from './supabaseRequest';
 
 export const isUuid = (value?: string) =>
@@ -277,6 +278,13 @@ export const fromCommunicationRow = (row: any): CRMCommunication => ({
   microsoftConversationId: row.microsoft_conversation_id || undefined,
   microsoftInternetMessageId: row.microsoft_internet_message_id || undefined,
   externalUrl: row.external_url || undefined,
+  sourceMailboxEmail: row.source_mailbox_email || undefined,
+  sourceMailboxLabel: row.source_mailbox_label || undefined,
+  sourceMailboxKind: row.source_mailbox_kind || undefined,
+  triageStatus: row.triage_status || undefined,
+  triagedAt: row.triaged_at || undefined,
+  triagedBy: row.triaged_by || undefined,
+  triageNotes: row.triage_notes || undefined,
   sentAt: row.sent_at || undefined,
   receivedAt: row.received_at || undefined,
   createdAt: row.created_at || nowIso()
@@ -695,6 +703,53 @@ export const crmRepository = {
     return (data || []).map(fromCommunicationRow);
   },
 
+  async updateCommunicationThreadTriage(input: {
+    tenantId: string;
+    communicationId?: string;
+    microsoftConversationId?: string;
+    clientId?: string | null;
+    contactId?: string | null;
+    proposalId?: string | null;
+    taskId?: string | null;
+    triageStatus: CRMCommunicationTriageStatus;
+    triageNotes?: string | null;
+    triagedBy?: string | null;
+  }, options: CrmRequestOptions = {}): Promise<CRMCommunication[]> {
+    if (!input.communicationId && !input.microsoftConversationId) {
+      throw new Error('Informe uma comunicacao ou conversa para triagem.');
+    }
+
+    const row: any = {
+      triage_status: input.triageStatus,
+      triaged_at: nowIso(),
+      triaged_by: isUuid(input.triagedBy || '') ? input.triagedBy : null,
+      triage_notes: input.triageNotes || null
+    };
+    if (Object.prototype.hasOwnProperty.call(input, 'clientId')) row.client_id = isUuid(input.clientId || '') ? input.clientId : null;
+    if (Object.prototype.hasOwnProperty.call(input, 'contactId')) row.contact_id = isUuid(input.contactId || '') ? input.contactId : null;
+    if (Object.prototype.hasOwnProperty.call(input, 'proposalId')) row.proposal_id = isUuid(input.proposalId || '') ? input.proposalId : null;
+    if (Object.prototype.hasOwnProperty.call(input, 'taskId')) row.task_id = isUuid(input.taskId || '') ? input.taskId : null;
+
+    const data = await runSupabaseResponse<any[]>(
+      async signal => {
+        let query = supabase
+          .from('crm_communications')
+          .update(row)
+          .eq('tenant_id', input.tenantId);
+        if (input.microsoftConversationId) {
+          query = query.eq('microsoft_conversation_id', input.microsoftConversationId);
+        } else {
+          query = query.eq('id', input.communicationId || '');
+        }
+        const response = await (withAbortSignal(query.select('*'), signal) as any);
+        return response;
+      },
+      requestOptions('Atualizar triagem de comunicacao', 'crm_communications', input.tenantId, options)
+    );
+
+    return (data || []).map(fromCommunicationRow);
+  },
+
   async listExternalEvents(tenantId: string, options: CrmRequestOptions = {}): Promise<CRMExternalEvent[]> {
     const data = await runOptionalSupabaseResponse(
       signal => withAbortSignal(
@@ -830,17 +885,15 @@ export const crmRepository = {
   },
 
   async upsertTenantSettings<T>(tenantId: string, settings: T, options: CrmRequestOptions = {}): Promise<T> {
-    const data = await runSupabaseResponse(
+    await runSupabaseResponse(
       signal => withAbortSignal(
         supabase
           .from('tenant_settings')
-          .upsert({ tenant_id: tenantId, settings, updated_at: nowIso() })
-          .select('settings')
-          .single(),
+          .upsert({ tenant_id: tenantId, settings, updated_at: nowIso() }),
         signal
       ),
       requestOptions('Salvar configuracoes do tenant', 'tenant_settings', tenantId, options)
     );
-    return data.settings as T;
+    return settings;
   }
 };

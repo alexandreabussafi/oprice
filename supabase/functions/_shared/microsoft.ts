@@ -6,6 +6,19 @@ export const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
 };
 
+export const MICROSOFT_OAUTH_SCOPES = [
+  'openid',
+  'email',
+  'profile',
+  'offline_access',
+  'User.Read',
+  'Mail.Send',
+  'Mail.Read',
+  'Mail.Read.Shared',
+  'Calendars.ReadWrite',
+  'Tasks.ReadWrite'
+];
+
 export type EdgeContext = {
   user: { id: string; email?: string };
   tenantId: string;
@@ -146,6 +159,10 @@ export const refreshMicrosoftAccessToken = async (
   account: any
 ) => {
   const refreshToken = await decryptToken(account.refresh_token_ciphertext);
+  const accountScopes = Array.isArray(account.scopes) ? account.scopes.map((scope: string) => scope.toLowerCase()) : [];
+  const refreshScopes = MICROSOFT_OAUTH_SCOPES.filter(scope =>
+    scope !== 'Mail.Read.Shared' || accountScopes.includes('mail.read.shared')
+  );
   const tokenData = await fetchMicrosoftJson('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -154,7 +171,7 @@ export const refreshMicrosoftAccessToken = async (
       client_secret: requireEnv('MICROSOFT_CLIENT_SECRET'),
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
-      scope: 'openid email profile offline_access User.Read Mail.Send Mail.Read Calendars.ReadWrite Tasks.ReadWrite'
+      scope: refreshScopes.join(' ')
     })
   });
 

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, Client, Contact, CRMTask, TenantModule, TaskAttachment, CRMCommunication, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft, WorkspaceProvider, PricingModuleId } from '../types';
+import { ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, Client, Contact, CRMTask, TenantModule, TaskAttachment, CRMCommunication, CRMCommunicationTriageStatus, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft, WorkspaceProvider, PricingModuleId } from '../types';
 import { calculateFinancials, formatCurrency, formatPercent } from '../utils/pricingEngine';
-import { Plus, Search, FileText, CheckCircle, XCircle, X, Clock, Copy, Edit3, Trash2, PieChart, TrendingUp, Calendar, User, LayoutGrid, List, ArrowRight, DollarSign, Users, Briefcase, GripVertical, ExternalLink, BarChart3, Zap, Repeat, AlertCircle, Snowflake, Filter, Save, Landmark, Package, Activity, History, CreditCard, PhoneCall, MailCheck, CalendarDays, Paperclip, File as FileIcon, UserPlus } from 'lucide-react';
+import { Plus, Search, FileText, CheckCircle, XCircle, X, Clock, Copy, Edit3, Trash2, PieChart, TrendingUp, Calendar, User, LayoutGrid, List, ArrowRight, DollarSign, Users, Briefcase, GripVertical, ExternalLink, BarChart3, Zap, Repeat, AlertCircle, Snowflake, Filter, Save, Landmark, Package, Activity, History, CreditCard, PhoneCall, MailCheck, CalendarDays, Paperclip, File as FileIcon, UserPlus, Building2, Link2, ClipboardCheck, Ban, RefreshCw } from 'lucide-react';
 import { buildCommercialTimeline, buildGmailReplyHeaders, getCommunicationDate, getThreadReplySourceMessage, groupCommunicationThreads, groupTimelineByDay, type CommunicationThread } from '../utils/crmTraceability';
 import { Button, PageHeader, ResponsiveDrawer } from '../components/ui';
 import { getDefaultPricingModuleForBusinessUnit, getEnabledPricingModules, getPricingModuleDefinition, getPricingModuleLabel } from '../utils/pricingModules';
@@ -27,7 +27,7 @@ interface CRMProps {
     proposals: ProposalData[];
     globalConfig: ProposalData;
     onSelectProposal: (id: string) => void;
-    onCreateProposal: (payload: { type: ProposalType, clientId: string, motion: OpportunityMotion, pricingModule: TenantModule, inlineClientName: string, referenceId: string, expansionType: 'Volume' | 'Scope' | 'Site' }) => void | Promise<void>;
+    onCreateProposal: (payload: { type: ProposalType, clientId: string, motion: OpportunityMotion, pricingModule?: TenantModule, inlineClientName?: string, referenceId?: string, expansionType?: 'Volume' | 'Scope' | 'Site', openEditor?: boolean }) => ProposalData | void | Promise<ProposalData | void>;
     onCreateNewVersion: (id: string, notes: string) => void | Promise<void>;
     onDuplicateProposal: (id: string) => void;
     onDeleteProposal: (id: string) => void;
@@ -36,7 +36,9 @@ interface CRMProps {
     onUpdateProposal: (id: string, data: Partial<ProposalData>) => void | Promise<void>;
     onUpdateMilestones: (id: string, milestones: import('../types').Milestone[]) => void | Promise<void>;
     onCreateTask: (task: CRMTask) => CRMTask | Promise<CRMTask>;
-    onSaveContact: (contact: Contact) => void | Promise<void>;
+    onSaveClient: (client: Client) => Client | Promise<Client>;
+    onSaveContact: (contact: Contact) => Contact | void | Promise<Contact | void>;
+    onTriageCommunicationThread: (payload: { communicationId: string; microsoftConversationId?: string; clientId?: string | null; contactId?: string | null; proposalId?: string | null; taskId?: string | null; triageStatus: CRMCommunicationTriageStatus; triageNotes?: string | null }) => Promise<CRMCommunication[]>;
     onOpenTaskAttachment: (attachment: TaskAttachment) => void | Promise<void>;
     onConnectGoogle: () => void | Promise<void>;
     onDisconnectGoogle: () => void | Promise<void>;
@@ -51,9 +53,20 @@ interface CRMProps {
     onCreateMicrosoftTodoTask: (draft: MicrosoftTodoDraft) => Promise<{ task: CRMTask; externalTask: any; todoError: string }>;
     currentUser: { name: string; role: string };
     initialViewMode: 'list' | 'kanban';
+    initialSection?: 'pipeline' | 'inbox';
     businessUnit: 'SERVICES' | 'PRODUCTS';
     enabledModules: TenantModule[];
 }
+
+const INBOX_DETAIL_DEFAULT_WIDTH = 400;
+const INBOX_DETAIL_MIN_WIDTH = 320;
+const INBOX_DETAIL_MAX_WIDTH = 640;
+const INBOX_LIST_MIN_WIDTH = 520;
+
+const clampInboxDetailWidth = (width: number, containerWidth?: number) => {
+    const availableMax = containerWidth ? Math.max(INBOX_DETAIL_MIN_WIDTH, containerWidth - INBOX_LIST_MIN_WIDTH) : INBOX_DETAIL_MAX_WIDTH;
+    return Math.min(Math.max(width, INBOX_DETAIL_MIN_WIDTH), Math.min(INBOX_DETAIL_MAX_WIDTH, availableMax));
+};
 
 const CRM: React.FC<CRMProps> = ({
     clients = [],
@@ -78,7 +91,9 @@ const CRM: React.FC<CRMProps> = ({
     onUpdateProposal,
     onUpdateMilestones,
     onCreateTask,
+    onSaveClient,
     onSaveContact,
+    onTriageCommunicationThread,
     onOpenTaskAttachment,
     onConnectGoogle,
     onDisconnectGoogle,
@@ -93,11 +108,13 @@ const CRM: React.FC<CRMProps> = ({
     onCreateMicrosoftTodoTask,
     currentUser,
     initialViewMode = 'kanban',
+    initialSection = 'pipeline',
     businessUnit,
     enabledModules = ['CRM_CORE', 'SERVICES_COMPLEX', 'PRODUCT_SALES'] as TenantModule[]
 }) => {
     const { activeTenant } = useTenant();
     const portalTenantTheme = useMemo(() => createTenantTheme(activeTenant?.branding), [activeTenant?.branding]);
+    const inboxDetailStorageKey = useMemo(() => `oprice:inbox-detail-width:${activeTenant?.id || activeTenant?.slug || 'default'}`, [activeTenant?.id, activeTenant?.slug]);
     const servicePricingModules = getEnabledPricingModules(enabledModules, 'SERVICES');
     const productPricingModules = getEnabledPricingModules(enabledModules, 'PRODUCTS');
     const hasServicesModule = servicePricingModules.length > 0;
@@ -116,10 +133,26 @@ const CRM: React.FC<CRMProps> = ({
         proposalType: 'CONTINUOUS' as ProposalType
     };
     const [viewMode, setViewMode] = useState<'list' | 'kanban'>(initialViewMode as 'list' | 'kanban');
+    const [crmSection, setCrmSection] = useState<'pipeline' | 'inbox'>(initialSection);
     const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [pipelineFilter, setPipelineFilter] = useState<string>(fallbackPipelineOption.key);
     const [showFrozen, setShowFrozen] = useState(false);
+    const [inboxFilter, setInboxFilter] = useState<'NEW' | 'SUGGESTED' | 'LINKED' | 'IGNORED'>('NEW');
+    const [inboxClientSelection, setInboxClientSelection] = useState<Record<string, string>>({});
+    const [inboxProposalSelection, setInboxProposalSelection] = useState<Record<string, string>>({});
+    const [inboxActionId, setInboxActionId] = useState<string | null>(null);
+    const [inboxError, setInboxError] = useState<string | null>(null);
+    const [selectedInboxCommunicationId, setSelectedInboxCommunicationId] = useState<string | null>(null);
+    const [inboxSearchTerm, setInboxSearchTerm] = useState('');
+    const [inboxDateFilter, setInboxDateFilter] = useState<'TODAY' | 'SEVEN_DAYS' | 'THIRTY_DAYS' | 'ALL'>('ALL');
+    const [inboxDetailWidth, setInboxDetailWidth] = useState(() => {
+        if (typeof window === 'undefined') return INBOX_DETAIL_DEFAULT_WIDTH;
+        const saved = Number(window.localStorage.getItem(inboxDetailStorageKey));
+        return Number.isFinite(saved) ? clampInboxDetailWidth(saved) : INBOX_DETAIL_DEFAULT_WIDTH;
+    });
+    const [isInboxResizing, setIsInboxResizing] = useState(false);
+    const inboxSplitContainerRef = useRef<HTMLDivElement | null>(null);
 
     // Create Modal States
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -222,6 +255,50 @@ const CRM: React.FC<CRMProps> = ({
     }, []);
 
     useEffect(() => {
+        setCrmSection(initialSection);
+        if (initialSection === 'inbox') setSelectedPreviewId(null);
+    }, [initialSection]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const saved = Number(window.localStorage.getItem(inboxDetailStorageKey));
+        setInboxDetailWidth(Number.isFinite(saved) ? clampInboxDetailWidth(saved, inboxSplitContainerRef.current?.getBoundingClientRect().width) : INBOX_DETAIL_DEFAULT_WIDTH);
+    }, [inboxDetailStorageKey]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem(inboxDetailStorageKey, String(inboxDetailWidth));
+    }, [inboxDetailStorageKey, inboxDetailWidth]);
+
+    useEffect(() => {
+        if (!isInboxResizing) return;
+
+        const previousUserSelect = document.body.style.userSelect;
+        const previousCursor = document.body.style.cursor;
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const rect = inboxSplitContainerRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            setInboxDetailWidth(clampInboxDetailWidth(rect.right - event.clientX, rect.width));
+        };
+        const stopResize = () => setIsInboxResizing(false);
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', stopResize);
+        window.addEventListener('pointercancel', stopResize);
+
+        return () => {
+            document.body.style.userSelect = previousUserSelect;
+            document.body.style.cursor = previousCursor;
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', stopResize);
+            window.removeEventListener('pointercancel', stopResize);
+        };
+    }, [isInboxResizing]);
+
+    useEffect(() => {
         const media = window.matchMedia('(max-width: 767px)');
         const applyMobileDefault = () => {
             if (media.matches) setViewMode('list');
@@ -305,6 +382,14 @@ const CRM: React.FC<CRMProps> = ({
     const getProposalCommunications = (proposalId: string) => communications
         .filter(communication => communication.proposalId && getProposalFamilyIds(proposalId).has(communication.proposalId))
         .sort((a, b) => new Date(b.receivedAt || b.sentAt || b.createdAt).getTime() - new Date(a.receivedAt || a.sentAt || a.createdAt).getTime());
+    const selectedProposalInboxOrigin = selectedProposal
+        ? getProposalCommunications(selectedProposal.id)
+            .filter(communication =>
+                communication.direction === 'inbound' &&
+                (communication.triageNotes?.includes('Inbox CRM') || Boolean(communication.sourceMailboxEmail))
+            )
+            .sort((a, b) => new Date(a.receivedAt || a.createdAt).getTime() - new Date(b.receivedAt || b.createdAt).getTime())[0]
+        : undefined;
     const getProposalExternalEvents = (proposalId: string) => externalEvents
         .filter(event => event.proposalId && getProposalFamilyIds(proposalId).has(event.proposalId))
         .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
@@ -883,6 +968,639 @@ const CRM: React.FC<CRMProps> = ({
         );
     };
 
+    const normalizeEmail = (value?: string) => (value || '').trim().toLowerCase();
+    const getEmailDomain = (value?: string) => normalizeEmail(value).split('@')[1] || '';
+    const isCommunicationLinked = (communication: CRMCommunication) =>
+        Boolean(communication.clientId || communication.contactId || communication.proposalId || communication.taskId);
+    const getCommunicationTriageStatus = (communication: CRMCommunication): CRMCommunicationTriageStatus =>
+        communication.triageStatus || (isCommunicationLinked(communication) ? 'LINKED' : 'NEW');
+    const canManageInboxTriage = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(currentUser.role);
+    const microsoftInboxCommunications = communications
+        .filter(communication => communication.provider === 'microsoft' && communication.direction === 'inbound')
+        .filter(communication => canManageInboxTriage || getCommunicationTriageStatus(communication) === 'LINKED')
+        .sort((a, b) => new Date(b.receivedAt || b.createdAt).getTime() - new Date(a.receivedAt || a.createdAt).getTime());
+
+    const getInboxSuggestion = (communication: CRMCommunication) => {
+        const sender = normalizeEmail(communication.fromEmail);
+        const senderDomain = getEmailDomain(sender);
+        const contact = sender ? contacts.find(item => normalizeEmail(item.email) === sender) : undefined;
+        if (contact) {
+            const client = clients.find(item => item.id === contact.clientId);
+            return { kind: 'contact' as const, contact, client };
+        }
+        if (senderDomain) {
+            const contactByDomain = contacts.find(item => getEmailDomain(item.email) === senderDomain);
+            const clientByContact = contactByDomain ? clients.find(item => item.id === contactByDomain.clientId) : undefined;
+            const clientByEmail = clients.find(item => getEmailDomain(item.email) === senderDomain);
+            const client = clientByContact || clientByEmail;
+            if (client) return { kind: 'domain' as const, contact: contactByDomain, client };
+        }
+        return { kind: 'lead' as const, contact: undefined, client: undefined };
+    };
+
+    const inboxCounts = microsoftInboxCommunications.reduce<Record<'NEW' | 'SUGGESTED' | 'LINKED' | 'IGNORED', number>>((acc, communication) => {
+        const status = getCommunicationTriageStatus(communication);
+        if (status === 'NEW') {
+            acc.NEW += 1;
+            const suggestion = getInboxSuggestion(communication);
+            if (suggestion.kind !== 'lead') acc.SUGGESTED += 1;
+        } else if (status === 'LINKED' || status === 'IGNORED') {
+            acc[status] += 1;
+        }
+        return acc;
+    }, { NEW: 0, SUGGESTED: 0, LINKED: 0, IGNORED: 0 });
+
+    const getInboxTimestamp = (communication: CRMCommunication) =>
+        new Date(communication.receivedAt || communication.createdAt).getTime();
+    const getStartOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const nowDate = new Date();
+    const todayStart = getStartOfDay(nowDate);
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+    const sevenDaysStart = todayStart - 6 * 24 * 60 * 60 * 1000;
+    const thirtyDaysStart = todayStart - 29 * 24 * 60 * 60 * 1000;
+
+    const filteredInboxCommunications = microsoftInboxCommunications.filter(communication => {
+        const status = getCommunicationTriageStatus(communication);
+        if (inboxFilter === 'SUGGESTED') return status === 'NEW' && getInboxSuggestion(communication).kind !== 'lead';
+        if (status !== inboxFilter) return false;
+
+        const timestamp = getInboxTimestamp(communication);
+        if (inboxDateFilter === 'TODAY' && timestamp < todayStart) return false;
+        if (inboxDateFilter === 'SEVEN_DAYS' && timestamp < sevenDaysStart) return false;
+        if (inboxDateFilter === 'THIRTY_DAYS' && timestamp < thirtyDaysStart) return false;
+
+        const search = normalizeEmail(inboxSearchTerm);
+        if (!search) return true;
+        const haystack = [
+            communication.subject,
+            communication.bodyPreview,
+            communication.fromEmail,
+            communication.sourceMailboxEmail,
+            communication.sourceMailboxLabel,
+            getEmailDomain(communication.fromEmail)
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(search);
+    });
+
+    const getInboxDateGroupLabel = (communication: CRMCommunication) => {
+        const timestamp = getInboxTimestamp(communication);
+        if (timestamp >= todayStart) return 'Hoje';
+        if (timestamp >= yesterdayStart) return 'Ontem';
+        if (timestamp >= sevenDaysStart) return 'Esta semana';
+        return new Date(timestamp).toLocaleDateString('pt-BR');
+    };
+
+    const groupedInboxCommunications = filteredInboxCommunications.reduce<Array<{ label: string; items: CRMCommunication[] }>>((groups, communication) => {
+        const label = getInboxDateGroupLabel(communication);
+        const existing = groups.find(group => group.label === label);
+        if (existing) existing.items.push(communication);
+        else groups.push({ label, items: [communication] });
+        return groups;
+    }, []);
+
+    const selectedInboxCommunication = filteredInboxCommunications.find(communication => communication.id === selectedInboxCommunicationId) || filteredInboxCommunications[0];
+
+    useEffect(() => {
+        if (!filteredInboxCommunications.length) {
+            if (selectedInboxCommunicationId) setSelectedInboxCommunicationId(null);
+            return;
+        }
+        if (!selectedInboxCommunicationId || !filteredInboxCommunications.some(communication => communication.id === selectedInboxCommunicationId)) {
+            setSelectedInboxCommunicationId(filteredInboxCommunications[0].id);
+        }
+    }, [filteredInboxCommunications.map(communication => communication.id).join('|'), selectedInboxCommunicationId]);
+
+    const getInboxSenderLabel = (communication: CRMCommunication) => {
+        const email = communication.fromEmail || '';
+        const localPart = email.split('@')[0] || 'Remetente';
+        return localPart.replace(/[._-]+/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+    };
+
+    const createLeadFromCommunication = async (communication: CRMCommunication) => {
+        const domain = getEmailDomain(communication.fromEmail);
+        const senderName = getInboxSenderLabel(communication);
+        return onSaveClient({
+            id: `client-${Date.now()}`,
+            name: domain ? domain.split('.')[0].toUpperCase() : senderName,
+            status: 'Active',
+            classification: 'Lead',
+            businessUnit,
+            isProductClient: businessUnit === 'PRODUCTS',
+            isServiceClient: businessUnit === 'SERVICES'
+        });
+    };
+
+    const ensureInboxContact = async (communication: CRMCommunication, clientId: string) => {
+        const sender = normalizeEmail(communication.fromEmail);
+        const existing = contacts.find(contact => contact.clientId === clientId && normalizeEmail(contact.email) === sender);
+        if (existing) return existing;
+        const saved = await onSaveContact({
+            id: `cont-${Date.now()}`,
+            clientId,
+            name: getInboxSenderLabel(communication),
+            email: communication.fromEmail || '',
+            phone: '',
+            role: '',
+            influenceLevel: 'Influencer'
+        });
+        return saved || contacts.find(contact => contact.clientId === clientId && normalizeEmail(contact.email) === sender);
+    };
+
+    const triageCommunication = async (
+        communication: CRMCommunication,
+        payload: { clientId?: string | null; contactId?: string | null; proposalId?: string | null; taskId?: string | null; triageStatus: CRMCommunicationTriageStatus; triageNotes?: string | null }
+    ) => {
+        await onTriageCommunicationThread({
+            communicationId: communication.id,
+            microsoftConversationId: communication.microsoftConversationId,
+            ...payload
+        });
+    };
+
+    const runInboxAction = async (communication: CRMCommunication, action: 'createLead' | 'createLeadProposal' | 'linkClient' | 'linkProposal' | 'createTask' | 'ignore') => {
+        if (inboxActionId) return;
+        setInboxActionId(`${communication.id}-${action}`);
+        setInboxError(null);
+        try {
+            const suggestion = getInboxSuggestion(communication);
+            const selectedClientId = inboxClientSelection[communication.id] || suggestion.client?.id || '';
+            const selectedProposalId = inboxProposalSelection[communication.id] || '';
+
+            if (action === 'ignore') {
+                await triageCommunication(communication, { triageStatus: 'IGNORED', triageNotes: 'Ignorado na Inbox CRM.' });
+                return;
+            }
+
+            if (action === 'createLead' || action === 'createLeadProposal') {
+                const client = await createLeadFromCommunication(communication);
+                const contact = await ensureInboxContact(communication, client.id);
+                let proposalId: string | undefined;
+                if (action === 'createLeadProposal') {
+                    const proposal = await onCreateProposal({
+                        type: activePipelineOption.proposalType,
+                        clientId: client.id,
+                        motion: 'NewBusiness',
+                        pricingModule: activePipelineOption.pricingModule,
+                        openEditor: false
+                    });
+                    proposalId = proposal?.id;
+                }
+                await triageCommunication(communication, {
+                    clientId: client.id,
+                    contactId: contact?.id,
+                    proposalId,
+                    triageStatus: 'LINKED',
+                    triageNotes: action === 'createLeadProposal' ? 'Lead e oportunidade criados pela Inbox CRM.' : 'Lead criado pela Inbox CRM.'
+                });
+                return;
+            }
+
+            if (action === 'linkClient') {
+                if (!selectedClientId) throw new Error('Selecione um cliente para vincular este e-mail.');
+                const contact = await ensureInboxContact(communication, selectedClientId);
+                await triageCommunication(communication, {
+                    clientId: selectedClientId,
+                    contactId: contact?.id,
+                    triageStatus: 'LINKED',
+                    triageNotes: 'Conversa vinculada a cliente pela Inbox CRM.'
+                });
+                return;
+            }
+
+            if (action === 'linkProposal') {
+                const proposal = proposals.find(item => item.id === selectedProposalId);
+                if (!proposal?.clientId) throw new Error('Selecione uma negociacao para vincular este e-mail.');
+                const contact = await ensureInboxContact(communication, proposal.clientId);
+                await triageCommunication(communication, {
+                    clientId: proposal.clientId,
+                    contactId: contact?.id,
+                    proposalId: proposal.id,
+                    triageStatus: 'LINKED',
+                    triageNotes: 'Conversa vinculada a negociacao pela Inbox CRM.'
+                });
+                return;
+            }
+
+            if (action === 'createTask') {
+                const proposal = selectedProposalId ? proposals.find(item => item.id === selectedProposalId) : undefined;
+                const clientId = proposal?.clientId || selectedClientId;
+                if (!clientId) throw new Error('Vincule a conversa a um cliente ou negociacao antes de criar tarefa.');
+                const contact = await ensureInboxContact(communication, clientId);
+                const task = await onCreateTask({
+                    id: `task-${Date.now()}`,
+                    clientId,
+                    proposalId: proposal?.id,
+                    contactId: contact?.id,
+                    assignee: currentUser.name,
+                    title: `Responder e-mail: ${communication.subject || 'sem assunto'}`,
+                    description: [
+                        communication.fromEmail ? `Remetente: ${communication.fromEmail}` : '',
+                        communication.bodyPreview ? `Preview: ${communication.bodyPreview}` : '',
+                        communication.externalUrl ? `Outlook: ${communication.externalUrl}` : ''
+                    ].filter(Boolean).join('\n'),
+                    type: 'Email',
+                    status: 'To Do',
+                    dueDate: addDaysDateInput(1),
+                    createdAt: new Date().toISOString()
+                });
+                await triageCommunication(communication, {
+                    clientId,
+                    contactId: contact?.id,
+                    proposalId: proposal?.id,
+                    taskId: task.id,
+                    triageStatus: 'LINKED',
+                    triageNotes: 'Tarefa de resposta criada pela Inbox CRM.'
+                });
+            }
+        } catch (error: any) {
+            setInboxError(error?.message || 'Nao foi possivel concluir a triagem.');
+        } finally {
+            setInboxActionId(null);
+        }
+    };
+
+    const startInboxResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        setIsInboxResizing(true);
+    };
+
+    const resetInboxDetailWidth = () => {
+        setInboxDetailWidth(clampInboxDetailWidth(INBOX_DETAIL_DEFAULT_WIDTH, inboxSplitContainerRef.current?.getBoundingClientRect().width));
+    };
+
+    const renderInboxViewLegacy = () => (
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+            <div className="shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Inbox CRM Outlook</h3>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">E-mails recebidos sem vinculo para triagem manual.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {([
+                            ['NEW', 'Novos', inboxCounts.NEW, MailCheck],
+                            ['SUGGESTED', 'Sugeridos', inboxCounts.SUGGESTED, Search],
+                            ['LINKED', 'Vinculados', inboxCounts.LINKED, Link2],
+                            ['IGNORED', 'Ignorados', inboxCounts.IGNORED, Ban]
+                        ] as const).map(([key, label, count, Icon]) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setInboxFilter(key)}
+                                className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-black transition ${inboxFilter === key ? 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-slate-500 hover:border-[var(--tenant-primary-border)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300'}`}
+                            >
+                                <Icon size={13} />
+                                {label}
+                                <span className="rounded bg-[var(--tenant-control)] px-1.5 py-0.5 text-[10px] dark:bg-[var(--tenant-control-dark)]">{count}</span>
+                            </button>
+                        ))}
+                        {microsoftConnection.connected ? (
+                            <button
+                                type="button"
+                                disabled={microsoftWorkspaceLoading}
+                                onClick={() => onSyncMicrosoft()}
+                                className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300"
+                            >
+                                <RefreshCw size={14} className={microsoftWorkspaceLoading ? 'animate-spin' : ''} />
+                                {microsoftWorkspaceLoading ? 'Sincronizando...' : 'Sincronizar Outlook'}
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                disabled={microsoftWorkspaceLoading}
+                                onClick={() => onConnectMicrosoft()}
+                                className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-3 text-xs font-black text-[var(--tenant-primary)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[var(--tenant-primary-on-dark)]"
+                            >
+                                <MailCheck size={14} />
+                                Conectar Outlook
+                            </button>
+                        )}
+                    </div>
+                </div>
+                {inboxError && (
+                    <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">{inboxError}</div>
+                )}
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+                {filteredInboxCommunications.length === 0 ? (
+                    <div className="flex h-full min-h-[260px] flex-col items-center justify-center rounded-lg border border-dashed border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 text-center dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                        <MailCheck className="mb-3 text-slate-300" size={30} />
+                        <p className="text-sm font-black text-slate-700 dark:text-slate-200">Nenhum e-mail neste filtro</p>
+                        <p className="mt-1 max-w-md text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            {microsoftConnection.connected ? 'Use Sincronizar Outlook para buscar mensagens novas da Inbox Microsoft.' : 'Conecte o Outlook neste tenant para sincronizar caixas compartilhadas.'}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {filteredInboxCommunications.map(communication => {
+                            const suggestion = getInboxSuggestion(communication);
+                            const status = getCommunicationTriageStatus(communication);
+                            const selectedClientId = inboxClientSelection[communication.id] || suggestion.client?.id || '';
+                            const selectedProposalId = inboxProposalSelection[communication.id] || '';
+                            const senderDomain = getEmailDomain(communication.fromEmail);
+                            const isBusy = inboxActionId?.startsWith(`${communication.id}-`);
+                            return (
+                                <article key={communication.id} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] shadow-sm transition-colors hover:border-[var(--tenant-primary-border)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                    <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_440px]">
+                                        <div className="min-w-0 p-4">
+                                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                                                <span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${status === 'NEW' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : status === 'LINKED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-[var(--tenant-panel)] text-slate-600 dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300'}`}>
+                                                    {status === 'NEW' ? 'Novo' : status === 'LINKED' ? 'Vinculado' : 'Ignorado'}
+                                                </span>
+                                                {communication.sourceMailboxEmail && (
+                                                    <span className="inline-flex items-center gap-1 rounded border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-0.5 text-[10px] font-black uppercase text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                                        <Building2 size={11} />
+                                                        {communication.sourceMailboxLabel || communication.sourceMailboxEmail}
+                                                    </span>
+                                                )}
+                                                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{senderDomain || 'sem dominio'}</span>
+                                                <span className="text-[11px] font-bold text-slate-400">{new Date(communication.receivedAt || communication.createdAt).toLocaleString('pt-BR')}</span>
+                                            </div>
+                                            <h4 className="line-clamp-2 break-words text-base font-black leading-snug text-slate-800 dark:text-slate-100">{communication.subject || '(sem assunto)'}</h4>
+                                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                <span className="truncate">{communication.fromEmail || 'remetente nao identificado'}</span>
+                                            </div>
+                                            {communication.bodyPreview && <p className="mt-3 line-clamp-3 text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-300">{communication.bodyPreview}</p>}
+                                            <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-semibold text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                                <Search size={13} className="shrink-0 text-slate-400" />
+                                                <span className="truncate">
+                                                {suggestion.kind === 'contact' && suggestion.client && `Sugestao: contato existente em ${suggestion.client.name}.`}
+                                                {suggestion.kind === 'domain' && suggestion.client && `Sugestao: dominio parecido com ${suggestion.client.name}.`}
+                                                {suggestion.kind === 'lead' && 'Sem match: candidato a novo lead.'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="grid w-full gap-2 border-t border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] xl:border-l xl:border-t-0">
+                                            {!canManageInboxTriage && status !== 'LINKED' ? (
+                                                <div className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                                    Triagem restrita a gestores e administradores.
+                                                </div>
+                                            ) : (
+                                            <>
+                                            <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                                                <ClipboardCheck size={13} />
+                                                Ações de triagem
+                                            </div>
+                                            <select
+                                                value={selectedClientId}
+                                                onChange={event => setInboxClientSelection(prev => ({ ...prev, [communication.id]: event.target.value }))}
+                                                className="min-h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-xs font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-200"
+                                            >
+                                                <option value="">Selecionar cliente...</option>
+                                                {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                                            </select>
+                                            <select
+                                                value={selectedProposalId}
+                                                onChange={event => setInboxProposalSelection(prev => ({ ...prev, [communication.id]: event.target.value }))}
+                                                className="min-h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-xs font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-200"
+                                            >
+                                                <option value="">Selecionar negociacao...</option>
+                                                {activeProposals.map(proposal => <option key={proposal.id} value={proposal.id}>#{proposal.proposalId} - {proposal.clientName}</option>)}
+                                            </select>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button disabled={isBusy} type="button" onClick={() => runInboxAction(communication, 'createLead')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[var(--tenant-primary)] px-3 text-xs font-black text-white transition hover:brightness-95 disabled:opacity-50"><UserPlus size={14} /> Criar lead</button>
+                                                <button disabled={isBusy} type="button" onClick={() => runInboxAction(communication, 'createLeadProposal')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-3 text-xs font-black text-[var(--tenant-primary)] transition hover:brightness-95 disabled:opacity-50 dark:text-[var(--tenant-primary-on-dark)]"><Briefcase size={14} /> Lead + oportunidade</button>
+                                                <button disabled={isBusy || !selectedClientId} type="button" onClick={() => runInboxAction(communication, 'linkClient')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"><Building2 size={14} /> Vincular cliente</button>
+                                                <button disabled={isBusy || !selectedProposalId} type="button" onClick={() => runInboxAction(communication, 'linkProposal')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"><Link2 size={14} /> Vincular negociação</button>
+                                                <button disabled={isBusy || (!selectedClientId && !selectedProposalId)} type="button" onClick={() => runInboxAction(communication, 'createTask')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"><ClipboardCheck size={14} /> Criar tarefa</button>
+                                                <button disabled={isBusy} type="button" onClick={() => runInboxAction(communication, 'ignore')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"><Ban size={14} /> Ignorar</button>
+                                            </div>
+                                            {communication.externalUrl && (
+                                                <a href={communication.externalUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300">
+                                                    <ExternalLink size={13} /> Abrir no Outlook
+                                                </a>
+                                            )}
+                                            </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </article>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    const renderInboxActionPanel = (communication?: CRMCommunication) => {
+        if (!communication) {
+            return (
+                <aside className="hidden min-h-0 border-l border-[var(--tenant-border)] bg-[var(--tenant-panel)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] xl:flex xl:w-full xl:items-center xl:justify-center">
+                    <p className="px-6 text-center text-xs font-bold text-slate-400">Selecione um e-mail para ver detalhes e acoes.</p>
+                </aside>
+            );
+        }
+        const suggestion = getInboxSuggestion(communication);
+        const status = getCommunicationTriageStatus(communication);
+        const selectedClientId = inboxClientSelection[communication.id] || suggestion.client?.id || '';
+        const selectedProposalId = inboxProposalSelection[communication.id] || '';
+        const isBusy = inboxActionId?.startsWith(`${communication.id}-`);
+
+        return (
+            <aside className="min-h-0 border-t border-[var(--tenant-border)] bg-[var(--tenant-panel)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] xl:w-full xl:border-l xl:border-t-0">
+                <div className="flex h-full min-h-0 flex-col">
+                    <div className="shrink-0 border-b border-[var(--tenant-border)] p-4 dark:border-[var(--tenant-border-dark)]">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${status === 'NEW' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : status === 'LINKED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-[var(--tenant-control)] text-slate-600 dark:bg-[var(--tenant-control-dark)] dark:text-slate-300'}`}>
+                                {status === 'NEW' ? 'Novo' : status === 'LINKED' ? 'Vinculado' : 'Ignorado'}
+                            </span>
+                            {communication.sourceMailboxEmail && (
+                                <span className="inline-flex items-center gap-1 rounded border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2 py-0.5 text-[10px] font-black uppercase text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300">
+                                    <Building2 size={11} />
+                                    {communication.sourceMailboxLabel || communication.sourceMailboxEmail}
+                                </span>
+                            )}
+                        </div>
+                        <h4 className="line-clamp-2 text-sm font-black leading-snug text-slate-800 dark:text-slate-100">{communication.subject || '(sem assunto)'}</h4>
+                        <p className="mt-1 truncate text-xs font-bold text-slate-500 dark:text-slate-400">{communication.fromEmail || 'remetente nao identificado'}</p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-400">{new Date(communication.receivedAt || communication.createdAt).toLocaleString('pt-BR')}</p>
+                    </div>
+
+                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 custom-scrollbar">
+                        {communication.bodyPreview && (
+                            <div className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 text-xs font-medium leading-relaxed text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300">
+                                {communication.bodyPreview}
+                            </div>
+                        )}
+                        <div className="inline-flex max-w-full items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-xs font-semibold text-slate-600 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300">
+                            <Search size={13} className="shrink-0 text-slate-400" />
+                            <span className="truncate">
+                                {suggestion.kind === 'contact' && suggestion.client && `Sugestao: contato existente em ${suggestion.client.name}.`}
+                                {suggestion.kind === 'domain' && suggestion.client && `Sugestao: dominio parecido com ${suggestion.client.name}.`}
+                                {suggestion.kind === 'lead' && 'Sem match: candidato a novo lead.'}
+                            </span>
+                        </div>
+
+                        {!canManageInboxTriage && status !== 'LINKED' ? (
+                            <div className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-xs font-bold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300">
+                                Triagem restrita a gestores e administradores.
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                                    <ClipboardCheck size={13} />
+                                    Acoes de triagem
+                                </div>
+                                <select
+                                    value={selectedClientId}
+                                    onChange={event => setInboxClientSelection(prev => ({ ...prev, [communication.id]: event.target.value }))}
+                                    className="min-h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-200"
+                                >
+                                    <option value="">Selecionar cliente...</option>
+                                    {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
+                                </select>
+                                <select
+                                    value={selectedProposalId}
+                                    onChange={event => setInboxProposalSelection(prev => ({ ...prev, [communication.id]: event.target.value }))}
+                                    className="min-h-10 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-bold text-slate-700 outline-none focus:border-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-200"
+                                >
+                                    <option value="">Selecionar negociacao...</option>
+                                    {activeProposals.map(proposal => <option key={proposal.id} value={proposal.id}>#{proposal.proposalId} - {proposal.clientName}</option>)}
+                                </select>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button title="Criar lead a partir deste e-mail" disabled={isBusy} type="button" onClick={() => runInboxAction(communication, 'createLead')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[var(--tenant-primary)] px-3 text-xs font-black text-white transition hover:brightness-95 disabled:opacity-50"><UserPlus size={14} /> Criar lead</button>
+                                    <button title="Criar lead e oportunidade no funil atual" disabled={isBusy} type="button" onClick={() => runInboxAction(communication, 'createLeadProposal')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-3 text-xs font-black text-[var(--tenant-primary)] transition hover:brightness-95 disabled:opacity-50 dark:text-[var(--tenant-primary-on-dark)]"><Briefcase size={14} /> Lead + oportunidade</button>
+                                    <button title={selectedClientId ? 'Vincular conversa ao cliente selecionado' : 'Selecione um cliente para vincular'} disabled={isBusy || !selectedClientId} type="button" onClick={() => runInboxAction(communication, 'linkClient')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"><Building2 size={14} /> Vincular cliente</button>
+                                    <button title={selectedProposalId ? 'Vincular conversa a negociacao selecionada' : 'Selecione uma negociacao para vincular'} disabled={isBusy || !selectedProposalId} type="button" onClick={() => runInboxAction(communication, 'linkProposal')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"><Link2 size={14} /> Vincular negociacao</button>
+                                    <button title={selectedClientId || selectedProposalId ? 'Criar tarefa de resposta' : 'Selecione cliente ou negociacao para criar tarefa'} disabled={isBusy || (!selectedClientId && !selectedProposalId)} type="button" onClick={() => runInboxAction(communication, 'createTask')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300"><ClipboardCheck size={14} /> Criar tarefa</button>
+                                    <button title="Ignorar e remover da fila de novos" disabled={isBusy} type="button" onClick={() => runInboxAction(communication, 'ignore')} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"><Ban size={14} /> Ignorar</button>
+                                </div>
+                                {communication.externalUrl && (
+                                    <a href={communication.externalUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-300">
+                                        <ExternalLink size={13} /> Abrir no Outlook
+                                    </a>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+            </aside>
+        );
+    };
+
+    const renderInboxView = () => (
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+            <div className="shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                        <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Inbox CRM Outlook</h3>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Triagem compacta de e-mails recebidos.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {([
+                            ['NEW', 'Novos', inboxCounts.NEW, MailCheck],
+                            ['SUGGESTED', 'Sugeridos', inboxCounts.SUGGESTED, Search],
+                            ['LINKED', 'Vinculados', inboxCounts.LINKED, Link2],
+                            ['IGNORED', 'Ignorados', inboxCounts.IGNORED, Ban]
+                        ] as const).map(([key, label, count, Icon]) => (
+                            <button key={key} type="button" onClick={() => setInboxFilter(key)} className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-black transition ${inboxFilter === key ? 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-slate-500 hover:border-[var(--tenant-primary-border)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300'}`}>
+                                <Icon size={13} /> {label}
+                                <span className="rounded bg-[var(--tenant-control)] px-1.5 py-0.5 text-[10px] dark:bg-[var(--tenant-control-dark)]">{count}</span>
+                            </button>
+                        ))}
+                        {microsoftConnection.connected ? (
+                            <button type="button" disabled={microsoftWorkspaceLoading} onClick={() => onSyncMicrosoft()} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 text-xs font-black text-slate-600 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300">
+                                <RefreshCw size={14} className={microsoftWorkspaceLoading ? 'animate-spin' : ''} />
+                                {microsoftWorkspaceLoading ? 'Sincronizando...' : 'Sincronizar Outlook'}
+                            </button>
+                        ) : (
+                            <button type="button" disabled={microsoftWorkspaceLoading} onClick={() => onConnectMicrosoft()} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-3 text-xs font-black text-[var(--tenant-primary)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 dark:text-[var(--tenant-primary-on-dark)]">
+                                <MailCheck size={14} /> Conectar Outlook
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-h-9 flex-1 items-center gap-2 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                        <Search size={14} className="shrink-0 text-slate-400" />
+                        <input value={inboxSearchTerm} onChange={event => setInboxSearchTerm(event.target.value)} placeholder="Buscar remetente, assunto, dominio ou caixa..." className="min-w-0 flex-1 bg-transparent text-xs font-bold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200" />
+                        {inboxSearchTerm && <button type="button" onClick={() => setInboxSearchTerm('')} className="text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200" aria-label="Limpar busca"><X size={14} /></button>}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {([
+                            ['TODAY', 'Hoje'],
+                            ['SEVEN_DAYS', '7 dias'],
+                            ['THIRTY_DAYS', '30 dias'],
+                            ['ALL', 'Todos']
+                        ] as const).map(([key, label]) => (
+                            <button key={key} type="button" onClick={() => setInboxDateFilter(key)} className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-black transition ${inboxDateFilter === key ? 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-slate-500 hover:border-[var(--tenant-primary-border)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300'}`}>
+                                <CalendarDays size={13} /> {label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                {inboxError && <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">{inboxError}</div>}
+            </div>
+
+            <div
+                ref={inboxSplitContainerRef}
+                className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(520px,1fr)_8px_minmax(320px,var(--inbox-detail-width))]"
+                style={{ '--inbox-detail-width': `${inboxDetailWidth}px` } as React.CSSProperties}
+            >
+                <div className="min-h-0 overflow-y-auto p-3 custom-scrollbar">
+                    {filteredInboxCommunications.length === 0 ? (
+                        <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-md border border-dashed border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 text-center dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                            <MailCheck className="mb-3 text-slate-300" size={30} />
+                            <p className="text-sm font-black text-slate-700 dark:text-slate-200">Nenhum e-mail neste filtro</p>
+                            <p className="mt-1 max-w-md text-xs font-semibold text-slate-500 dark:text-slate-400">{microsoftConnection.connected ? 'Ajuste os filtros ou sincronize o Outlook para buscar novas mensagens.' : 'Conecte o Outlook neste tenant para sincronizar caixas compartilhadas.'}</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {groupedInboxCommunications.map(group => (
+                                <section key={group.label} className="space-y-1.5">
+                                    <div className="sticky top-0 z-10 flex items-center gap-2 bg-[var(--tenant-panel)] py-1 text-[10px] font-black uppercase tracking-wide text-slate-400 dark:bg-[var(--tenant-panel-dark)]">
+                                        <CalendarDays size={12} /> {group.label}
+                                        <span className="rounded bg-[var(--tenant-control)] px-1.5 py-0.5 dark:bg-[var(--tenant-control-dark)]">{group.items.length}</span>
+                                    </div>
+                                    <div className="overflow-hidden rounded-md border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]">
+                                        {group.items.map(communication => {
+                                            const suggestion = getInboxSuggestion(communication);
+                                            const status = getCommunicationTriageStatus(communication);
+                                            const senderDomain = getEmailDomain(communication.fromEmail);
+                                            const isSelected = selectedInboxCommunication?.id === communication.id;
+                                            return (
+                                                <button key={communication.id} type="button" onClick={() => setSelectedInboxCommunicationId(communication.id)} className={`grid min-h-[72px] w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--tenant-border)] px-3 py-2 text-left transition last:border-b-0 dark:border-[var(--tenant-border-dark)] ${isSelected ? 'bg-[var(--tenant-primary-soft)] ring-1 ring-inset ring-[var(--tenant-primary-border)]' : 'bg-[var(--tenant-control)] hover:bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] dark:hover:bg-[var(--tenant-panel-dark)]'}`}>
+                                                    <div className="min-w-0">
+                                                        <div className="mb-1 flex min-w-0 items-center gap-1.5">
+                                                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase ${status === 'NEW' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : status === 'LINKED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-[var(--tenant-panel)] text-slate-600 dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300'}`}>{status === 'NEW' ? 'Novo' : status === 'LINKED' ? 'Vinculado' : 'Ignorado'}</span>
+                                                            {communication.sourceMailboxLabel && <span className="inline-flex shrink-0 items-center gap-1 rounded border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300"><Building2 size={10} /> {communication.sourceMailboxLabel}</span>}
+                                                            <span className="truncate text-[11px] font-bold text-slate-500 dark:text-slate-400">{communication.fromEmail || 'remetente nao identificado'}</span>
+                                                        </div>
+                                                        <p className="truncate text-sm font-black text-slate-800 dark:text-slate-100">{communication.subject || '(sem assunto)'}</p>
+                                                        <p className="mt-0.5 truncate text-xs font-medium text-slate-500 dark:text-slate-400">{communication.bodyPreview || (suggestion.kind === 'lead' ? 'Candidato a novo lead.' : 'Possivel vinculo encontrado.')}</p>
+                                                    </div>
+                                                    <div className="flex shrink-0 flex-col items-end gap-1 text-right">
+                                                        <span className="text-[11px] font-black text-slate-500 dark:text-slate-400">{new Date(communication.receivedAt || communication.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                        <span className="max-w-[120px] truncate text-[10px] font-bold text-slate-400">{senderDomain || 'sem dominio'}</span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <button
+                    type="button"
+                    title="Arraste para ajustar o painel de detalhes"
+                    aria-label="Ajustar largura do painel de detalhes"
+                    onPointerDown={startInboxResize}
+                    onDoubleClick={resetInboxDetailWidth}
+                    className={`group relative hidden cursor-col-resize items-center justify-center border-x border-[var(--tenant-border)] bg-[var(--tenant-panel)] transition dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] xl:flex ${isInboxResizing ? 'border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)]' : 'hover:border-[var(--tenant-primary-border)] hover:bg-[var(--tenant-primary-soft)]'}`}
+                >
+                    <span className={`h-10 w-1 rounded-full transition ${isInboxResizing ? 'bg-[var(--tenant-primary)]' : 'bg-slate-500/30 group-hover:bg-[var(--tenant-primary)]'}`} />
+                    <GripVertical size={14} className={`absolute text-slate-400 transition ${isInboxResizing ? 'text-[var(--tenant-primary)] opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
+                </button>
+                {renderInboxActionPanel(selectedInboxCommunication)}
+            </div>
+        </div>
+    );
+
     const filteredProposals = activeProposals.filter(p => {
         const matchesSearch = p.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.proposalId.includes(searchTerm) ||
@@ -1061,11 +1779,13 @@ const CRM: React.FC<CRMProps> = ({
                 {/* Header Section */}
                 <div className="shrink-0 space-y-3 p-3 pt-4 sm:space-y-6 sm:p-6 sm:pt-5 lg:p-8 lg:pt-5 lg:pb-6">
                     <PageHeader
-                        icon={PieChart}
-                        title="Oportunidades e Propostas"
-                        subtitle="Pipeline comercial, cotações e próximas atividades."
+                        icon={crmSection === 'inbox' ? MailCheck : PieChart}
+                        title={crmSection === 'inbox' ? 'Inbox CRM' : 'Oportunidades e Propostas'}
+                        subtitle={crmSection === 'inbox' ? 'Triagem de e-mails recebidos no Outlook.' : 'Pipeline comercial, cotacoes e proximas atividades.'}
                         actions={
                         <>
+                            {crmSection === 'pipeline' && (
+                            <>
                             {businessUnit === 'SERVICES' && hasServicesModule && (
                                 <div className="flex rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                     <button
@@ -1160,9 +1880,12 @@ const CRM: React.FC<CRMProps> = ({
                             <span className="sm:hidden">Nova</span>
                             <span className="hidden sm:inline">Nova Cotação</span>
                         </Button>
+                            </>
+                            )}
                         </>
                         }
                     />
+                    {crmSection === 'pipeline' && (
                     <div className="grid grid-cols-4 gap-2 sm:hidden">
                         {[
                             { type: 'Call' as CRMTask['type'], label: 'Ligar', icon: PhoneCall },
@@ -1184,11 +1907,12 @@ const CRM: React.FC<CRMProps> = ({
                             );
                         })}
                     </div>
+                    )}
                 </div>
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-hidden px-3 pb-4 sm:px-6 lg:px-8 lg:pb-8 flex flex-col">
-                    {viewMode === 'list' ? (
+                    {crmSection === 'inbox' ? renderInboxView() : viewMode === 'list' ? (
                         /* LIST VIEW */
                         <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                             <div className="flex shrink-0 items-center gap-3 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-2.5 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] sm:gap-4 sm:p-4">
@@ -1371,6 +2095,7 @@ const CRM: React.FC<CRMProps> = ({
                 <ResponsiveDrawer
                     open={Boolean(selectedProposal)}
                     onClose={closePreviewPanel}
+                    mode="overlay"
                     panelClassName="overflow-x-hidden"
                 >
                     <div className="p-4 sm:p-5 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] shrink-0">
@@ -1529,6 +2254,43 @@ const CRM: React.FC<CRMProps> = ({
                                             </button>
                                         </div>
                                     </div>
+
+                                    {selectedProposalInboxOrigin && (
+                                        <div className="rounded-lg border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] p-4 shadow-sm">
+                                            <div className="flex min-w-0 items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-[var(--tenant-primary)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-primary-on-dark)]">
+                                                        <MailCheck size={12} />
+                                                        Origem: Inbox CRM
+                                                    </div>
+                                                    <h4 className="line-clamp-2 text-sm font-black text-slate-800 dark:text-slate-100">{selectedProposalInboxOrigin.subject || '(sem assunto)'}</h4>
+                                                    <div className="mt-2 grid gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                                        <span className="truncate">De: {selectedProposalInboxOrigin.fromEmail || 'remetente nao identificado'}</span>
+                                                        {selectedProposalInboxOrigin.sourceMailboxEmail && (
+                                                            <span className="truncate">Caixa: {selectedProposalInboxOrigin.sourceMailboxLabel || selectedProposalInboxOrigin.sourceMailboxEmail}</span>
+                                                        )}
+                                                        <span>{new Date(selectedProposalInboxOrigin.receivedAt || selectedProposalInboxOrigin.createdAt).toLocaleString('pt-BR')}</span>
+                                                    </div>
+                                                    {selectedProposalInboxOrigin.bodyPreview && (
+                                                        <p className="mt-2 line-clamp-2 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-300">{selectedProposalInboxOrigin.bodyPreview}</p>
+                                                    )}
+                                                </div>
+                                                {selectedProposalInboxOrigin.externalUrl && (
+                                                    <a
+                                                        href={selectedProposalInboxOrigin.externalUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-panel)] px-3 text-xs font-black text-[var(--tenant-primary)] transition hover:brightness-95 dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-primary-on-dark)]"
+                                                        title="Abrir e-mail de origem"
+                                                        aria-label="Abrir e-mail de origem"
+                                                    >
+                                                        <ExternalLink size={13} />
+                                                        Abrir e-mail
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* FINANCIAL SUMMARY BLOCK */}
                                     {(() => {
@@ -1889,18 +2651,34 @@ const CRM: React.FC<CRMProps> = ({
                                                         const threadExternalUrl = thread.messages.slice().reverse().find(message => message.externalUrl)?.externalUrl;
                                                         const threadTaskSource = thread.messages.slice().reverse().find(message => message.direction === 'inbound') || thread.lastMessage;
                                                         return (
-                                                        <div key={thread.key} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
-                                                            <div className="flex items-start justify-between gap-3">
-                                                                <div className="min-w-0">
-                                                                    <p className="break-words text-sm font-black text-slate-800 dark:text-slate-100">{thread.subject}</p>
+                                                        <div key={thread.key} className="min-w-0 overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                                            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                                <div className="min-w-0 w-full">
+                                                                    <p className="line-clamp-2 break-words text-sm font-black leading-snug text-slate-800 dark:text-slate-100">{thread.subject}</p>
                                                                     <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">{thread.participants.slice(0, 3).join(', ')}</p>
                                                                 </div>
-                                                                <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                                                                    <button type="button" onClick={() => openThreadReplyComposer(selectedProposal, thread)} className="rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-1 text-[10px] font-black uppercase text-[var(--tenant-primary)] transition hover:brightness-95 dark:text-[var(--tenant-primary-on-dark)]">Responder</button>
-                                                                    <button type="button" onClick={() => setExpandedThreadKey(thread.key)} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]">Ver conversa</button>
-                                                                    <button type="button" onClick={() => openReplyTaskFromCommunication(threadTaskSource)} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]">Criar tarefa</button>
-                                                                    {threadExternalUrl && <a href={threadExternalUrl} target="_blank" rel="noreferrer" className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]">Abrir</a>}
-                                                                    <span className="rounded-md bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-panel-dark)]">{thread.provider === 'microsoft' ? 'Outlook' : 'Gmail'}</span>
+                                                                <div className="grid w-full grid-cols-4 gap-2 sm:w-auto sm:flex sm:shrink-0 sm:flex-wrap sm:justify-end">
+                                                                    <button type="button" onClick={() => openThreadReplyComposer(selectedProposal, thread)} className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 text-[10px] font-black uppercase text-[var(--tenant-primary)] transition hover:brightness-95 dark:text-[var(--tenant-primary-on-dark)]" title="Responder" aria-label="Responder">
+                                                                        <MailCheck size={13} />
+                                                                        <span className="hidden sm:inline">Responder</span>
+                                                                    </button>
+                                                                    <button type="button" onClick={() => setExpandedThreadKey(thread.key)} className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]" title="Ver conversa" aria-label="Ver conversa">
+                                                                        <History size={13} />
+                                                                        <span className="hidden sm:inline">Ver conversa</span>
+                                                                    </button>
+                                                                    <button type="button" onClick={() => openReplyTaskFromCommunication(threadTaskSource)} className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]" title="Criar tarefa" aria-label="Criar tarefa">
+                                                                        <Clock size={13} />
+                                                                        <span className="hidden sm:inline">Criar tarefa</span>
+                                                                    </button>
+                                                                    {threadExternalUrl ? (
+                                                                        <a href={threadExternalUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 text-[10px] font-black uppercase text-slate-500 transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-slate-300 dark:hover:text-[var(--tenant-primary-on-dark)]" title="Abrir no e-mail" aria-label="Abrir no e-mail">
+                                                                            <ExternalLink size={13} />
+                                                                            <span className="hidden sm:inline">Abrir</span>
+                                                                        </a>
+                                                                    ) : (
+                                                                        <span className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--tenant-panel)] px-2 text-[10px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-panel-dark)] sm:hidden">{thread.provider === 'microsoft' ? 'OUT' : 'GML'}</span>
+                                                                    )}
+                                                                    <span className="hidden rounded-md bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-panel-dark)] sm:inline-flex">{thread.provider === 'microsoft' ? 'Outlook' : 'Gmail'}</span>
                                                                 </div>
                                                             </div>
                                                             <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
@@ -1910,12 +2688,12 @@ const CRM: React.FC<CRMProps> = ({
                                                             </div>
                                                             <div className="mt-3 space-y-2">
                                                                 {thread.messages.slice(-3).map(message => (
-                                                                    <div key={message.id} className={`rounded-md border px-3 py-2 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]'}`}>
+                                                                    <div key={message.id} className={`min-w-0 overflow-hidden rounded-md border px-3 py-2 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]'}`}>
                                                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                                                             <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{message.direction === 'inbound' ? 'Resposta recebida' : 'E-mail enviado'}</span>
                                                                             <span className="text-[10px] font-semibold text-slate-500">{new Date(getCommunicationDate(message)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                                                         </div>
-                                                                        {message.bodyPreview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-400">{message.bodyPreview}</p>}
+                                                                        {message.bodyPreview && <p className="mt-1 line-clamp-2 break-words whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-400">{message.bodyPreview}</p>}
                                                                         <div className="mt-2 flex flex-wrap gap-2">
                                                                             <button type="button" onClick={() => setExpandedThreadKey(thread.key)} className="text-[10px] font-black text-slate-600 hover:text-[var(--tenant-primary)] dark:text-slate-300">Ver conversa</button>
                                                                             {message.externalUrl && <a href={message.externalUrl} target="_blank" rel="noreferrer" className="text-[10px] font-black text-[var(--tenant-primary)] hover:underline">Abrir no e-mail</a>}
@@ -2781,41 +3559,41 @@ const CRM: React.FC<CRMProps> = ({
                         onClick={closeExpandedThread}
                     >
                         <div className="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] text-[var(--tenant-text)] shadow-2xl dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] dark:text-[var(--tenant-text-dark)]" onClick={event => event.stopPropagation()}>
-                            <div className="shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)] sm:p-5">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0">
+                            <div className="relative shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)] sm:p-5">
+                                <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="min-w-0 w-full pr-11 sm:pr-0">
                                         <p className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-1 text-[10px] font-black uppercase text-[var(--tenant-primary)] dark:text-[var(--tenant-primary-on-dark)]">
                                             <MailCheck size={13} />
                                             Conversa vinculada
                                         </p>
-                                        <h3 className="break-words text-lg font-black text-[var(--tenant-text)] dark:text-[var(--tenant-text-dark)]">{thread.subject}</h3>
-                                        <p className="mt-1 line-clamp-2 text-xs font-semibold text-[color-mix(in_srgb,var(--tenant-text)_68%,transparent)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_70%,transparent)]">
+                                        <h3 className="line-clamp-2 break-words text-lg font-black leading-snug text-[var(--tenant-text)] dark:text-[var(--tenant-text-dark)]">{thread.subject}</h3>
+                                        <p className="mt-1 line-clamp-2 break-words text-xs font-semibold text-[color-mix(in_srgb,var(--tenant-text)_68%,transparent)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_70%,transparent)]">
                                             {thread.participants.join(', ') || selectedProposal.clientName}
                                         </p>
                                     </div>
-                                    <button type="button" onClick={closeExpandedThread} className="rounded-md border border-transparent p-2 text-[color-mix(in_srgb,var(--tenant-text)_55%,transparent)] transition hover:border-[var(--tenant-border)] hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-text)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_55%,transparent)] dark:hover:border-[var(--tenant-border-dark)] dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-[var(--tenant-text-dark)]" aria-label="Fechar conversa">
+                                    <button type="button" onClick={closeExpandedThread} className="absolute right-4 top-4 rounded-md border border-transparent p-2 text-[color-mix(in_srgb,var(--tenant-text)_55%,transparent)] transition hover:border-[var(--tenant-border)] hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-text)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_55%,transparent)] dark:hover:border-[var(--tenant-border-dark)] dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-[var(--tenant-text-dark)] sm:static" aria-label="Fechar conversa">
                                         <X size={18} />
                                     </button>
                                 </div>
-                                <div className="mt-4 flex flex-wrap items-center gap-2">
-                                    <span className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2.5 py-1.5 text-[11px] font-black uppercase text-[color-mix(in_srgb,var(--tenant-text)_72%,transparent)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_78%,transparent)]">{providerLabel}</span>
-                                    <span className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2.5 py-1.5 text-[11px] font-bold text-[color-mix(in_srgb,var(--tenant-text)_72%,transparent)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_78%,transparent)]">{thread.messages.length} mensagens</span>
-                                    <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-300">{thread.inboundCount} recebidas</span>
-                                    <button type="button" onClick={() => openThreadReplyComposer(selectedProposal, thread)} className="inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary)] px-3 py-1.5 text-xs font-black text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50" disabled={replySending}>
+                                <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                                    <span className="inline-flex h-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2.5 text-[11px] font-black uppercase text-[color-mix(in_srgb,var(--tenant-text)_72%,transparent)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_78%,transparent)]">{providerLabel}</span>
+                                    <span className="inline-flex h-9 items-center justify-center rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2.5 text-[11px] font-bold text-[color-mix(in_srgb,var(--tenant-text)_72%,transparent)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[color-mix(in_srgb,var(--tenant-text-dark)_78%,transparent)]">{thread.messages.length} mensagens</span>
+                                    <span className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-300">{thread.inboundCount} recebidas</span>
+                                    <button type="button" onClick={() => openThreadReplyComposer(selectedProposal, thread)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary)] px-3 text-xs font-black text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50" disabled={replySending} title="Responder" aria-label="Responder">
                                         <MailCheck size={13} />
-                                        Responder
+                                        <span className="hidden sm:inline">Responder</span>
                                     </button>
                                     <button type="button" onClick={() => {
                                         openReplyTaskFromCommunication(thread.messages.slice().reverse().find(message => message.direction === 'inbound') || thread.lastMessage);
                                         closeExpandedThread();
-                                    }} className="inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-1.5 text-xs font-black text-[var(--tenant-text)] transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)] dark:hover:text-[var(--tenant-primary-on-dark)]">
+                                    }} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-[var(--tenant-text)] transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)] dark:hover:text-[var(--tenant-primary-on-dark)]" title="Criar tarefa" aria-label="Criar tarefa">
                                         <Clock size={13} />
-                                        Criar tarefa
+                                        <span className="hidden sm:inline">Criar tarefa</span>
                                     </button>
                                     {externalUrl && (
-                                        <a href={externalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-1.5 text-xs font-black text-[var(--tenant-text)] transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)] dark:hover:text-[var(--tenant-primary-on-dark)]">
+                                        <a href={externalUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 text-xs font-black text-[var(--tenant-text)] transition hover:border-[var(--tenant-primary-border)] hover:text-[var(--tenant-primary)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-[var(--tenant-text-dark)] dark:hover:text-[var(--tenant-primary-on-dark)]" title="Abrir no e-mail" aria-label="Abrir no e-mail">
                                             <ExternalLink size={13} />
-                                            Abrir no e-mail
+                                            <span className="hidden sm:inline">Abrir no e-mail</span>
                                         </a>
                                     )}
                                 </div>
@@ -2849,7 +3627,7 @@ const CRM: React.FC<CRMProps> = ({
                             <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
                                 <div className="space-y-3">
                                     {thread.messages.map(message => (
-                                        <article key={message.id} className={`rounded-lg border p-4 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]'}`}>
+                                        <article key={message.id} className={`min-w-0 overflow-hidden rounded-lg border p-4 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]'}`}>
                                             <div className="flex flex-wrap items-start justify-between gap-3">
                                                 <div className="min-w-0">
                                                     <p className="text-xs font-black uppercase text-slate-700 dark:text-slate-200">{message.direction === 'inbound' ? 'Resposta recebida' : 'E-mail enviado'}</p>
@@ -2860,7 +3638,7 @@ const CRM: React.FC<CRMProps> = ({
                                                 <span className="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">{new Date(getCommunicationDate(message)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                             </div>
                                             {message.bodyPreview ? (
-                                                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{message.bodyPreview}</p>
+                                                <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-300">{message.bodyPreview}</p>
                                             ) : (
                                                 <p className="mt-3 text-sm font-semibold text-slate-400">Sem preview de mensagem.</p>
                                             )}

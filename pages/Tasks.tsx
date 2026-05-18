@@ -1239,17 +1239,18 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                 ) : (
                                     <div className="space-y-4">
                                         {threads.map(thread => (
-                                            <section key={thread.key} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
-                                                <div className="mb-3 flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <h3 className="break-words text-sm font-black text-slate-900 dark:text-slate-100">{thread.subject}</h3>
+                                            <section key={thread.key} className="min-w-0 overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                                <div className="mb-3 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="min-w-0 w-full">
+                                                        <h3 className="line-clamp-2 break-words text-sm font-black leading-snug text-slate-900 dark:text-slate-100">{thread.subject}</h3>
                                                         <p className="mt-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">{thread.participants.slice(0, 3).join(', ')}</p>
                                                     </div>
-                                                    <div className="flex shrink-0 items-center gap-2">
-                                                        <button type="button" onClick={() => openHistoryEmailComposer(historyTask, thread)} className="inline-flex items-center gap-1 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 py-1 text-[10px] font-black uppercase text-[var(--tenant-primary-on-dark)] transition hover:brightness-95">
-                                                            <Send size={11} /> Responder
+                                                    <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:shrink-0 sm:items-center">
+                                                        <button type="button" onClick={() => openHistoryEmailComposer(historyTask, thread)} className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-[var(--tenant-primary-border)] bg-[var(--tenant-primary-soft)] px-2 text-[10px] font-black uppercase text-[var(--tenant-primary-on-dark)] transition hover:brightness-95" title="Responder" aria-label="Responder">
+                                                            <Send size={12} />
+                                                            <span className="hidden sm:inline">Responder</span>
                                                         </button>
-                                                        <span className="rounded-md bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-panel-dark)]">
+                                                        <span className="inline-flex h-9 items-center justify-center rounded-md bg-[var(--tenant-panel)] px-2 text-[10px] font-black uppercase text-slate-500 dark:bg-[var(--tenant-panel-dark)]">
                                                             {thread.provider === 'microsoft' ? 'Outlook' : 'Gmail'}
                                                         </span>
                                                     </div>
@@ -1257,16 +1258,16 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                                 <div className="mb-3 flex flex-wrap gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
                                                     <span>{thread.messages.length} mensagens</span>
                                                     <span>{thread.inboundCount} recebidas</span>
-                                                    <span>Ã?ltima: {new Date(getCommunicationDate(thread.lastMessage)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                                    <span>Ultima: {new Date(getCommunicationDate(thread.lastMessage)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                                 </div>
                                                 <div className="space-y-2">
                                                     {thread.messages.map(message => (
-                                                        <div key={message.id} className={`rounded-md border px-3 py-2 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/25' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]'}`}>
+                                                        <div key={message.id} className={`min-w-0 overflow-hidden rounded-md border px-3 py-2 ${message.direction === 'inbound' ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/25' : 'border-[var(--tenant-border)] bg-[var(--tenant-panel)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]'}`}>
                                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                                 <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{message.direction === 'inbound' ? 'Resposta recebida' : 'E-mail enviado'}</span>
                                                                 <span className="text-[10px] font-semibold text-slate-500">{new Date(getCommunicationDate(message)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                                             </div>
-                                                            {message.bodyPreview && <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-400">{message.bodyPreview}</p>}
+                                                            {message.bodyPreview && <p className="mt-1 break-words whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-400">{message.bodyPreview}</p>}
                                                             {message.externalUrl && <a href={message.externalUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-[10px] font-black text-[var(--tenant-primary-on-dark)] hover:underline">Abrir no e-mail</a>}
                                                         </div>
                                                     ))}
@@ -1512,15 +1513,15 @@ const Tasks: React.FC<TasksProps> = ({ tasks, taskAttachments, communications = 
                                                 ) : (
                                                     <div className="space-y-2">
                                                         {threads.map(thread => (
-                                                            <div key={thread.key} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div className="min-w-0">
-                                                                        <p className="break-words text-sm font-black text-slate-800 dark:text-slate-100">{thread.subject}</p>
-                                                                        <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">{thread.messages.length} mensagens - {thread.inboundCount} recebidas - ultima {new Date(getCommunicationDate(thread.lastMessage)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
+                                                            <div key={thread.key} className="min-w-0 overflow-hidden rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                                                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                                    <div className="min-w-0 w-full">
+                                                                        <p className="line-clamp-2 break-words text-sm font-black leading-snug text-slate-800 dark:text-slate-100">{thread.subject}</p>
+                                                                        <p className="mt-1 break-words text-[11px] font-semibold text-slate-500 dark:text-slate-400">{thread.messages.length} mensagens - {thread.inboundCount} recebidas - ultima {new Date(getCommunicationDate(thread.lastMessage)).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
                                                                     </div>
-                                                                    {thread.lastMessage.externalUrl && <a href={thread.lastMessage.externalUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-[10px] font-black text-[var(--tenant-primary)] hover:bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">Abrir</a>}
+                                                                    {thread.lastMessage.externalUrl && <a href={thread.lastMessage.externalUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 text-[10px] font-black text-[var(--tenant-primary)] hover:bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] sm:shrink-0" title="Abrir no e-mail" aria-label="Abrir no e-mail"><ExternalLink size={12} /><span className="hidden sm:inline">Abrir</span></a>}
                                                                 </div>
-                                                                {thread.lastMessage.bodyPreview && <p className="mt-2 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">{thread.lastMessage.bodyPreview}</p>}
+                                                                {thread.lastMessage.bodyPreview && <p className="mt-2 line-clamp-2 break-words text-xs text-slate-600 dark:text-slate-400">{thread.lastMessage.bodyPreview}</p>}
                                                             </div>
                                                         ))}
                                                     </div>
