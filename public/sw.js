@@ -1,9 +1,12 @@
-const CACHE_VERSION = 'oprice-pwa-v1';
+const CACHE_VERSION = 'oprice-pwa-v3';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/logo.png',
+  '/oprice-logo-text-blue.png',
+  '/oprice-logo-text-white.png',
+  '/oprice-social-preview.png',
   '/logoLubrin.png',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',

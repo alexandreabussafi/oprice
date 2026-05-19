@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { AppRole, BusinessUnitAccess, PlatformRole, Tenant, TenantBranding, TenantMember, TenantMembership, TenantModule } from '../types';
 import { classifySupabaseError, getPersistenceErrorMessage, runSupabaseRequest, runSupabaseResponse, withAbortSignal } from '../services/supabaseRequest';
+import { auditRepository } from '../services/auditRepository';
 
 export const PLATFORM_SUPERADMIN_EMAIL = 'alexandre.abussafi@gmail.com';
 export const LUBRIM_TENANT_ID = 'tenant-lubrim';
@@ -189,6 +190,23 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     () => tenants.find(t => t.id === activeTenantId) || null,
     [activeTenantId, tenants]
   );
+
+  const trackTenantUserAction = (
+    tenantId: string,
+    action: 'USER_CREATE' | 'USER_UPDATE' | 'USER_REMOVE',
+    targetUserId: string,
+    metadata: Record<string, any> = {}
+  ) => {
+    if (!user?.id) return;
+    void auditRepository.trackActivity({
+      tenantId,
+      userId: user.id,
+      action,
+      entityType: 'tenant_user',
+      entityId: targetUserId,
+      metadata
+    }).catch(error => console.warn('TenantContext: audit event unavailable.', error));
+  };
 
   const refreshTenants = async () => {
     if (authLoading || !user) {
@@ -415,6 +433,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       { label: 'Vincular usuario ao tenant', resource: 'tenant_users', tenantId: payload.tenantId, timeoutMs: 10000 }
     );
     await refreshTenantMembers(payload.tenantId);
+    trackTenantUserAction(payload.tenantId, 'USER_UPDATE', payload.userId, {
+      operation: 'assign',
+      role: payload.role,
+      allowedTypes: payload.allowed_types
+    });
   };
 
   const createPlatformUser = async (payload: { tenantId: string; email: string; password: string; fullName: string; role: AppRole; allowed_types: BusinessUnitAccess[]; platformRole: PlatformRole }) => {
@@ -489,6 +512,13 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (payload.platformRole === 'SUPER_ADMIN') {
             await refreshTenants();
           }
+          trackTenantUserAction(payload.tenantId, 'USER_CREATE', created.userId, {
+            email: payload.email,
+            role: payload.role,
+            platformRole: payload.platformRole,
+            allowedTypes: payload.allowed_types,
+            reconciledAfterTimeout: true
+          });
           return created;
         }
       }
@@ -508,6 +538,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (payload.platformRole === 'SUPER_ADMIN') {
       await refreshTenants();
     }
+    if (data?.userId) {
+      trackTenantUserAction(payload.tenantId, 'USER_CREATE', data.userId, {
+        email: payload.email,
+        role: payload.role,
+        platformRole: payload.platformRole,
+        allowedTypes: payload.allowed_types
+      });
+    }
     return data as { userId: string; email: string };
   };
 
@@ -521,6 +559,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       { label: 'Atualizar usuario do tenant', resource: 'tenant_users', tenantId: payload.tenantId, timeoutMs: 10000 }
     );
     await refreshTenantMembers(payload.tenantId);
+    trackTenantUserAction(payload.tenantId, 'USER_UPDATE', payload.userId, {
+      role: payload.role,
+      allowedTypes: payload.allowed_types,
+      active: payload.active
+    });
   };
 
   const removeUserFromTenant = async (tenantId: string, userId: string) => {
@@ -529,6 +572,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       { label: 'Remover usuario do tenant', resource: 'tenant_users', tenantId, timeoutMs: 10000 }
     );
     await refreshTenantMembers(tenantId);
+    trackTenantUserAction(tenantId, 'USER_REMOVE', userId);
   };
 
   const refreshTenantMembers = async (tenantId: string) => {

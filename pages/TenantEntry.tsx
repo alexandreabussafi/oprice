@@ -6,6 +6,9 @@ import { useTenant } from '../contexts/TenantContext';
 import { Badge } from '../components/ui';
 import { createTenantTheme } from '../utils/theme';
 
+const OPRICE_LOGO_LIGHT = '/oprice-logo-text-blue.png';
+const OPRICE_LOGO_DARK = '/oprice-logo-text-white.png';
+
 interface TenantEntryProps {
   onOpenPortal: () => void;
 }
@@ -75,7 +78,10 @@ const TenantEntry: React.FC<TenantEntryProps> = ({ onOpenPortal }) => {
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-4xl flex-col justify-center">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black uppercase text-[var(--entry-muted)] dark:text-[var(--entry-muted-dark)]">oPrice RM</p>
+            <div className="h-8">
+              <img src={OPRICE_LOGO_LIGHT} alt="OPrice" className="h-full w-auto object-contain dark:hidden" />
+              <img src={OPRICE_LOGO_DARK} alt="OPrice" className="hidden h-full w-auto object-contain dark:block" />
+            </div>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 dark:text-white">Selecionar acesso</h1>
             <p className="mt-2 text-sm font-medium text-[var(--entry-muted)] dark:text-[var(--entry-muted-dark)]">{profile?.email}</p>
           </div>

@@ -182,4 +182,24 @@ test.describe('oPrice persistence diagnostics', () => {
     await failWithVisibleError(page, testInfo, diagnostics);
     await expect(page.locator('body')).toContainText(clientName);
   });
+
+  test('creates opportunity with inline client on mobile viewport', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const diagnostics = installDiagnostics(page);
+    await openNewOpportunityModal(page);
+    const clientName = `E2E Mobile Cliente ${Date.now()}`;
+    await page
+      .getByPlaceholder(/Ou cadastre novo cliente nesta cota|Nome do primeiro cliente/i)
+      .fill(clientName);
+
+    const confirmButton = page.getByRole('button', { name: /Confirmar e Criar/i });
+    await expect(confirmButton).toBeVisible();
+    await confirmButton.scrollIntoViewIfNeeded();
+    await expect(confirmButton).toBeEnabled();
+    await confirmButton.click();
+
+    await waitForSaveOutcome(page, clientName);
+    await failWithVisibleError(page, testInfo, diagnostics);
+    await expect(page.locator('body')).toContainText(clientName);
+  });
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const loginCodeFragments: Array<{
@@ -293,13 +293,6 @@ export default function Login() {
                     margin: 0;
                     white-space: pre-wrap;
                 }
-                .login-logo-mark {
-                    background: rgba(255, 255, 255, 0.07);
-                    box-shadow: 0 18px 60px rgba(56, 189, 248, 0.26), 0 0 0 1px rgba(103, 232, 249, 0.2);
-                }
-                .login-brand-accent {
-                    color: #67e8f9;
-                }
                 .login-card {
                     background: rgba(2, 6, 23, 0.76);
                 }
@@ -459,12 +452,7 @@ export default function Login() {
 
                 <div className="relative z-10 w-full" style={{ maxWidth: '22rem' }}>
                     <div className="mb-6 text-center sm:mb-8">
-                        <div className="login-logo-mark mb-4 inline-flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 text-white backdrop-blur-xl">
-                            <Zap size={30} />
-                        </div>
-                        <h1 className="text-3xl font-black tracking-normal text-white sm:text-4xl">
-                            o<span className="login-brand-accent">Price</span>
-                        </h1>
+                        <img src="/oprice-logo-text-white.png" alt="OPrice" className="mx-auto h-16 w-auto max-w-[18rem] object-contain" />
                     </div>
 
                     <div className="login-card rounded-lg border border-white/10 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.58)] backdrop-blur-2xl sm:p-7">

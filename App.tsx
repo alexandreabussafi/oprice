@@ -20,7 +20,7 @@ import Contacts from './pages/Contacts';
 import Tasks from './pages/Tasks';
 import ProductEditor from './pages/ProductEditor'; // NOVO: Módulo de Produtos
 import SaasSubscriptionEditor from './pages/SaasSubscriptionEditor';
-import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ProposalVersionStatus, AppRole, BusinessUnitAccess, Milestone, Contact, CRMTask, CatalogProduct, defaultAccounting, TimelineEvent, TenantModule, PricingModuleId, TaskAttachment, CRMCommunication, CRMCommunicationTriageStatus, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft } from './types';
+import { Client, ProposalData, OpportunityStage, OpportunityStatus, OpportunityMotion, ProposalType, KitTemplate, ExpenseItem, ProposalVersionStatus, AppRole, BusinessUnitAccess, Milestone, Contact, CRMTask, CatalogProduct, defaultAccounting, TimelineEvent, TenantModule, PricingModuleId, TaskAttachment, CRMCommunication, CRMCommunicationTriageStatus, CRMExternalEvent, GoogleConnectionStatus, GoogleEmailDraft, GoogleMeetingDraft, MicrosoftConnectionStatus, MicrosoftEmailDraft, MicrosoftMeetingDraft, MicrosoftTodoDraft, TenantActivityAction, TenantAuditEntityType } from './types';
 import { calculateFinancials } from './utils/pricingEngine';
 import { Moon, Sun, X } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -32,6 +32,7 @@ import { crmRepository, isUuid } from './services/crmRepository';
 import { googleWorkspaceService } from './services/googleWorkspaceService';
 import { microsoftWorkspaceService } from './services/microsoftWorkspaceService';
 import { getPersistenceErrorMessage, runSupabaseRequest } from './services/supabaseRequest';
+import { auditRepository } from './services/auditRepository';
 import { createDefaultProposalTemplates, mergeProposalTemplates } from './utils/proposalTemplates';
 import { addDaysDateInput as addProposalFollowUpDays, buildProposalSendTemplateVariables, createDefaultProposalSendAutomationConfig, getDefaultProposalSendAutomationTemplate, normalizeProposalSendAutomation, renderProposalSendTemplate } from './utils/proposalSendAutomation';
 import { applyPricingModuleDefaultsToProposal, withPricingModuleCompatibility } from './utils/pricingModuleAdapters';
@@ -121,11 +122,11 @@ const defaultKits: KitTemplate[] = [
 ];
 
 const defaultLetterheadConfig: ProposalData['letterheadConfig'] = {
-  logoUrl: '/logo.png',
+  logoUrl: '/oprice-logo-text-blue.png',
   primaryColor: '#0f172a',
   secondaryColor: '#047857',
-  companyName: 'OPCAPEX',
-  companySlogan: 'Industrial Viability Engine',
+  companyName: 'OPrice',
+  companySlogan: 'Pricing System',
   addressLine1: 'Av. Industrial, 1000',
   addressLine2: 'São Paulo/SP - CEP 00000-000',
   cnpj: '00.000.000/0001-00',
@@ -591,10 +592,10 @@ function App() {
     ),
     letterheadConfig: {
       ...globalConfig.letterheadConfig,
-      logoUrl: tenantBranding.logoUrl || globalConfig.letterheadConfig?.logoUrl || '/logo.png',
+      logoUrl: tenantBranding.logoUrl || globalConfig.letterheadConfig?.logoUrl || '/oprice-logo-text-blue.png',
       primaryColor: tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || '#0f172a',
       secondaryColor: tenantBranding.secondaryColor || globalConfig.letterheadConfig?.secondaryColor || '#047857',
-      companyName: tenantBranding.companyName || tenantBranding.displayName || activeTenant?.name || globalConfig.letterheadConfig?.companyName || 'OPCAPEX'
+      companyName: tenantBranding.companyName || tenantBranding.displayName || activeTenant?.name || globalConfig.letterheadConfig?.companyName || 'OPrice'
     }
   });
 
@@ -603,7 +604,7 @@ function App() {
     const tenantSlug = activeTenant?.slug || 'oprice';
     const tenantSlogan = tenantBranding.slogan || globalConfig.letterheadConfig?.companySlogan || 'Pricing System';
     const title = `${tenantName} | ${tenantSlug} - ${tenantSlogan}`;
-    const faviconUrl = tenantBranding.faviconUrl || tenantBranding.logoUrl || globalConfig.letterheadConfig?.logoUrl || '/pwa-icon-192.png';
+    const faviconUrl = tenantBranding.faviconUrl || tenantBranding.logoUrl || '/pwa-icon-192.png';
     const themeColor = tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || '#0f172a';
 
     document.title = title;
@@ -651,6 +652,9 @@ function App() {
         30000
       );
       setTenantConfigs(prev => ({ ...prev, [resolvedTenantId]: withPricingModuleCompatibility({ ...savedSettings, tenantId: resolvedTenantId }) }));
+      trackTenantActivity('UPDATE', 'tenant_settings', resolvedTenantId, {
+        changedSections: Object.keys(config || {}).filter(key => (config as any)[key] !== (previousConfig as any)?.[key]).slice(0, 20)
+      });
     } catch (error: any) {
       setTenantConfigs(prev => ({ ...prev, [resolvedTenantId]: previousConfig || createTenantConfig(resolvedTenantId) }));
       setCrmDataError(error.message || 'Erro ao salvar configurações do tenant.');
@@ -727,6 +731,101 @@ function App() {
       { label, tenantId: resolvedTenantId, timeoutMs }
     );
   };
+
+  const trackTenantActivity = (
+    action: TenantActivityAction,
+    entityType: TenantAuditEntityType,
+    entityId?: string | null,
+    metadata: Record<string, any> = {}
+  ) => {
+    if (!activeTenantId || !profile?.id) return;
+    void auditRepository.trackActivity({
+      tenantId: activeTenantId,
+      userId: profile.id,
+      action,
+      entityType,
+      entityId,
+      metadata
+    }).catch(error => console.warn('App: audit event unavailable.', error));
+  };
+
+  useEffect(() => {
+    if (!activeTenantId || !profile?.id || !session) return;
+    let cancelled = false;
+
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
+    auditRepository.startUserSession({
+      tenantId: activeTenantId,
+      userId: profile.id,
+      userAgent
+    }).then(sessionRow => {
+      if (cancelled || !sessionRow) return;
+      return Promise.all([
+        auditRepository.trackActivity({
+          tenantId: activeTenantId,
+          userId: profile.id,
+          action: 'LOGIN',
+          entityType: 'session',
+          entityId: sessionRow.id,
+          metadata: { tenantId: activeTenantId }
+        }),
+        auditRepository.trackActivity({
+          tenantId: activeTenantId,
+          userId: profile.id,
+          action: 'TENANT_ENTER',
+          entityType: 'tenant',
+          entityId: activeTenantId,
+          metadata: {
+            tenantName: activeTenant?.name,
+            role: memberships.find(item => item.tenantId === activeTenantId)?.role
+          }
+        })
+      ]);
+    }).catch(error => console.warn('App: user session audit unavailable.', error));
+
+    const heartbeatId = window.setInterval(() => {
+      void auditRepository.heartbeat({
+        tenantId: activeTenantId,
+        userId: profile.id
+      }).catch(error => console.warn('App: heartbeat audit unavailable.', error));
+    }, 60_000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void auditRepository.heartbeat({ tenantId: activeTenantId, userId: profile.id });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(heartbeatId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      void auditRepository.trackActivity({
+        tenantId: activeTenantId,
+        userId: profile.id,
+        action: 'LOGOUT',
+        entityType: 'session',
+        metadata: { reason: 'tenant_or_session_changed' }
+      }).catch(() => undefined);
+      void auditRepository.endUserSession({
+        tenantId: activeTenantId,
+        userId: profile.id
+      }).catch(() => undefined);
+    };
+  }, [activeTenantId, profile?.id, session?.user?.id]);
+
+  useEffect(() => {
+    if (!activeTenantId || !profile?.id || !session) return;
+    trackTenantActivity('PAGE_VIEW', 'page', activeTab, {
+      view,
+      businessUnit
+    });
+    void auditRepository.heartbeat({
+      tenantId: activeTenantId,
+      userId: profile.id
+    }).catch(() => undefined);
+  }, [activeTab, view, businessUnit, activeTenantId, profile?.id, session?.user?.id]);
 
   const getCrmSaveErrorMessage = (error: any, fallback: string) => {
     const classified = getPersistenceErrorMessage(error, fallback);
@@ -939,6 +1038,7 @@ function App() {
   const saveTenantClient = async (client: Client): Promise<Client> => {
     const previousClients = tenantClients;
     const optimistic = { ...client, tenantId: resolvedTenantId };
+    const auditAction: TenantActivityAction = isUuid(client.id) ? 'UPDATE' : 'CREATE';
     upsertLocalClient(resolvedTenantId, optimistic);
     setCrmSaving(true);
     setCrmDataError(null);
@@ -954,6 +1054,11 @@ function App() {
         ...prev.filter(c => c.id !== client.id && c.id !== savedClient.id),
         { ...savedClient, tenantId: resolvedTenantId }
       ]);
+      trackTenantActivity(auditAction, 'client', savedClient.id, {
+        name: savedClient.name,
+        status: savedClient.status,
+        businessUnit: savedClient.businessUnit
+      });
       return { ...savedClient, tenantId: resolvedTenantId };
     } catch (error: any) {
       replaceTenantClients(resolvedTenantId, previousClients);
@@ -972,6 +1077,7 @@ function App() {
     setCrmDataError(null);
     try {
       await withTenantLoadTimeout(signal => crmRepository.deleteClient(id, resolvedTenantId, { signal }), 'Excluir cliente', 10000);
+      trackTenantActivity('DELETE', 'client', id);
     } catch (error: any) {
       replaceTenantClients(resolvedTenantId, previousClients);
       setCrmDataError(error.message || 'Erro ao excluir cliente.');
@@ -984,6 +1090,7 @@ function App() {
   const saveTenantContact = async (contact: Contact): Promise<Contact> => {
     const previousContacts = tenantContacts;
     const optimistic = { ...contact, tenantId: resolvedTenantId };
+    const auditAction: TenantActivityAction = isUuid(contact.id) ? 'UPDATE' : 'CREATE';
     upsertLocalContact(resolvedTenantId, optimistic);
     setCrmSaving(true);
     setCrmDataError(null);
@@ -999,6 +1106,10 @@ function App() {
         ...prev.filter(c => c.id !== contact.id && c.id !== savedContact.id),
         { ...savedContact, tenantId: resolvedTenantId }
       ]);
+      trackTenantActivity(auditAction, 'contact', savedContact.id, {
+        name: savedContact.name,
+        clientId: savedContact.clientId
+      });
       return { ...savedContact, tenantId: resolvedTenantId };
     } catch (error: any) {
       replaceTenantContacts(resolvedTenantId, previousContacts);
@@ -1017,6 +1128,7 @@ function App() {
     setCrmDataError(null);
     try {
       await withTenantLoadTimeout(signal => crmRepository.deleteContact(id, resolvedTenantId, { signal }), 'Excluir contato', 10000);
+      trackTenantActivity('DELETE', 'contact', id);
     } catch (error: any) {
       replaceTenantContacts(resolvedTenantId, previousContacts);
       setCrmDataError(error.message || 'Erro ao excluir contato.');
@@ -1033,6 +1145,7 @@ function App() {
     }
     const previousTasks = tenantTasks;
     const optimistic = { ...task, tenantId: resolvedTenantId };
+    const auditAction: TenantActivityAction = isUuid(task.id) ? 'UPDATE' : 'CREATE';
     upsertLocalTask(resolvedTenantId, optimistic);
     setCrmSaving(true);
     setCrmDataError(null);
@@ -1048,6 +1161,13 @@ function App() {
         ...prev.filter(t => t.id !== task.id && t.id !== savedTask.id),
         { ...savedTask, tenantId: resolvedTenantId }
       ]);
+      trackTenantActivity(auditAction, 'task', savedTask.id, {
+        title: savedTask.title,
+        status: savedTask.status,
+        type: savedTask.type,
+        clientId: savedTask.clientId,
+        proposalId: savedTask.proposalId
+      });
       return { ...savedTask, tenantId: resolvedTenantId };
     } catch (error: any) {
       replaceTenantTasks(resolvedTenantId, previousTasks);
@@ -1068,6 +1188,7 @@ function App() {
     setCrmDataError(null);
     try {
       await withTenantLoadTimeout(signal => crmRepository.deleteTask(id, resolvedTenantId, { signal }), 'Excluir tarefa', 10000);
+      trackTenantActivity('DELETE', 'task', id);
     } catch (error: any) {
       replaceTenantTasks(resolvedTenantId, previousTasks);
       replaceTenantTaskAttachments(resolvedTenantId, previousAttachments);
@@ -1088,6 +1209,11 @@ function App() {
         10000
       );
       upsertLocalTaskAttachment(resolvedTenantId, savedAttachment);
+      trackTenantActivity('UPLOAD', 'task_attachment', savedAttachment.id, {
+        taskId: savedAttachment.taskId,
+        fileName: savedAttachment.fileName,
+        fileSize: savedAttachment.fileSize
+      });
       return savedAttachment;
     } catch (error: any) {
       const message = error.message || 'Erro ao anexar arquivo.';
@@ -1111,6 +1237,10 @@ function App() {
         'Remover anexo',
         10000
       );
+      trackTenantActivity('DELETE', 'task_attachment', attachment.id, {
+        taskId: attachment.taskId,
+        fileName: attachment.fileName
+      });
     } catch (error: any) {
       replaceTenantTaskAttachments(resolvedTenantId, previousAttachments);
       setCrmDataError(error.message || 'Erro ao remover anexo.');
@@ -1127,6 +1257,10 @@ function App() {
         'Abrir anexo',
         10000
       );
+      trackTenantActivity('DOWNLOAD', 'task_attachment', attachment.id, {
+        taskId: attachment.taskId,
+        fileName: attachment.fileName
+      });
       window.open(signedUrl, '_blank', 'noopener,noreferrer');
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao abrir anexo.');
@@ -1139,6 +1273,7 @@ function App() {
     setCrmDataError(null);
     try {
       const authUrl = await googleWorkspaceService.startOAuth(resolvedTenantId);
+      trackTenantActivity('UPDATE', 'workspace', 'google', { operation: 'connect_start' });
       window.location.assign(authUrl);
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao iniciar conexao Google.');
@@ -1154,6 +1289,7 @@ function App() {
     try {
       await googleWorkspaceService.disconnect(resolvedTenantId);
       setGoogleConnection({ connected: false, account: null });
+      trackTenantActivity('UPDATE', 'workspace', 'google', { operation: 'disconnect' });
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao desconectar Google.');
       throw error;
@@ -1207,6 +1343,12 @@ function App() {
     };
 
     await persistProposal(nextProposal);
+    trackTenantActivity('SEND', 'proposal', nextProposal.id, {
+      proposalNumber: nextProposal.proposalId,
+      provider: communication.provider,
+      communicationId: communication.id,
+      to: draft.to
+    });
 
     const automation = normalizeProposalSendAutomation(brandedGlobalConfig.proposalSendAutomation);
     if (!automation.enabled) return;
@@ -1264,6 +1406,7 @@ function App() {
       ]);
       replaceTenantCommunications(resolvedTenantId, loadedCommunications);
       setGoogleConnection(status);
+      trackTenantActivity('SYNC', 'workspace', 'google', { operation: 'gmail_sync' });
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao sincronizar Gmail.');
       throw error;
@@ -1280,6 +1423,12 @@ function App() {
       upsertLocalTask(resolvedTenantId, task);
       upsertLocalCommunication(resolvedTenantId, communication);
       if (threadWarning) setCrmDataError(threadWarning);
+      trackTenantActivity('SEND', 'communication', communication.id, {
+        provider: 'google',
+        subject: draft.subject,
+        to: draft.to,
+        proposalId: draft.proposalId
+      });
       try {
         await handleProposalSentAutomation(draft, communication);
       } catch (automationError: any) {
@@ -1305,6 +1454,11 @@ function App() {
       const { task, externalEvent } = await googleWorkspaceService.createCalendarEvent({ ...draft, tenantId: resolvedTenantId });
       upsertLocalTask(resolvedTenantId, task);
       upsertLocalExternalEvent(resolvedTenantId, externalEvent);
+      trackTenantActivity('CREATE', 'external_event', externalEvent.id, {
+        provider: 'google',
+        taskId: task.id,
+        title: task.title
+      });
       return { task, externalEvent };
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao criar reuniao no Google Calendar.');
@@ -1319,6 +1473,7 @@ function App() {
     setCrmDataError(null);
     try {
       const authUrl = await microsoftWorkspaceService.startOAuth(resolvedTenantId);
+      trackTenantActivity('UPDATE', 'workspace', 'microsoft', { operation: 'connect_start' });
       window.location.assign(authUrl);
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao iniciar conexao Microsoft.');
@@ -1334,6 +1489,7 @@ function App() {
     try {
       await microsoftWorkspaceService.disconnect(resolvedTenantId);
       setMicrosoftConnection({ connected: false, account: null });
+      trackTenantActivity('UPDATE', 'workspace', 'microsoft', { operation: 'disconnect' });
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao desconectar Microsoft.');
       throw error;
@@ -1355,6 +1511,12 @@ function App() {
       replaceTenantCommunications(resolvedTenantId, loadedCommunications);
       replaceTenantTasks(resolvedTenantId, loadedTasks);
       setMicrosoftConnection(status);
+      trackTenantActivity('SYNC', 'workspace', 'microsoft', {
+        operation: 'mail_sync',
+        taskErrors: syncResult.taskErrors,
+        mailboxWarnings: syncResult.mailboxWarnings,
+        conversationWarnings: syncResult.conversationWarnings
+      });
       if (syncResult.taskErrors && syncResult.taskErrors > 0) {
         setCrmDataError(`Sincronizacao Microsoft concluida, mas ${syncResult.taskErrors} tarefa(s) do To Do nao puderam ser atualizadas.`);
       } else if (syncResult.mailboxWarnings && syncResult.mailboxWarnings > 0) {
@@ -1395,6 +1557,13 @@ function App() {
         ...prev.filter(existing => !updatedCommunications.some(updated => updated.id === existing.id)),
         ...updatedCommunications.map(communication => ({ ...communication, tenantId: resolvedTenantId }))
       ]);
+      trackTenantActivity('TRIAGE', 'communication', payload.communicationId || payload.microsoftConversationId, {
+        triageStatus: payload.triageStatus,
+        clientId: payload.clientId,
+        contactId: payload.contactId,
+        proposalId: payload.proposalId,
+        taskId: payload.taskId
+      });
       return updatedCommunications.map(communication => ({ ...communication, tenantId: resolvedTenantId }));
     } catch (error: any) {
       const message = getCrmSaveErrorMessage(error, 'Erro ao atualizar triagem do e-mail.');
@@ -1414,6 +1583,12 @@ function App() {
       upsertLocalCommunication(resolvedTenantId, communication);
       if (todoTask) upsertLocalTask(resolvedTenantId, todoTask);
       if (todoError) setCrmDataError(todoError);
+      trackTenantActivity('SEND', 'communication', communication.id, {
+        provider: 'microsoft',
+        subject: draft.subject,
+        to: draft.to,
+        proposalId: draft.proposalId
+      });
       try {
         await handleProposalSentAutomation(draft, communication);
       } catch (automationError: any) {
@@ -1439,6 +1614,11 @@ function App() {
       const { task, externalEvent } = await microsoftWorkspaceService.createCalendarEvent({ ...draft, tenantId: resolvedTenantId });
       upsertLocalTask(resolvedTenantId, task);
       upsertLocalExternalEvent(resolvedTenantId, externalEvent);
+      trackTenantActivity('CREATE', 'external_event', externalEvent.id, {
+        provider: 'microsoft',
+        taskId: task.id,
+        title: task.title
+      });
       return { task, externalEvent };
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao criar reuniao no Outlook Calendar.');
@@ -1455,6 +1635,13 @@ function App() {
       const { task, externalTask, todoError } = await microsoftWorkspaceService.createTodoTask({ ...draft, tenantId: resolvedTenantId });
       upsertLocalTask(resolvedTenantId, task);
       if (todoError) setCrmDataError(todoError);
+      trackTenantActivity('CREATE', 'task', task.id, {
+        provider: 'microsoft',
+        externalTaskId: (externalTask as any)?.id,
+        title: task.title,
+        status: task.status,
+        proposalId: task.proposalId
+      });
       return { task, externalTask, todoError };
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao criar tarefa no Microsoft To Do.');
@@ -1549,6 +1736,14 @@ function App() {
         ...prev.filter(p => p.id !== proposal.id && p.id !== savedProposal.id),
         { ...savedProposal, tenantId: resolvedTenantId }
       ]);
+      trackTenantActivity(isUuid(proposal.id) ? 'UPDATE' : 'CREATE', 'proposal', savedProposal.id, {
+        proposalNumber: savedProposal.proposalId,
+        clientId: savedProposal.clientId,
+        stage: savedProposal.stage,
+        status: savedProposal.status,
+        versionStatus: savedProposal.versionStatus,
+        pricingModule: savedProposal.pricingModule
+      });
       if (currentId === proposal.id && savedProposal.id !== proposal.id) {
         setCurrentId(savedProposal.id);
       }
@@ -1672,6 +1867,13 @@ function App() {
         setView('EDITOR');
         setActiveTab(getEditorTabForPricingModule(payload.type, savedProposal.pricingModule));
       }
+      trackTenantActivity('CREATE', 'proposal', savedProposal.id, {
+        proposalNumber: savedProposal.proposalId,
+        clientId: savedProposal.clientId,
+        motion: payload.motion,
+        type: savedProposal.type,
+        pricingModule: savedProposal.pricingModule
+      });
       return { ...savedProposal, tenantId: resolvedTenantId };
     } catch (error: any) {
       const message = getCrmSaveErrorMessage(error, 'Erro ao salvar proposta.');
@@ -1741,6 +1943,12 @@ function App() {
       );
       setProposals(prev => prev.map(p => p.id === source.id ? savedInactiveSource : p.id === newProp.id ? savedNewProp : p));
       setCurrentId(savedNewProp.id);
+      trackTenantActivity('VERSION_CREATE', 'proposal', savedNewProp.id, {
+        proposalNumber: savedNewProp.proposalId,
+        version: savedNewProp.version,
+        sourceId: source.id,
+        notes
+      });
     } catch (error: any) {
       setCrmDataError(error.message || 'Erro ao criar nova versão.');
       const message = getCrmSaveErrorMessage(error, 'Erro ao criar nova versao.');
@@ -1759,7 +1967,11 @@ function App() {
     setProposals(prev => prev.map(p =>
       p.id === id ? { ...p, versionStatus: newStatus, updatedAt: new Date().toISOString() } : p
     ));
-    if (changedProposal) persistProposal(changedProposal).catch(() => undefined);
+    if (changedProposal) {
+      persistProposal(changedProposal)
+        .then(() => trackTenantActivity('STATUS_CHANGE', 'proposal', id, { versionStatus: newStatus }))
+        .catch(() => undefined);
+    }
   };
 
   const handleDuplicateProposal = async (id: string) => {
@@ -1803,6 +2015,11 @@ function App() {
         10000
       );
       setProposals(prev => prev.map(p => p.id === newProp.id ? savedNewProp : p));
+      trackTenantActivity('CREATE', 'proposal', savedNewProp.id, {
+        operation: 'duplicate',
+        sourceId: id,
+        proposalNumber: savedNewProp.proposalId
+      });
     } catch (error: any) {
       const message = getCrmSaveErrorMessage(error, 'Erro ao duplicar proposta.');
       setProposals(previousProposals);
@@ -1816,6 +2033,7 @@ function App() {
     if (window.confirm('Tem certeza que deseja excluir esta proposta?')) {
       setProposals(proposals.filter(p => p.id !== id));
       withTenantLoadTimeout(signal => crmRepository.deleteProposal(id, resolvedTenantId, { signal }), 'Excluir proposta', 10000)
+        .then(() => trackTenantActivity('DELETE', 'proposal', id))
         .catch((error: any) => setCrmDataError(getCrmSaveErrorMessage(error, 'Erro ao excluir proposta.')));
       if (currentId === id) {
         setCurrentId(null);
@@ -1832,6 +2050,11 @@ function App() {
       setCurrentId(id);
       setView('EDITOR');
       setActiveTab(getEditorTabForPricingModule(prop.type, prop.pricingModule));
+      trackTenantActivity('PAGE_VIEW', 'proposal', id, {
+        proposalNumber: prop.proposalId,
+        stage: prop.stage,
+        status: prop.status
+      });
     }
   };
 
@@ -1859,7 +2082,9 @@ function App() {
       }
       return p;
     }));
-    return changedProposal ? persistProposal(changedProposal) : Promise.resolve();
+    return changedProposal
+      ? persistProposal(changedProposal).then(() => trackTenantActivity('STAGE_CHANGE', 'proposal', id, { to: newStage }))
+      : Promise.resolve();
   };
 
   const handleUpdateStatus = (id: string, newStatus: OpportunityStatus) => {
@@ -1886,7 +2111,9 @@ function App() {
       }
       return p;
     }));
-    return changedProposal ? persistProposal(changedProposal) : Promise.resolve();
+    return changedProposal
+      ? persistProposal(changedProposal).then(() => trackTenantActivity('STATUS_CHANGE', 'proposal', id, { to: newStatus }))
+      : Promise.resolve();
   };
 
   const handleUpdateProposal = (id: string, data: Partial<ProposalData>) => {
@@ -1895,7 +2122,9 @@ function App() {
     setProposals(prev => prev.map(p =>
       p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p
     ));
-    return changedProposal ? persistProposal(changedProposal) : Promise.resolve();
+    return changedProposal
+      ? persistProposal(changedProposal).then(() => trackTenantActivity('UPDATE', 'proposal', id, { fields: Object.keys(data || {}).slice(0, 20) }))
+      : Promise.resolve();
   };
 
   const handleUpdateMilestones = (id: string, milestones: Milestone[]) => {
@@ -1904,7 +2133,9 @@ function App() {
     setProposals(prev => prev.map(p =>
       p.id === id ? { ...p, milestones, updatedAt: new Date().toISOString() } : p
     ));
-    return changedProposal ? persistProposal(changedProposal) : Promise.resolve();
+    return changedProposal
+      ? persistProposal(changedProposal).then(() => trackTenantActivity('UPDATE', 'proposal', id, { fields: ['milestones'] }))
+      : Promise.resolve();
   };
 
   // --- EDITOR ACTIONS ---
@@ -2092,6 +2323,13 @@ function App() {
       });
       setCurrentId(savedNewVersion.id);
       setInitialDataSnapshot(JSON.parse(JSON.stringify(savedNewVersion)));
+      trackTenantActivity('VERSION_CREATE', 'proposal', savedNewVersion.id, {
+        proposalNumber: savedNewVersion.proposalId,
+        version: savedNewVersion.version,
+        sourceId: currentSaved.id,
+        notes: versionNotes,
+        origin: 'editor'
+      });
       try {
         const refreshedProposals = await reloadTenantProposals();
         const refreshedNewVersion = refreshedProposals.find(p => p.id === savedNewVersion.id);

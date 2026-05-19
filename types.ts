@@ -464,6 +464,100 @@ export interface TenantMember {
   allowed_types: BusinessUnitAccess[];
   active: boolean;
   platformRole?: PlatformRole;
+  lastSeenAt?: string;
+  lastLoginAt?: string;
+  activeSession?: boolean;
+  periodOnlineSeconds?: number;
+  activitySummary?: TenantUserActivitySummary;
+}
+
+export type TenantSessionStatus = 'ACTIVE' | 'ENDED' | 'EXPIRED';
+
+export type TenantActivityAction =
+  | 'LOGIN'
+  | 'LOGOUT'
+  | 'TENANT_ENTER'
+  | 'HEARTBEAT'
+  | 'PAGE_VIEW'
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'UPLOAD'
+  | 'DOWNLOAD'
+  | 'SEND'
+  | 'SYNC'
+  | 'TRIAGE'
+  | 'VERSION_CREATE'
+  | 'STAGE_CHANGE'
+  | 'STATUS_CHANGE'
+  | 'PROFILE_UPDATE'
+  | 'USER_CREATE'
+  | 'USER_UPDATE'
+  | 'USER_REMOVE';
+
+export type TenantAuditEntityType =
+  | 'session'
+  | 'tenant'
+  | 'page'
+  | 'client'
+  | 'contact'
+  | 'task'
+  | 'task_attachment'
+  | 'proposal'
+  | 'tenant_settings'
+  | 'tenant_user'
+  | 'profile'
+  | 'communication'
+  | 'external_event'
+  | 'workspace';
+
+export interface TenantUserSession {
+  id: string;
+  tenantId: string;
+  userId: string;
+  startedAt: string;
+  lastSeenAt: string;
+  endedAt?: string | null;
+  durationSeconds: number;
+  currentRoute?: string | null;
+  status: TenantSessionStatus;
+  userAgent?: string | null;
+  createdAt: string;
+}
+
+export interface TenantActivityEvent {
+  id: string;
+  tenantId: string;
+  userId: string;
+  sessionId?: string | null;
+  action: TenantActivityAction;
+  entityType: TenantAuditEntityType;
+  entityId?: string | null;
+  route?: string | null;
+  metadata: Record<string, any>;
+  createdAt: string;
+}
+
+export interface TenantUserActivitySummary {
+  tenantId: string;
+  userId: string;
+  lastSeenAt?: string;
+  lastLoginAt?: string;
+  activeSession: boolean;
+  periodOnlineSeconds: number;
+  totalEvents: number;
+  clientsCreated: number;
+  clientsUpdated: number;
+  contactsCreated: number;
+  contactsUpdated: number;
+  tasksCreated: number;
+  tasksUpdated: number;
+  tasksCompleted: number;
+  proposalsCreated: number;
+  proposalsUpdated: number;
+  proposalsSent: number;
+  proposalVersionsCreated: number;
+  deletedRecords: number;
 }
 
 export type ProposalStatus = OpportunityStage; // Alias for compatibility during migration

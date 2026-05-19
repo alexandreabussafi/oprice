@@ -490,7 +490,11 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                     </div>
 
                     <div className="hidden print:block mt-8 text-xs text-slate-400 text-center">
-                        <p>Documento gerado eletronicamente pelo sistema OPrice em {new Date().toLocaleDateString('pt-BR')}.</p>
+                        <div className="mb-2 flex items-center justify-center gap-2">
+                            <span>Powered by</span>
+                            <img src="/oprice-logo-text-blue.png" alt="OPrice" className="h-5 w-auto object-contain" />
+                        </div>
+                        <p>Documento gerado eletronicamente em {new Date().toLocaleDateString('pt-BR')}.</p>
                         <p>Validade da proposta: 15 dias.</p>
                     </div>
                 </div>

@@ -8,6 +8,10 @@ import { supabase } from '../lib/supabase';
 import { createTenantTheme } from '../utils/theme';
 import { getPricingModuleLabel, tenantSupportsPricingBusinessUnit } from '../utils/pricingModules';
 
+const OPRICE_LOGO_LIGHT = '/oprice-logo-text-blue.png';
+const OPRICE_LOGO_DARK = '/oprice-logo-text-white.png';
+const OPRICE_MARK = '/pwa-icon-192.png';
+
 interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
@@ -48,8 +52,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
   const tenantSupportsServices = tenantSupportsPricingBusinessUnit(enabledModules, 'SERVICES');
   const tenantSupportsProducts = tenantSupportsPricingBusinessUnit(enabledModules, 'PRODUCTS');
   const branding = activeTenant?.branding || {};
-  const tenantName = branding.displayName || branding.companyName || activeTenant?.name || 'OpCapex';
-  const tenantLogo = branding.logoUrl;
+  const tenantName = branding.displayName || branding.companyName || activeTenant?.name || 'OPrice';
+  const isDefaultOpriceLogo = !branding.logoUrl || ['/logo.png', OPRICE_LOGO_LIGHT, OPRICE_LOGO_DARK].includes(branding.logoUrl);
+  const tenantLogo = isDefaultOpriceLogo ? (darkMode ? OPRICE_LOGO_DARK : OPRICE_LOGO_LIGHT) : branding.logoUrl;
+  const tenantLogoAlt = isDefaultOpriceLogo ? 'OPrice' : `${tenantName} Logo`;
   const tenantTheme = createTenantTheme(branding);
   const brandPrimary = tenantTheme.primary;
   const brandSecondary = tenantTheme.secondary;
@@ -122,7 +128,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
     { id: 'crm-analytics', label: 'Analytics & KPIs', icon: BarChart3 },
   ];
 
-  const canOpenTenantSettings = currentUser.role === 'ADMIN' || currentUser.role === 'SUPER_ADMIN';
+  const canOpenTenantSettings = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(currentUser.role);
 
   // Menu Contextual do Editor CONTINUOUS
   const continuousMenuItems = [
@@ -194,14 +200,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
           >
             {sidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
           </button>
+          {isDefaultOpriceLogo && !sidebarCollapsed ? (
+            <div className="flex min-w-0 flex-1 items-center pr-8">
+              <img
+                src={tenantLogo}
+                alt={tenantLogoAlt}
+                className="h-11 max-w-[168px] object-contain"
+                onError={(event) => { event.currentTarget.style.display = 'none'; }}
+              />
+            </div>
+          ) : (
           <div
             className={`flex ${sidebarCollapsed ? 'h-10 w-10' : 'h-12 w-12'} shrink-0 items-center justify-center rounded-lg border bg-[var(--tenant-control)] p-2 dark:bg-[var(--tenant-control-dark)]`}
             style={{ borderColor: tenantTheme.primaryBorder, backgroundColor: tenantTheme.primarySubtle }}
           >
             {tenantLogo ? (
               <img
-                src={tenantLogo}
-                alt={`${tenantName} Logo`}
+                src={isDefaultOpriceLogo ? OPRICE_MARK : tenantLogo}
+                alt={tenantLogoAlt}
                 className="h-full w-full object-contain"
                 onError={(event) => { event.currentTarget.style.display = 'none'; }}
               />
@@ -209,7 +225,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
               <Building2 size={22} style={{ color: brandPrimary }} />
             )}
           </div>
-          {!sidebarCollapsed && <div className="flex-1">
+          )}
+          {!sidebarCollapsed && !isDefaultOpriceLogo && <div className="flex-1">
             <h1 className="truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100">{tenantName}</h1>
             <p className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500">
               {isCRMMode ? (isProducts ? 'Produtos' : 'Serviços') : (proposalType === 'PRODUCT' ? 'Cotação de Produtos' : proposalType === 'SPOT' ? 'Projeto Spot' : 'Contrato Mensal')}
@@ -377,16 +394,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                   <ArrowLeft size={18} />
                 </button>
               )}
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--tenant-control)] p-1.5 dark:bg-[var(--tenant-control-dark)]"
-                style={{ borderColor: tenantTheme.primaryBorder, backgroundColor: tenantTheme.primarySubtle }}
-              >
-                {tenantLogo ? (
-                  <img src={tenantLogo} alt={`${tenantName} Logo`} className="h-full w-full object-contain" />
-                ) : (
-                  <Building2 size={19} style={{ color: brandPrimary }} />
-                )}
-              </div>
+              {isDefaultOpriceLogo ? (
+                <img src={tenantLogo} alt={tenantLogoAlt} className="h-9 w-32 shrink-0 object-contain" />
+              ) : (
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--tenant-control)] p-1.5 dark:bg-[var(--tenant-control-dark)]"
+                  style={{ borderColor: tenantTheme.primaryBorder, backgroundColor: tenantTheme.primarySubtle }}
+                >
+                  {tenantLogo ? (
+                    <img src={tenantLogo} alt={tenantLogoAlt} className="h-full w-full object-contain" />
+                  ) : (
+                    <Building2 size={19} style={{ color: brandPrimary }} />
+                  )}
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-slate-900 dark:text-slate-100">{tenantName}</p>
                 <p className="hidden truncate text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 min-[360px]:block">{mobileContextLabel}</p>

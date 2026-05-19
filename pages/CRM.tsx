@@ -2777,22 +2777,23 @@ const CRM: React.FC<CRMProps> = ({
             {/* CREATE MODAL */}
             {
                 showCreateModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-lg overflow-hidden border dark:border-[var(--tenant-border-dark)] transition-colors">
-                            <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] relative">
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 text-center">Nova Oportunidade Comercial</h3>
+                    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] p-0 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
+                        <div className="flex max-h-[calc(100dvh-0.75rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-xl border bg-[var(--tenant-panel)] shadow-2xl transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-lg">
+                            <div className="relative shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:p-6">
+                                <h3 className="px-9 text-center text-lg font-bold text-slate-800 dark:text-slate-100 sm:px-0 sm:text-xl">Nova Oportunidade Comercial</h3>
                                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 text-center">
                                     {createStep === 1 ? 'Selecione o tipo de projeto' : 'Detalhes da Oportunidade'}
                                 </p>
                                 {createStep === 2 && businessUnit === 'SERVICES' && (
-                                    <button onClick={() => setCreateStep(1)} className="absolute left-6 top-6 text-slate-400 hover:text-slate-700">
+                                    <button onClick={() => setCreateStep(1)} className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-md text-slate-400 hover:bg-[var(--tenant-control)] hover:text-slate-700 dark:hover:bg-[var(--tenant-control-dark)] sm:left-6 sm:top-6">
                                         <ArrowRight size={20} className="rotate-180" />
                                     </button>
                                 )}
                             </div>
 
-                            {createStep === 1 && (
-                                <div className={`p-6 grid grid-cols-1 ${businessUnit === 'SERVICES' || productPricingModules.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4`}>
+                            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                                {createStep === 1 && (
+                                    <div className={`grid grid-cols-1 ${businessUnit === 'SERVICES' || productPricingModules.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4 p-4 sm:p-6`}>
                                     {businessUnit === 'SERVICES' && hasServicesModule && (
                                         <>
                                             <button
@@ -2867,11 +2868,11 @@ const CRM: React.FC<CRMProps> = ({
                                             </div>
                                         </button>
                                     )}
-                                </div>
-                            )}
+                                    </div>
+                                )}
 
-                            {createStep === 2 && (
-                                <div className="p-6 space-y-4">
+                                {createStep === 2 && (
+                                    <div className="space-y-4 p-4 sm:p-6">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Cliente</label>
                                         {clients && clients.length > 0 ? (
@@ -2971,16 +2972,17 @@ const CRM: React.FC<CRMProps> = ({
                                         <button
                                             disabled={isCreatingProposal || (createMotion !== 'NewBusiness' && !createReferenceId) || (!createClientId && !createInlineClientName.trim())}
                                             onClick={submitCreateProposal}
-                                            className="w-full bg-[var(--tenant-primary)] text-white font-bold py-3 rounded-lg shadow-sm hover:brightness-95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="min-h-11 w-full rounded-lg bg-[var(--tenant-primary)] py-3 font-bold text-white shadow-sm transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             {isCreatingProposal ? 'Criando...' : 'Confirmar e Criar'}
                                         </button>
                                     </div>
-                                </div>
-                            )}
+                                    </div>
+                                )}
+                            </div>
 
-                            <div className="p-4 border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] flex justify-center transition-colors">
-                                <button onClick={closeCreateModal} className="text-slate-500 dark:text-slate-400 text-sm font-bold hover:text-slate-800 dark:hover:text-slate-100 transition-colors">Cancelar</button>
+                            <div className="flex shrink-0 justify-center border-t border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)] sm:pb-4">
+                                <button onClick={closeCreateModal} className="min-h-11 rounded-md px-4 text-sm font-bold text-slate-500 transition-colors hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100">Cancelar</button>
                             </div>
                         </div>
                     </div>

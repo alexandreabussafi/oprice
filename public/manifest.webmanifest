@@ -1,12 +1,12 @@
 {
-  "name": "OPrice CRM",
-  "short_name": "OPrice",
-  "description": "CRM e apontamentos comerciais rapidos para uso em campo.",
+  "name": "oPrice CRM",
+  "short_name": "oPrice",
+  "description": "CRM e propostas comerciais rapidos para uso em campo.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f8fafc",
+  "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "categories": ["business", "productivity"],
   "icons": [

@@ -7,6 +7,12 @@ import { buildLubitSaasProposalData, LubitSlaRow } from '../utils/lubitSaasPropo
 
 const safeText = (value?: string | number) => String(value ?? '').trim();
 
+const SECTION_MIN_PRESENCE_AHEAD = 76;
+const TABLE_MIN_PRESENCE_AHEAD = 52;
+const CARD_MIN_PRESENCE_AHEAD = 44;
+const TEXT_ORPHANS = 2;
+const TEXT_WIDOWS = 2;
+
 const slaToneColor: Record<LubitSlaRow['tone'], string> = {
   critical: '#ad3232',
   high: '#9a6a14',
@@ -36,6 +42,15 @@ const LubitSaasPdfDocument: React.FC<{ proposal: ProposalData; template: Proposa
     coverRow: {
       flexDirection: 'row',
       justifyContent: 'space-between'
+    },
+    watermarkLogo: {
+      position: 'absolute',
+      top: 245,
+      left: 82,
+      width: 430,
+      height: 270,
+      objectFit: 'contain',
+      opacity: 0.045
     },
     logo: { width: 86, height: 38, objectFit: 'contain', marginBottom: 12 },
     brandFallback: { fontSize: 20, fontWeight: 700, marginBottom: 12 },
@@ -81,13 +96,14 @@ const LubitSaasPdfDocument: React.FC<{ proposal: ProposalData; template: Proposa
   return (
     <Document title={`Proposta SaaS ${view.proposalNumber}`}>
       <Page size="A4" style={styles.page}>
-        <View style={styles.cover}>
+        {view.logoUrl ? <Image src={view.logoUrl} style={styles.watermarkLogo} fixed /> : null}
+        <View style={styles.cover} wrap={false}>
           <View style={styles.coverRow}>
             <View>
               {view.logoUrl ? <Image src={view.logoUrl} style={styles.logo} /> : <Text style={styles.brandFallback}>{view.companyName}</Text>}
               <Text style={styles.kicker}>Proposta tecnica e comercial</Text>
               <Text style={styles.title}>{view.title}</Text>
-              <Text style={styles.paragraphLight}>{view.executiveSummary}</Text>
+              <Text style={styles.paragraphLight} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{view.executiveSummary}</Text>
               <View style={styles.badges}>
                 <Text style={styles.badge}>{view.config.profile}</Text>
                 <Text style={styles.badge}>SLA {view.slaPlan.title} - {view.slaPlan.badge}</Text>
@@ -112,7 +128,7 @@ const LubitSaasPdfDocument: React.FC<{ proposal: ProposalData; template: Proposa
           </View>
         </View>
 
-        <View style={styles.metricRow}>
+        <View style={styles.metricRow} wrap={false}>
           {[
             ['MRR liquido', view.formattedMonthly],
             ['ARR liquido', view.formattedArr],
@@ -126,13 +142,13 @@ const LubitSaasPdfDocument: React.FC<{ proposal: ProposalData; template: Proposa
           ))}
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Resumo</Text>
           <Text style={styles.sectionTitle}>Visao da contratacao</Text>
-          <View style={styles.summary}><Text style={styles.text}>{view.executiveSummary}</Text></View>
+          <View style={styles.summary} wrap={false}><Text style={styles.text} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{view.executiveSummary}</Text></View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Menu configurado</Text>
           <Text style={styles.sectionTitle}>Parametros da proposta</Text>
           <View style={styles.cardGrid}>
@@ -142,7 +158,7 @@ const LubitSaasPdfDocument: React.FC<{ proposal: ProposalData; template: Proposa
               ['Escopo', `${view.modules.length} modulos`],
               ['Opcionais', `${view.addons.length} itens`],
             ].map(([label, value]) => (
-              <View key={label} style={styles.cardThird}>
+              <View key={label} style={styles.cardThird} wrap={false}>
                 <Text style={styles.label}>{label}</Text>
                 <Text style={styles.value}>{value}</Text>
               </View>
@@ -150,89 +166,89 @@ const LubitSaasPdfDocument: React.FC<{ proposal: ProposalData; template: Proposa
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Escopo</Text>
           <Text style={styles.sectionTitle}>Escopo contratado</Text>
           <View style={styles.cardGrid}>
             {view.scopeItems.map((item, index) => (
-              <View key={`${item}-${index}`} style={styles.card}>
+              <View key={`${item}-${index}`} style={styles.card} wrap={false}>
                 <Text style={styles.number}>{index + 1}</Text>
-                <Text style={styles.cardText}>{item}</Text>
+                <Text style={styles.cardText} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{item}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        <View style={styles.section} break>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>CMMS / SaaS industrial</Text>
           <Text style={styles.sectionTitle}>Modulos funcionais selecionados</Text>
           <View style={styles.cardGrid}>
             {view.modules.map(item => (
-              <View key={item.id} style={styles.card}>
+              <View key={item.id} style={styles.card} wrap={false}>
                 <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardText}>{item.description}</Text>
+                <Text style={styles.cardText} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{item.description}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Condicoes comerciais</Text>
           <Text style={styles.sectionTitle}>Modelo de assinatura</Text>
-          <View style={styles.commercialGrid}>
+          <View style={styles.commercialGrid} wrap={false}>
             <View style={styles.commercialValue}>
               <Text style={styles.label}>Valor mensal</Text>
               <Text style={styles.bigMoney}>{view.formattedMonthly}</Text>
-              <Text style={styles.cardText}>{view.licenses} licenca(s) - {view.planName}</Text>
+              <Text style={styles.cardText} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{view.licenses} licenca(s) - {view.planName}</Text>
             </View>
             <View style={styles.commercialTerms}>
-              <Text style={styles.text}>Setup / implantacao: {view.formattedSetup}</Text>
-              <Text style={styles.text}>Prazo estimado: {view.config.implementationTime}</Text>
-              <Text style={styles.text}>Reajuste: {view.config.adjustment}</Text>
-              {view.commercialTerms.map(item => <Text key={item} style={[styles.text, { marginTop: 4 }]}>- {item}</Text>)}
+              <Text style={styles.text} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>Setup / implantacao: {view.formattedSetup}</Text>
+              <Text style={styles.text} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>Prazo estimado: {view.config.implementationTime}</Text>
+              <Text style={styles.text} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>Reajuste: {view.config.adjustment}</Text>
+              {view.commercialTerms.map(item => <Text key={item} style={[styles.text, { marginTop: 4 }]} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>- {item}</Text>)}
             </View>
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Opcionais</Text>
           <Text style={styles.sectionTitle}>Matriz de evolucao comercial</Text>
           <View style={styles.cardGrid}>
             {[...view.addons, ...view.futureAddons].map(item => (
-              <View key={item.id} style={styles.card}>
+              <View key={item.id} style={styles.card} wrap={false}>
                 <Text style={styles.label}>{view.addons.some(addon => addon.id === item.id) ? 'Selecionado' : 'Opcional futuro'}</Text>
                 <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardText}>{item.description}</Text>
+                <Text style={styles.cardText} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{item.description}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        <View style={styles.section} break>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Suporte</Text>
           <Text style={styles.sectionTitle}>SLA de atendimento</Text>
-          <View style={styles.summary}>
+          <View style={styles.summary} wrap={false}>
             <Text style={styles.value}>Plano {view.slaPlan.title} - {view.slaPlan.badge}</Text>
-            <Text style={styles.text}>{view.slaPlan.coverage}. {view.slaPlan.summary} Canal previsto: {view.slaPlan.channel}.</Text>
+            <Text style={styles.text} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{view.slaPlan.coverage}. {view.slaPlan.summary} Canal previsto: {view.slaPlan.channel}.</Text>
           </View>
-          <View style={[styles.table, { marginTop: 8 }]}>
-            <View style={styles.tableHeader}>
+          <View style={[styles.table, { marginTop: 8 }]} minPresenceAhead={TABLE_MIN_PRESENCE_AHEAD}>
+            <View style={styles.tableHeader} wrap={false}>
               <Text style={[styles.th, { width: '22%' }]}>Severidade</Text>
               <Text style={[styles.th, { width: '24%' }]}>Primeira resposta</Text>
               <Text style={[styles.th, { width: '54%' }]}>Criterio de priorizacao</Text>
             </View>
             {view.slaPlan.rows.map(row => (
-              <View key={row.severity} style={styles.tableRow}>
+              <View key={row.severity} style={styles.tableRow} wrap={false}>
                 <View style={[styles.td, { width: '22%' }]}><Text style={[styles.pill, { backgroundColor: slaToneColor[row.tone] }]}>{row.severity}</Text></View>
                 <Text style={[styles.td, { width: '24%', fontWeight: 700 }]}>{row.response}</Text>
-                <Text style={[styles.td, { width: '54%' }]}>{row.description}</Text>
+                <Text style={[styles.td, { width: '54%' }]} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{row.description}</Text>
               </View>
             ))}
           </View>
-          <Text style={[styles.cardText, { marginTop: 7 }]}>SLA baseado em primeira resposta e priorizacao. Prazos de solucao dependem de diagnostico, evidencias, causa raiz, terceiros e complexidade tecnica.</Text>
+          <Text style={[styles.cardText, { marginTop: 7 }]} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>SLA baseado em primeira resposta e priorizacao. Prazos de solucao dependem de diagnostico, evidencias, causa raiz, terceiros e complexidade tecnica.</Text>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Responsabilidades</Text>
           <Text style={styles.sectionTitle}>Obrigacoes das partes</Text>
           <View style={styles.cardGrid}>
@@ -242,32 +258,32 @@ const LubitSaasPdfDocument: React.FC<{ proposal: ProposalData; template: Proposa
               ['Lubit/Core', view.config.providerResponsibilities],
               ['Cliente', view.config.clientResponsibilities],
             ].map(([title, items]) => (
-              <View key={title as string} style={styles.listCard}>
+              <View key={title as string} style={styles.listCard} minPresenceAhead={CARD_MIN_PRESENCE_AHEAD}>
                 <Text style={styles.cardTitle}>{title as string}</Text>
-                {(items as string[]).map(item => <Text key={item} style={styles.listItem}>- {item}</Text>)}
+                {(items as string[]).map(item => <Text key={item} style={styles.listItem} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>- {item}</Text>)}
               </View>
             ))}
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Anexos tecnicos</Text>
           <Text style={styles.sectionTitle}>Referencias de implantacao e governanca</Text>
           <View style={styles.cardGrid}>
             {view.config.technicalAnnexes.map((item, index) => (
-              <View key={item} style={styles.card}>
+              <View key={item} style={styles.card} wrap={false}>
                 <Text style={styles.label}>{String(index + 1).padStart(2, '0')}</Text>
-                <Text style={styles.cardText}>{item}</Text>
+                <Text style={styles.cardText} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{item}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionKicker}>Aceite</Text>
           <Text style={styles.sectionTitle}>Condicoes finais e aprovacao</Text>
-          <Text style={styles.text}>{view.closingNotes}</Text>
-          {proposal.saasNotes ? <Text style={[styles.text, { marginTop: 6 }]}>{proposal.saasNotes}</Text> : null}
+          <Text style={styles.text} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{view.closingNotes}</Text>
+          {proposal.saasNotes ? <Text style={[styles.text, { marginTop: 6 }]} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{proposal.saasNotes}</Text> : null}
         </View>
 
         <Text style={styles.footer}>
@@ -348,6 +364,15 @@ const ProposalPdfDocument: React.FC<{ proposal: ProposalData; template: Proposal
       gap: 18
     },
     logo: { width: 82, height: 42, objectFit: 'contain' },
+    watermarkLogo: {
+      position: 'absolute',
+      top: 255,
+      left: 92,
+      width: 410,
+      height: 260,
+      objectFit: 'contain',
+      opacity: 0.045
+    },
     company: { fontSize: 10, color: '#475569', marginTop: 4 },
     title: { fontSize: 22, fontWeight: 700, color: primaryColor, marginBottom: 4 },
     subtitle: { fontSize: 10, color: '#475569' },
@@ -413,7 +438,8 @@ const ProposalPdfDocument: React.FC<{ proposal: ProposalData; template: Proposal
   return (
     <Document title={`Proposta ${proposal.proposalId}`}>
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
+        {letterhead?.logoUrl ? <Image src={letterhead.logoUrl} style={styles.watermarkLogo} fixed /> : null}
+        <View style={styles.header} wrap={false}>
           <View style={{ flex: 1 }}>
             <Text style={styles.badge}>{PROPOSAL_TEMPLATE_LABELS[template.kind]}</Text>
             <Text style={styles.title}>Proposta tecnico-comercial</Text>
@@ -428,28 +454,28 @@ const ProposalPdfDocument: React.FC<{ proposal: ProposalData; template: Proposal
           </View>
         </View>
 
-        <View>
-          <Text style={styles.paragraph}>{renderTemplateText(template.introduction)}</Text>
+        <View minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
+          <Text style={styles.paragraph} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{renderTemplateText(template.introduction)}</Text>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
           <Text style={styles.sectionTitle}>Resumo comercial</Text>
           {financialRows.map(([label, value]) => (
-            <View key={label} style={styles.row}>
+            <View key={label} style={styles.row} wrap={false}>
               <Text style={styles.labelCell}>{label}</Text>
               <Text style={styles.valueCell}>{value}</Text>
             </View>
           ))}
-          <View style={styles.row}>
+          <View style={styles.row} wrap={false}>
             <Text style={styles.labelCell}>Valor de referencia</Text>
             <Text style={styles.valueCell}>{formatCurrency(getProposalDisplayValue(proposal))}</Text>
           </View>
         </View>
 
         {proposal.type === 'PRODUCT' && proposal.productLines?.length ? (
-          <View style={styles.section}>
+          <View style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
             <Text style={styles.sectionTitle}>Itens da proposta</Text>
-            <View style={styles.productHeader}>
+            <View style={styles.productHeader} wrap={false}>
               <Text style={[styles.colName, { fontWeight: 700 }]}>Item</Text>
               <Text style={[styles.colSmall, { fontWeight: 700 }]}>Qtd.</Text>
               <Text style={[styles.colSmall, { fontWeight: 700 }]}>Un.</Text>
@@ -457,8 +483,8 @@ const ProposalPdfDocument: React.FC<{ proposal: ProposalData; template: Proposal
               <Text style={[styles.colSmall, { fontWeight: 700 }]}>Total</Text>
             </View>
             {proposal.productLines.map(item => (
-              <View key={item.id} style={styles.productRow}>
-                <Text style={styles.colName}>{item.name}</Text>
+              <View key={item.id} style={styles.productRow} wrap={false}>
+                <Text style={styles.colName} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{item.name}</Text>
                 <Text style={styles.colSmall}>{item.quantity}</Text>
                 <Text style={styles.colSmall}>{item.unit || 'UN'}</Text>
                 <Text style={styles.colSmall}>{formatCurrency(item.finalPrice || 0)}</Text>
@@ -474,9 +500,9 @@ const ProposalPdfDocument: React.FC<{ proposal: ProposalData; template: Proposal
           ['Termos', template.terms],
           ['Observacoes finais', `${template.closingNotes}${proposal.saasNotes ? `\n\n${proposal.saasNotes}` : ''}`]
         ].map(([title, body]) => (
-          <View key={title} style={styles.section}>
+          <View key={title} style={styles.section} minPresenceAhead={SECTION_MIN_PRESENCE_AHEAD}>
             <Text style={styles.sectionTitle}>{title}</Text>
-            <Text style={styles.paragraph}>{renderTemplateText(body)}</Text>
+            <Text style={styles.paragraph} orphans={TEXT_ORPHANS} widows={TEXT_WIDOWS}>{renderTemplateText(body)}</Text>
           </View>
         ))}
 

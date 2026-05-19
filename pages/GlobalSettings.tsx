@@ -1,8 +1,8 @@
 ﻿
 import React, { useEffect, useMemo, useState } from 'react';
-import { ProposalData, KitTemplate, KitItemTemplate, AccountingMapping, AccountingAccount, defaultAccounting, AppRole, BusinessUnitAccess, TenantMember, ProposalTemplateConfig, ProposalTemplateKind, TenantBranding, SalesPipelineConfig, SalesPipelineStageConfig, ProposalSendAutomationTemplate, MicrosoftInboxFilterConfig, MicrosoftSharedMailboxConfig } from '../types';
+import { ProposalData, KitTemplate, KitItemTemplate, AccountingMapping, AccountingAccount, defaultAccounting, AppRole, BusinessUnitAccess, TenantMember, ProposalTemplateConfig, ProposalTemplateKind, TenantBranding, SalesPipelineConfig, SalesPipelineStageConfig, ProposalSendAutomationTemplate, MicrosoftInboxFilterConfig, MicrosoftSharedMailboxConfig, TenantActivityEvent, TenantUserActivitySummary, TenantActivityAction, TenantAuditEntityType } from '../types';
 import Taxes from './Taxes'; // Reusing the Taxes component logic for global settings
-import { Settings, Package, Plus, Trash2, Box, Info, ShieldAlert, TrendingUp, Landmark, Wrench, Truck, Monitor, HardHat, BookOpen, Palette, Image as ImageIcon, Loader2, Users, UserPlus, Shield, Save, X, Edit2, AlertCircle, Eye, EyeOff, Building2, Upload, Bell, CalendarClock } from 'lucide-react';
+import { Settings, Package, Plus, Trash2, Box, Info, ShieldAlert, TrendingUp, Landmark, Wrench, Truck, Monitor, HardHat, BookOpen, Palette, Image as ImageIcon, Loader2, Users, UserPlus, Shield, Save, X, Edit2, AlertCircle, Eye, EyeOff, Building2, Upload, Bell, CalendarClock, Activity, Clock, ListFilter } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import InfoTooltip from '../components/InfoTooltip';
 import { useTenant } from '../contexts/TenantContext';
@@ -12,6 +12,7 @@ import { createTenantTheme } from '../utils/theme';
 import { getEnabledPricingModules } from '../utils/pricingModules';
 import { PIPELINE_CATEGORY_OPTIONS, PIPELINE_VARIANT_LABELS, getPipelineOptionKey, getPipelineStageStyle, getSalesPipelineFromConfig, getSalesPipelineOptions, normalizeSalesPipelineConfig } from '../utils/salesPipelines';
 import { DEFAULT_PROPOSAL_SEND_FOLLOW_UP_TEMPLATE, normalizeProposalSendAutomation } from '../utils/proposalSendAutomation';
+import { auditRepository } from '../services/auditRepository';
 
 interface GlobalSettingsProps {
     globalConfig: ProposalData; // Using ProposalData structure to hold global configs
@@ -106,6 +107,14 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
     const [newUserRole, setNewUserRole] = useState<AppRole>('SELLER');
     const [newUserServices, setNewUserServices] = useState(false);
     const [newUserProducts, setNewUserProducts] = useState(false);
+    const [auditLoading, setAuditLoading] = useState(false);
+    const [auditError, setAuditError] = useState<string | null>(null);
+    const [auditPeriodDays, setAuditPeriodDays] = useState(7);
+    const [auditUserFilter, setAuditUserFilter] = useState('ALL');
+    const [auditActionFilter, setAuditActionFilter] = useState<TenantActivityAction | 'ALL'>('ALL');
+    const [auditEntityFilter, setAuditEntityFilter] = useState<TenantAuditEntityType | 'ALL'>('ALL');
+    const [activityEvents, setActivityEvents] = useState<TenantActivityEvent[]>([]);
+    const [activitySummaries, setActivitySummaries] = useState<TenantUserActivitySummary[]>([]);
     // --- KITS MANAGER STATE ---
     const [selectedKitId, setSelectedKitId] = useState<string | null>(null);
     const [selectedTemplateKind, setSelectedTemplateKind] = useState<ProposalTemplateKind>('SAAS_SUBSCRIPTION');
@@ -146,7 +155,10 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
     });
     const selectedProposalTemplate = proposalTemplates[selectedTemplateKind] || proposalTemplates[activeProposalTemplateKinds[0] || 'PRODUCT_SALES'];
     const tenantMembership = memberships.find(item => item.tenantId === activeTenantId);
-    const canEditTenantBranding = isPlatformSuperAdmin || tenantMembership?.role === 'ADMIN' || tenantMembership?.role === 'SUPER_ADMIN';
+    const canManageTenantUsers = isPlatformSuperAdmin || tenantMembership?.role === 'ADMIN' || tenantMembership?.role === 'SUPER_ADMIN';
+    const canViewTenantAudit = canManageTenantUsers || tenantMembership?.role === 'MANAGER';
+    const canEditTenantBranding = canManageTenantUsers;
+    const canEditTenantSettings = canManageTenantUsers;
     const tenantThemePreview = useMemo(() => createTenantTheme(brandForm), [brandForm]);
     const brandingPaletteFields: Array<{ key: keyof typeof brandForm; label: string; group: 'Identidade' | 'Light' | 'Dark' }> = [
         { key: 'primaryColor', label: 'Primária', group: 'Identidade' },
@@ -504,11 +516,45 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
         }
     };
 
+    const refreshAudit = async () => {
+        if (!activeTenantId || !canViewTenantAudit) return;
+        const to = new Date();
+        const from = new Date();
+        from.setDate(to.getDate() - auditPeriodDays);
+        setAuditLoading(true);
+        setAuditError(null);
+        try {
+            const result = await auditRepository.refreshTenantUserActivity(activeTenantId, {
+                from: from.toISOString(),
+                to: to.toISOString(),
+                userId: auditUserFilter === 'ALL' ? undefined : auditUserFilter,
+                action: auditActionFilter,
+                entityType: auditEntityFilter,
+                limit: 800
+            });
+            setActivityEvents(result.events);
+            setActivitySummaries(result.summaries);
+        } catch (error: any) {
+            console.error('Error fetching tenant audit:', error);
+            setAuditError(error.message || 'Erro ao carregar auditoria.');
+        } finally {
+            setAuditLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (mainGroup === 'usuarios' && activeTenantId) {
             refreshUsers();
+            refreshAudit();
         }
-    }, [mainGroup, activeTenantId]);
+    }, [mainGroup, activeTenantId, auditPeriodDays, auditUserFilter, auditActionFilter, auditEntityFilter, canViewTenantAudit]);
+
+    useEffect(() => {
+        if (!canEditTenantSettings && canViewTenantAudit) {
+            setMainGroup('usuarios');
+            setActiveTab('user_list');
+        }
+    }, [canEditTenantSettings, canViewTenantAudit]);
 
     useEffect(() => {
         if (mainGroup === 'servicos' && !hasServicesPricing) {
@@ -640,6 +686,10 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
 
     const updateMember = async (userId: string, updates: Partial<Pick<TenantMember, 'role' | 'allowed_types' | 'active'>>) => {
         if (!activeTenantId) return;
+        if (!canManageTenantUsers) {
+            alert('Apenas administradores podem alterar usuários do tenant.');
+            return;
+        }
         const member = tenantMembers.find(item => item.userId === userId);
         if (!member) return;
 
@@ -667,6 +717,10 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
 
     const handleRemoveMember = async (userId: string) => {
         if (!activeTenantId) return;
+        if (!canManageTenantUsers) {
+            alert('Apenas administradores podem remover usuários do tenant.');
+            return;
+        }
         if (!window.confirm('Remover este usuário do tenant ativo? A conta global não será excluída.')) return;
 
         try {
@@ -680,6 +734,10 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
     const handleCreateUser = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!activeTenantId) return;
+        if (!canManageTenantUsers) {
+            alert('Apenas administradores podem criar usuários do tenant.');
+            return;
+        }
         if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
             alert('Preencha nome, e-mail e senha.');
             return;
@@ -731,6 +789,40 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                 ? 'bg-[var(--tenant-control-active)] text-[var(--tenant-secondary)] dark:bg-[var(--tenant-control-active-dark)]'
                 : 'bg-[var(--tenant-control-active)] text-[var(--tenant-primary)] dark:bg-[var(--tenant-control-active-dark)]'
             : 'text-slate-500 hover:bg-[var(--tenant-control)] dark:text-slate-400 dark:hover:bg-[var(--tenant-control-dark)]'}`;
+
+    const formatDateTime = (value?: string | null) => {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '-';
+        return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    };
+
+    const formatDuration = (seconds?: number) => {
+        const totalSeconds = Math.max(0, Math.round(seconds || 0));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        if (hours <= 0) return `${minutes}min`;
+        return `${hours}h ${minutes}min`;
+    };
+
+    const getMemberName = (userId: string) => {
+        const member = tenantMembers.find(item => item.userId === userId);
+        return member?.fullName || member?.email || 'Usuario';
+    };
+
+    const summaryByUser = useMemo(() => {
+        const map = new Map<string, TenantUserActivitySummary>();
+        activitySummaries.forEach(summary => map.set(summary.userId, summary));
+        return map;
+    }, [activitySummaries]);
+
+    const visibleActivityEvents = useMemo(() => (
+        activityEvents.filter(event =>
+            (auditUserFilter === 'ALL' || event.userId === auditUserFilter)
+            && (auditActionFilter === 'ALL' || event.action === auditActionFilter)
+            && (auditEntityFilter === 'ALL' || event.entityType === auditEntityFilter)
+        )
+    ), [activityEvents, auditUserFilter, auditActionFilter, auditEntityFilter]);
 
     const savePipelineConfig = (pipelineConfig: SalesPipelineConfig) => {
         const pricingModules = globalConfig.pricingModules || {};
@@ -822,46 +914,58 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                 subtitle="Padrões e parâmetros do tenant ativo para novas propostas."
                 actions={
                 <div className="flex rounded-lg bg-[var(--tenant-control)] p-1 transition-colors dark:bg-[var(--tenant-control-dark)]">
-                    <button
-                        onClick={() => { setMainGroup('marca'); setActiveTab('brand'); }}
-                        className={topTabClass(mainGroup === 'marca')}
-                    >
-                        Marca
-                    </button>
-                    <button
-                        onClick={() => { setMainGroup('gerais'); setActiveTab('finance'); }}
-                        className={topTabClass(mainGroup === 'gerais')}
-                    >
-                        Gerais
-                    </button>
-                    <button
-                        onClick={() => { setMainGroup('crm'); setActiveTab('pipelines'); }}
-                        className={topTabClass(mainGroup === 'crm')}
-                    >
-                        CRM
-                    </button>
-                    {hasServicesPricing && (
-                    <button
-                        onClick={() => { setMainGroup('servicos'); setActiveTab('kits'); }}
-                        className={topTabClass(mainGroup === 'servicos')}
-                    >
-                        Serviços
-                    </button>
+                    {canEditTenantSettings && (
+                        <>
+                            <button
+                                onClick={() => { setMainGroup('marca'); setActiveTab('brand'); }}
+                                className={topTabClass(mainGroup === 'marca')}
+                            >
+                                Marca
+                            </button>
+                            <button
+                                onClick={() => { setMainGroup('gerais'); setActiveTab('finance'); }}
+                                className={topTabClass(mainGroup === 'gerais')}
+                            >
+                                Gerais
+                            </button>
+                            <button
+                                onClick={() => { setMainGroup('crm'); setActiveTab('pipelines'); }}
+                                className={topTabClass(mainGroup === 'crm')}
+                            >
+                                CRM
+                            </button>
+                            {hasServicesPricing && (
+                            <button
+                                onClick={() => { setMainGroup('servicos'); setActiveTab('kits'); }}
+                                className={topTabClass(mainGroup === 'servicos')}
+                            >
+                                Serviços
+                            </button>
+                            )}
+                            {hasProductConfigurator && (
+                            <button
+                                onClick={() => { setMainGroup('produtos'); setActiveTab('products'); }}
+                                className={topTabClass(mainGroup === 'produtos', 'secondary')}
+                            >
+                                Produtos
+                            </button>
+                            )}
+                            <button
+                                onClick={() => { setMainGroup('propostas'); setActiveTab('proposal_templates'); }}
+                                className={topTabClass(mainGroup === 'propostas')}
+                            >
+                                Propostas
+                            </button>
+                        </>
                     )}
-                    {hasProductConfigurator && (
-                    <button
-                        onClick={() => { setMainGroup('produtos'); setActiveTab('products'); }}
-                        className={topTabClass(mainGroup === 'produtos', 'secondary')}
-                    >
-                        Produtos
-                    </button>
+                    {canViewTenantAudit && (
+                        <button
+                            onClick={() => { setMainGroup('usuarios'); setActiveTab('user_list'); }}
+                            className={topTabClass(mainGroup === 'usuarios')}
+                        >
+                            Usuários
+                        </button>
                     )}
-                    <button
-                        onClick={() => { setMainGroup('propostas'); setActiveTab('proposal_templates'); }}
-                        className={topTabClass(mainGroup === 'propostas')}
-                    >
-                        Propostas
-                    </button>
                 </div>
                 }
             />
@@ -902,6 +1006,9 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                     )}
                     {mainGroup === 'propostas' && (
                         <button onClick={() => setActiveTab('proposal_templates')} className={subTabClass(activeTab === 'proposal_templates')}>Templates de Proposta</button>
+                    )}
+                    {mainGroup === 'usuarios' && (
+                        <button onClick={() => setActiveTab('user_list')} className={subTabClass(activeTab === 'user_list')}>Equipe & Auditoria</button>
                     )}
                 </div>
             </div>
@@ -2491,24 +2598,26 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     <span className="rounded-lg bg-[var(--tenant-secondary-soft)] p-2 text-[var(--tenant-secondary)] dark:bg-[var(--tenant-secondary-soft)] dark:text-[var(--tenant-secondary)]">
                                         <Users size={22} />
                                     </span>
-                                    Propostas do tenant
+                                    Equipe & Auditoria
                                 </h3>
                                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                                    Gerencie somente os membros de {activeTenant?.branding?.displayName || activeTenant?.name || 'este tenant'}.
+                                    Acompanhe membros, tempo logado, ações e produtividade CRM de {activeTenant?.branding?.displayName || activeTenant?.name || 'este tenant'}.
                                 </p>
                             </div>
                             <div className="flex gap-2">
+                                {canManageTenantUsers && (
                                 <button type="button" onClick={() => setIsCreatingUser(prev => !prev)} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors ${isCreatingUser ? 'bg-[var(--tenant-control)] text-slate-600 dark:bg-[var(--tenant-control-dark)] dark:text-slate-300' : 'bg-[var(--tenant-primary)] text-white hover:bg-[var(--tenant-secondary-soft)]'}`}>
                                     {isCreatingUser ? <X size={17} /> : <UserPlus size={17} />}
                                     {isCreatingUser ? 'Cancelar' : 'Convidar usuário'}
                                 </button>
-                                <button type="button" onClick={refreshUsers} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-secondary)] dark:hover:bg-[var(--tenant-control-dark)]" title="Atualizar lista">
-                                    <Loader2 size={18} className={loadingProfiles ? 'animate-spin' : ''} />
+                                )}
+                                <button type="button" onClick={() => { refreshUsers(); refreshAudit(); }} className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-[var(--tenant-control)] hover:text-[var(--tenant-secondary)] dark:hover:bg-[var(--tenant-control-dark)]" title="Atualizar lista">
+                                    <Loader2 size={18} className={loadingProfiles || auditLoading ? 'animate-spin' : ''} />
                                 </button>
                             </div>
                         </div>
 
-                        {isCreatingUser && (
+                        {isCreatingUser && canManageTenantUsers && (
                             <form onSubmit={handleCreateUser} className="mb-6 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                     <input value={newUserName} onChange={event => setNewUserName(event.target.value)} required placeholder="Nome completo" className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-sm font-semibold outline-none focus:border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]" />
@@ -2545,6 +2654,54 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                             </form>
                         )}
 
+                        <div className="mb-6 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                {[
+                                    { label: 'Usuários ativos', value: activitySummaries.filter(item => item.activeSession).length, icon: Activity },
+                                    { label: 'Eventos no período', value: activitySummaries.reduce((acc, item) => acc + item.totalEvents, 0), icon: ListFilter },
+                                    { label: 'Propostas criadas', value: activitySummaries.reduce((acc, item) => acc + item.proposalsCreated, 0), icon: FileText },
+                                    { label: 'Tarefas criadas', value: activitySummaries.reduce((acc, item) => acc + item.tasksCreated, 0), icon: CalendarClock }
+                                ].map(card => {
+                                    const Icon = card.icon;
+                                    return (
+                                        <div key={card.label} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                            <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)]">
+                                                <Icon size={17} />
+                                            </div>
+                                            <p className="text-2xl font-black text-slate-900 dark:text-white">{card.value}</p>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{card.label}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
+                                    <ListFilter size={15} />
+                                    Filtros da auditoria
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    <select value={auditPeriodDays} onChange={event => setAuditPeriodDays(Number(event.target.value))} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                        <option value={7}>Últimos 7 dias</option>
+                                        <option value={30}>Últimos 30 dias</option>
+                                        <option value={90}>Últimos 90 dias</option>
+                                    </select>
+                                    <select value={auditUserFilter} onChange={event => setAuditUserFilter(event.target.value)} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                        <option value="ALL">Todos os usuários</option>
+                                        {tenantMembers.map(member => <option key={member.userId} value={member.userId}>{member.fullName || member.email}</option>)}
+                                    </select>
+                                    <select value={auditActionFilter} onChange={event => setAuditActionFilter(event.target.value as TenantActivityAction | 'ALL')} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                        <option value="ALL">Todas as ações</option>
+                                        {(['CREATE', 'UPDATE', 'DELETE', 'SEND', 'SYNC', 'TRIAGE', 'VERSION_CREATE', 'STAGE_CHANGE', 'STATUS_CHANGE', 'PAGE_VIEW'] as TenantActivityAction[]).map(action => <option key={action} value={action}>{action}</option>)}
+                                    </select>
+                                    <select value={auditEntityFilter} onChange={event => setAuditEntityFilter(event.target.value as TenantAuditEntityType | 'ALL')} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-3 py-2 text-xs font-bold dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                                        <option value="ALL">Todas as entidades</option>
+                                        {(['client', 'contact', 'task', 'proposal', 'tenant_user', 'tenant_settings', 'communication', 'workspace', 'page'] as TenantAuditEntityType[]).map(entity => <option key={entity} value={entity}>{entity}</option>)}
+                                    </select>
+                                </div>
+                                {auditError && <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">{auditError}</p>}
+                            </div>
+                        </div>
+
                         <div className="overflow-hidden rounded-lg border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-[var(--tenant-control)] text-[10px] font-black uppercase tracking-widest text-slate-400 dark:bg-[var(--tenant-control-dark)]">
@@ -2552,6 +2709,8 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                         <th className="px-4 py-3">Usuário</th>
                                         <th className="px-4 py-3">Papel</th>
                                         <th className="px-4 py-3">Unidades</th>
+                                        <th className="px-4 py-3">Último acesso</th>
+                                        <th className="px-4 py-3">Produtividade</th>
                                         <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3 text-right">Ações</th>
                                     </tr>
@@ -2559,16 +2718,18 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                 <tbody className="divide-y divide-[var(--tenant-border)] dark:divide-[var(--tenant-border-dark)]">
                                     {loadingProfiles && tenantMembers.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                                            <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                                                 <Loader2 size={28} className="mx-auto mb-2 animate-spin text-[var(--tenant-secondary)]" />
                                                 Carregando usuários do tenant...
                                             </td>
                                         </tr>
                                     ) : tenantMembers.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="px-4 py-10 text-center text-slate-400">Nenhum usuário vinculado a este tenant.</td>
+                                            <td colSpan={7} className="px-4 py-10 text-center text-slate-400">Nenhum usuário vinculado a este tenant.</td>
                                         </tr>
-                                    ) : tenantMembers.map(member => (
+                                    ) : tenantMembers.map(member => {
+                                        const summary = summaryByUser.get(member.userId);
+                                        return (
                                         <tr key={member.userId} className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)]">
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center gap-3">
@@ -2585,34 +2746,50 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                                 </div>
                                             </td>
                                             <td className="px-4 py-4">
-                                                <select value={member.role} onChange={event => updateMember(member.userId, { role: event.target.value as AppRole })} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-xs font-bold dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                                <select disabled={!canManageTenantUsers} value={member.role} onChange={event => updateMember(member.userId, { role: event.target.value as AppRole })} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-2 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                                                     {roleOptions.map(role => <option key={role} value={role}>{role}</option>)}
                                                 </select>
                                             </td>
                                             <td className="px-4 py-4">
                                                 <div className="flex gap-2">
                                                     {(['SERVICES', 'PRODUCTS'] as BusinessUnitAccess[]).map(access => (
-                                                        <button type="button" key={access} onClick={() => toggleMemberAccess(member, access)} className={`rounded-md border px-2 py-1 text-[10px] font-black ${member.allowed_types.includes(access) || member.allowed_types.includes('BOTH') ? 'border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] dark:border-[var(--tenant-secondary-border)] dark:bg-[var(--tenant-secondary-soft)]0/10 dark:text-[var(--tenant-secondary)]' : 'border-[var(--tenant-border)] text-slate-500 dark:border-[var(--tenant-border-dark)]'}`}>
+                                                        <button type="button" disabled={!canManageTenantUsers} key={access} onClick={() => toggleMemberAccess(member, access)} className={`rounded-md border px-2 py-1 text-[10px] font-black disabled:cursor-not-allowed disabled:opacity-60 ${member.allowed_types.includes(access) || member.allowed_types.includes('BOTH') ? 'border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] dark:border-[var(--tenant-secondary-border)] dark:bg-[var(--tenant-secondary-soft)]0/10 dark:text-[var(--tenant-secondary)]' : 'border-[var(--tenant-border)] text-slate-500 dark:border-[var(--tenant-border-dark)]'}`}>
                                                             {access}
                                                         </button>
                                                     ))}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-4">
-                                                <button type="button" onClick={() => updateMember(member.userId, { active: !member.active })} className={`rounded-full px-3 py-1 text-[10px] font-black ${member.active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-[var(--tenant-control)] text-slate-500 dark:bg-[var(--tenant-control-dark)] dark:text-slate-300'}`}>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${summary?.activeSession ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-[var(--tenant-control)] text-slate-500 dark:bg-[var(--tenant-control-dark)] dark:text-slate-300'}`}>
+                                                        <span className={`h-1.5 w-1.5 rounded-full ${summary?.activeSession ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                                        {summary?.activeSession ? 'ONLINE' : 'OFFLINE'}
+                                                    </span>
+                                                    <span className="text-xs font-semibold text-slate-500">{formatDateTime(summary?.lastSeenAt || summary?.lastLoginAt)}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <div className="grid gap-1 text-xs text-slate-600 dark:text-slate-300">
+                                                    <span className="font-bold"><Clock size={13} className="mr-1 inline" />{formatDuration(summary?.periodOnlineSeconds)}</span>
+                                                    <span>{summary?.totalEvents || 0} eventos</span>
+                                                    <span>{summary?.proposalsCreated || 0} propostas · {summary?.tasksCreated || 0} tarefas</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <button type="button" disabled={!canManageTenantUsers} onClick={() => updateMember(member.userId, { active: !member.active })} className={`rounded-full px-3 py-1 text-[10px] font-black disabled:cursor-not-allowed disabled:opacity-60 ${member.active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-[var(--tenant-control)] text-slate-500 dark:bg-[var(--tenant-control-dark)] dark:text-slate-300'}`}>
                                                     {member.active ? 'ATIVO' : 'INATIVO'}
                                                 </button>
                                             </td>
                                             <td className="px-4 py-4 text-right">
-                                                <button type="button" onClick={() => setEditingUser(member)} className="rounded-lg p-2 text-slate-400 hover:bg-[var(--tenant-secondary-soft)] hover:text-[var(--tenant-secondary)] dark:hover:bg-[var(--tenant-secondary-soft)]0/10">
+                                                <button type="button" disabled={!canManageTenantUsers} onClick={() => setEditingUser(member)} className="rounded-lg p-2 text-slate-400 hover:bg-[var(--tenant-secondary-soft)] hover:text-[var(--tenant-secondary)] disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-[var(--tenant-secondary-soft)]0/10">
                                                     <Edit2 size={15} />
                                                 </button>
-                                                <button type="button" onClick={() => handleRemoveMember(member.userId)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10">
+                                                <button type="button" disabled={!canManageTenantUsers} onClick={() => handleRemoveMember(member.userId)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-500/10">
                                                     <Trash2 size={15} />
                                                 </button>
                                             </td>
                                         </tr>
-                                    ))}
+                                    )})}
                                 </tbody>
                             </table>
                         </div>
@@ -2620,7 +2797,87 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
 
                     <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300">
                         <AlertCircle size={18} />
-                        A lista acima é limitada ao tenant ativo. Permissões de acesso são gravadas em tenant_users, não no perfil global.
+                        A lista e a auditoria são limitadas ao tenant ativo. Gestores podem consultar produtividade; apenas administradores alteram permissões.
+                    </div>
+
+                    <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+                        <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-5 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                            <div className="mb-4 flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="flex items-center gap-2 text-lg font-black text-slate-900 dark:text-white">
+                                        <Activity size={20} className="text-[var(--tenant-secondary)]" />
+                                        Produtividade CRM
+                                    </h3>
+                                    <p className="text-xs font-semibold text-slate-500">Criação e alteração de trabalho por usuário no período.</p>
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                {tenantMembers.map(member => {
+                                    const summary = summaryByUser.get(member.userId);
+                                    const totalWork = (summary?.clientsCreated || 0)
+                                        + (summary?.contactsCreated || 0)
+                                        + (summary?.tasksCreated || 0)
+                                        + (summary?.proposalsCreated || 0)
+                                        + (summary?.proposalVersionsCreated || 0);
+                                    return (
+                                        <div key={member.userId} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                            <div className="mb-3 flex items-center justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-black text-slate-800 dark:text-slate-100">{member.fullName || member.email}</p>
+                                                    <p className="text-xs text-slate-500">{member.role}</p>
+                                                </div>
+                                                <span className="rounded-md bg-[var(--tenant-panel)] px-2 py-1 text-xs font-black text-[var(--tenant-secondary)] dark:bg-[var(--tenant-panel-dark)]">{totalWork} entregas</span>
+                                            </div>
+                                            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                                                <div className="rounded-md bg-[var(--tenant-panel)] p-2 dark:bg-[var(--tenant-panel-dark)]"><b>{summary?.clientsCreated || 0}</b><span className="block text-[10px] text-slate-500">contas</span></div>
+                                                <div className="rounded-md bg-[var(--tenant-panel)] p-2 dark:bg-[var(--tenant-panel-dark)]"><b>{summary?.contactsCreated || 0}</b><span className="block text-[10px] text-slate-500">contatos</span></div>
+                                                <div className="rounded-md bg-[var(--tenant-panel)] p-2 dark:bg-[var(--tenant-panel-dark)]"><b>{summary?.tasksCreated || 0}</b><span className="block text-[10px] text-slate-500">tarefas</span></div>
+                                                <div className="rounded-md bg-[var(--tenant-panel)] p-2 dark:bg-[var(--tenant-panel-dark)]"><b>{summary?.proposalsCreated || 0}</b><span className="block text-[10px] text-slate-500">propostas</span></div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-5 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                            <div className="mb-4 flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="flex items-center gap-2 text-lg font-black text-slate-900 dark:text-white">
+                                        <ListFilter size={20} className="text-[var(--tenant-primary)]" />
+                                        Timeline de ações
+                                    </h3>
+                                    <p className="text-xs font-semibold text-slate-500">Últimos eventos registrados para o tenant.</p>
+                                </div>
+                                {auditLoading && <Loader2 size={18} className="animate-spin text-[var(--tenant-secondary)]" />}
+                            </div>
+                            <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
+                                {visibleActivityEvents.length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-[var(--tenant-border)] p-8 text-center text-sm font-semibold text-slate-500 dark:border-[var(--tenant-border-dark)]">
+                                        Nenhum evento encontrado para os filtros atuais.
+                                    </div>
+                                ) : visibleActivityEvents.map(event => (
+                                    <div key={event.id} className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-3 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-slate-800 dark:text-slate-100">
+                                                    {event.action} · {event.entityType}
+                                                </p>
+                                                <p className="truncate text-xs font-semibold text-slate-500">
+                                                    {getMemberName(event.userId)}{event.entityId ? ` · ${event.entityId}` : ''}
+                                                </p>
+                                            </div>
+                                            <span className="shrink-0 text-[10px] font-bold text-slate-400">{formatDateTime(event.createdAt)}</span>
+                                        </div>
+                                        {Object.keys(event.metadata || {}).length > 0 && (
+                                            <p className="mt-2 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+                                                {JSON.stringify(event.metadata)}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
 
                     {editingUser && (
