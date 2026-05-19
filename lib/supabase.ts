@@ -7,4 +7,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Supabase URL and Anon Key must be defined in .env');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+let lockQueue = Promise.resolve();
+
+const inMemoryLock = async <R,>(_name: string, _acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
+    const previous = lockQueue;
+    let release!: () => void;
+    lockQueue = new Promise<void>(resolve => {
+        release = resolve;
+    });
+    await previous;
+    try {
+        return await fn();
+    } finally {
+        release();
+    }
+};
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        lock: inMemoryLock
+    }
+});

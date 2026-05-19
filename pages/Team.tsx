@@ -11,18 +11,18 @@ interface TeamProps {
 
 // Cores para personalização dos cards
 const CARD_COLORS = [
-    { id: 'slate', bg: 'bg-slate-50', border: 'border-slate-200', header: 'bg-slate-100', text: 'text-slate-700' },
-    { id: 'blue', bg: 'bg-blue-50', border: 'border-blue-200', header: 'bg-blue-100', text: 'text-blue-700' },
+    { id: 'slate', bg: 'bg-[var(--tenant-control)]', border: 'border-[var(--tenant-border)]', header: 'bg-[var(--tenant-control)]', text: 'text-slate-700' },
+    { id: 'blue', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]', header: 'bg-[var(--tenant-secondary-soft)]', text: 'text-[var(--tenant-secondary)]' },
     { id: 'emerald', bg: 'bg-emerald-50', border: 'border-emerald-200', header: 'bg-emerald-100', text: 'text-emerald-700' },
     { id: 'amber', bg: 'bg-amber-50', border: 'border-amber-200', header: 'bg-amber-100', text: 'text-amber-700' },
     { id: 'red', bg: 'bg-red-50', border: 'border-red-200', header: 'bg-red-100', text: 'text-red-700' },
-    { id: 'purple', bg: 'bg-purple-50', border: 'border-purple-200', header: 'bg-purple-100', text: 'text-purple-700' },
-    { id: 'dark', bg: 'bg-[#1e293b]', border: 'border-slate-600', header: 'bg-[#0f172a]', text: 'text-white' },
+    { id: 'purple', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]', header: 'bg-[var(--tenant-secondary-soft)]', text: 'text-[var(--tenant-secondary)]' },
+    { id: 'dark', bg: 'bg-[var(--tenant-panel-dark)]', border: 'border-[var(--tenant-border)]', header: 'bg-[var(--tenant-primary)]', text: 'text-white' },
 ];
 
 const SECTION_COLORS = [
-    { id: 'gray', bg: 'bg-slate-100/30', border: 'border-slate-300' },
-    { id: 'blue', bg: 'bg-blue-100/20', border: 'border-blue-200' },
+    { id: 'gray', bg: 'bg-[var(--tenant-control)]', border: 'border-[var(--tenant-border)]' },
+    { id: 'blue', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]' },
     { id: 'green', bg: 'bg-emerald-100/20', border: 'border-emerald-200' },
     { id: 'yellow', bg: 'bg-amber-100/20', border: 'border-amber-200' },
     { id: 'red', bg: 'bg-red-100/20', border: 'border-red-200' },
@@ -77,6 +77,50 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const scaleRef = useRef(scale);
     scaleRef.current = scale;
 
+    const getDescendantIds = (roles: Role[], parentId: string): string[] => {
+        const descendants: string[] = [];
+        const visited = new Set<string>();
+        const stack = roles.filter(r => r.parentId === parentId).map(r => r.id);
+
+        while (stack.length > 0) {
+            const childId = stack.pop();
+            if (!childId || visited.has(childId)) continue;
+            visited.add(childId);
+            descendants.push(childId);
+            roles
+                .filter(r => r.parentId === childId && !visited.has(r.id))
+                .forEach(r => stack.push(r.id));
+        }
+
+        return descendants;
+    };
+
+    const wouldCreateRoleCycle = (roles: Role[], roleId: string, parentId?: string) => {
+        if (!parentId) return false;
+        if (roleId === parentId) return true;
+        return getDescendantIds(roles, roleId).includes(parentId);
+    };
+
+    const sanitizeRoleHierarchy = (roles: Role[]) => {
+        const existingIds = new Set(roles.map(r => r.id));
+        const sanitized = roles.map(role => {
+            if (!role.parentId || !existingIds.has(role.parentId) || role.parentId === role.id) {
+                return { ...role, parentId: undefined };
+            }
+            return role;
+        });
+
+        return sanitized.map(role => (
+            role.parentId && wouldCreateRoleCycle(sanitized, role.id, role.parentId)
+                ? { ...role, parentId: undefined }
+                : role
+        ));
+    };
+
+    const updateRoles = (roles: Role[]) => {
+        updateData({ roles: sanitizeRoleHierarchy(roles) });
+    };
+
     // --- ROBUST EVENT SYSTEM TO PREVENT "STICKY HAND" ---
     // We use stable function refs that NEVER get recreated. All state is read via refs.
     const activeCleanupRef = useRef<(() => void) | null>(null);
@@ -126,11 +170,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
             if (type === 'role') {
                 const initialRoles = dragInfoRef.current.initialRoles || currentData.roles;
-                const getDescendants = (parentId: string): string[] => {
-                    const children = initialRoles.filter(r => r.parentId === parentId).map(r => r.id);
-                    return children.reduce((acc, childId) => [...acc, childId, ...getDescendants(childId)], [] as string[]);
-                };
-                const descendantIds = getDescendants(id);
+                const descendantIds = getDescendantIds(initialRoles, id);
 
                 const updatedRoles = currentData.roles.map(r => {
                     if (r.id === id) {
@@ -143,7 +183,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     }
                     return r;
                 });
-                updateData({ roles: updatedRoles });
+                updateRoles(updatedRoles);
             } else if (type === 'section') {
                 const updatedSections = (currentData.sections || []).map(s =>
                     s.id === id ? { ...s, x: initialObjX + deltaX, y: initialObjY + deltaY } : s
@@ -283,7 +323,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             y: y,
             color: 'slate'
         };
-        updateData({ roles: [...data.roles, newRole] });
+        updateRoles([...data.roles, newRole]);
     };
 
     const addSection = () => {
@@ -323,11 +363,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             y: (source.y || 0) + 50,
             parentId: source.parentId
         };
-        updateData({ roles: [...data.roles, newRole] });
+        updateRoles([...data.roles, newRole]);
     };
 
     const updateRole = (id: string, field: keyof Role, value: any) => {
-        updateData({ roles: data.roles.map(r => r.id === id ? { ...r, [field]: value } : r) });
+        const updatedRoles = data.roles.map(r => r.id === id ? { ...r, [field]: value } : r);
+        if (field === 'parentId' && wouldCreateRoleCycle(data.roles, id, value)) return;
+        updateRoles(updatedRoles);
     };
 
     const updateSection = (id: string, field: keyof CanvasSection, value: any) => {
@@ -340,7 +382,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             const updatedRoles = data.roles
                 .filter(r => r.id !== id)
                 .map(r => r.parentId === id ? { ...r, parentId: undefined } : r);
-            updateData({ roles: updatedRoles });
+            updateRoles(updatedRoles);
         }
         if (type === 'section') {
             updateData({ sections: (data.sections || []).filter(s => s.id !== id) });
@@ -386,6 +428,10 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const onConnectorMouseUp = (e: React.MouseEvent, targetId: string) => {
         e.stopPropagation();
         if (connectingNodeId && connectingNodeId !== targetId) {
+            if (wouldCreateRoleCycle(data.roles, targetId, connectingNodeId)) {
+                setConnectingNodeId(null);
+                return;
+            }
             updateRole(targetId, 'parentId', connectingNodeId);
         }
         setConnectingNodeId(null);
@@ -488,14 +534,17 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     };
 
     const applyAutoLayout = () => {
-        const rootNodes = data.roles.filter(r => !r.parentId);
+        const cleanRoles = sanitizeRoleHierarchy(data.roles);
+        const rootNodes = cleanRoles.filter(r => !r.parentId);
         if (rootNodes.length === 0) return;
 
         const xSpacing = 320;
         const ySpacing = 200;
-        const newRoles = [...data.roles];
+        const newRoles = [...cleanRoles];
 
-        const layoutSubtree = (nodeId: string, level: number, currentX: number) => {
+        const layoutSubtree = (nodeId: string, level: number, currentX: number, visited = new Set<string>()) => {
+            if (visited.has(nodeId)) return currentX;
+            visited.add(nodeId);
             const children = newRoles.filter(r => r.parentId === nodeId);
             const nodeIndex = newRoles.findIndex(r => r.id === nodeId);
 
@@ -508,7 +557,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
             let nextX = currentX;
             children.forEach(child => {
-                nextX = layoutSubtree(child.id, level + 1, nextX);
+                nextX = layoutSubtree(child.id, level + 1, nextX, new Set(visited));
             });
 
             // Center parent over children
@@ -530,7 +579,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             startX = layoutSubtree(root.id, 0, startX);
         });
 
-        updateData({ roles: newRoles });
+        updateRoles(newRoles);
     };
 
     const fitToView = useCallback(() => {
@@ -569,6 +618,11 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     useEffect(() => {
         // Initial Layout: assign coordinates when entering organogram if roles lack them
         if (viewMode === 'organogram' && data.roles.length > 0) {
+            const cleanRoles = sanitizeRoleHierarchy(data.roles);
+            if (JSON.stringify(cleanRoles) !== JSON.stringify(data.roles)) {
+                updateData({ roles: cleanRoles });
+                return;
+            }
             const hasCoords = data.roles.some(r => r.x !== undefined && r.x !== null && r.x !== 0);
             if (!hasCoords) {
                 const cols = Math.max(3, Math.ceil(Math.sqrt(data.roles.length)));
@@ -577,7 +631,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     x: (i % cols) * 320 + 100,
                     y: Math.floor(i / cols) * 220 + 80
                 }));
-                updateData({ roles: updatedRoles });
+                updateRoles(updatedRoles);
             }
             // Always center the view when entering organogram
             setTimeout(() => fitToView(), 100);
@@ -610,13 +664,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         : 0;
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-slate-50">
+        <div className="flex flex-col h-full overflow-hidden bg-[var(--tenant-control)]">
             {/* Header Toolbar */}
-            <div className="p-6 pb-2 shrink-0 z-20 relative bg-white border-b border-slate-200">
+            <div className="p-6 pb-2 shrink-0 z-20 relative bg-[var(--tenant-panel)] border-b border-[var(--tenant-border)]">
                 <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                            {viewMode === 'organogram' ? <Workflow size={28} className="text-[#0f172a]" /> : <Users size={28} className="text-[#0f172a]" />}
+                            {viewMode === 'organogram' ? <Workflow size={28} className="text-[var(--tenant-primary)]" /> : <Users size={28} className="text-[var(--tenant-primary)]" />}
                             Quadro de Pessoal
                         </h2>
                         <p className="text-slate-500 text-sm mt-1">
@@ -628,17 +682,17 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
                     <div className="flex gap-4">
                         {viewMode === 'organogram' && (
-                            <div className="flex bg-white border border-slate-200 rounded-lg p-1 shadow-sm items-center">
-                                <button onClick={() => setScale(s => Math.max(0.2, s - 0.1))} className="p-2 hover:bg-slate-50 text-slate-500 rounded"><ZoomOut size={16} /></button>
+                            <div className="flex bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg p-1 shadow-sm items-center">
+                                <button onClick={() => setScale(s => Math.max(0.2, s - 0.1))} className="p-2 hover:bg-[var(--tenant-control)] text-slate-500 rounded"><ZoomOut size={16} /></button>
                                 <span className="text-xs font-mono font-bold w-12 text-center select-none">{Math.round(scale * 100)}%</span>
-                                <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-2 hover:bg-slate-50 text-slate-500 rounded"><ZoomIn size={16} /></button>
+                                <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-2 hover:bg-[var(--tenant-control)] text-slate-500 rounded"><ZoomIn size={16} /></button>
                             </div>
                         )}
 
-                        <div className="flex bg-slate-100 p-1 rounded-lg">
-                            <button onClick={() => setViewMode('list')} className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-400'}`}><LayoutList size={20} /></button>
-                            <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-400'}`}><LayoutGrid size={20} /></button>
-                            <button onClick={() => setViewMode('organogram')} className={`p-2 rounded-md ${viewMode === 'organogram' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-slate-400'}`}><Workflow size={20} /></button>
+                        <div className="flex bg-[var(--tenant-control)] p-1 rounded-lg">
+                            <button onClick={() => setViewMode('list')} className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400'}`}><LayoutList size={20} /></button>
+                            <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400'}`}><LayoutGrid size={20} /></button>
+                            <button onClick={() => setViewMode('organogram')} className={`p-2 rounded-md ${viewMode === 'organogram' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400'}`}><Workflow size={20} /></button>
                         </div>
                     </div>
                 </div>
@@ -646,7 +700,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
             {/* VIEW CONTENT */}
             {viewMode === 'organogram' ? (
-                <div className={`flex-1 relative overflow-hidden min-h-[600px] select-none bg-[#f8fafc] ${isDraggingUI ? 'cursor-grabbing' : 'cursor-grab'}`}>
+                <div className={`flex-1 relative overflow-hidden min-h-[600px] select-none bg-[var(--tenant-bg)] ${isDraggingUI ? 'cursor-grabbing' : 'cursor-grab'}`}>
                     {/* Infinite Canvas */}
                     <div
                         ref={canvasRef}
@@ -674,12 +728,12 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                 return (
                                     <div
                                         key={section.id}
-                                        className={`absolute border-2 border-dashed rounded-xl group/section ${style.bg} ${style.border}`}
+                                        className={`absolute border-2 border-dashed rounded-lg group/section ${style.bg} ${style.border}`}
                                         style={{ left: section.x, top: section.y, width: section.width, height: section.height, zIndex: 0 }}
                                         onMouseDown={(e) => handleEntityMouseDown(e, 'section', section.id, section)}
                                         onContextMenu={(e) => handleContextMenuCanvas(e, 'section', section.id)}
                                     >
-                                        <div className="absolute top-0 left-0 px-4 py-2 bg-white/80 rounded-br-xl backdrop-blur-sm border-r border-b border-inherit">
+                                        <div className="absolute top-0 left-0 px-4 py-2 bg-[var(--tenant-panel)] rounded-br-xl backdrop-blur-sm border-r border-b border-inherit">
                                             <input
                                                 value={section.title}
                                                 onChange={(e) => updateSection(section.id, 'title', e.target.value)}
@@ -687,7 +741,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                             />
                                         </div>
                                         <div
-                                            className="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize hover:bg-black/10 rounded-tl flex items-end justify-end p-1 text-slate-400"
+                                            className="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize hover:bg-[color-mix(in_srgb,var(--tenant-text)_10%,transparent)] rounded-tl flex items-end justify-end p-1 text-slate-400"
                                             onMouseDown={(e) => handleEntityMouseDown(e, 'resize-section', section.id, { x: 0, y: 0, width: section.width, height: section.height })}
                                         >
                                             <Grip size={14} />
@@ -742,19 +796,19 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                     onContextMenu={(e) => handleContextMenuCanvas(e, 'decoration', deco.id)}
                                 >
                                     {getDecorationIcon(deco.type)}
-                                    {deco.label && <div className="absolute top-full left-1/2 -translate-x-1/2 text-[10px] font-bold mt-1 bg-white px-1 rounded shadow-sm whitespace-nowrap">{deco.label}</div>}
+                                    {deco.label && <div className="absolute top-full left-1/2 -translate-x-1/2 text-[10px] font-bold mt-1 bg-[var(--tenant-panel)] px-1 rounded shadow-sm whitespace-nowrap">{deco.label}</div>}
                                 </div>
                             ))}
 
                             {/* LAYER 3: ROLES (Cards) - Highest Z-Index */}
                             {roles.map(role => {
                                 const style = CARD_COLORS.find(c => c.id === (role.color || 'slate')) || CARD_COLORS[0];
-                                const connectorStyle = "absolute w-4 h-4 bg-white border border-slate-300 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair hover:bg-blue-50 hover:border-blue-500 z-50 shadow-sm";
+                                const connectorStyle = "absolute w-4 h-4 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair hover:bg-[var(--tenant-secondary-soft)] hover:border-[var(--tenant-secondary-border)] z-50 shadow-sm";
 
                                 return (
                                     <div
                                         key={role.id}
-                                        className={`absolute w-64 bg-white rounded-lg shadow-sm border group hover:shadow-xl transition-shadow ${style.border} ${connectingNodeId === role.id ? 'ring-2 ring-[#fbbf24]' : ''}`}
+                                        className={`absolute w-64 bg-[var(--tenant-panel)] rounded-lg shadow-sm border group hover:shadow-xl transition-shadow ${style.border} ${connectingNodeId === role.id ? 'ring-2 ring-[#fbbf24]' : ''}`}
                                         style={{ left: role.x, top: role.y, zIndex: 10 }}
                                         onMouseDown={(e) => handleEntityMouseDown(e, 'role', role.id, role)}
                                         onMouseUp={(e) => onConnectorMouseUp(e, role.id)}
@@ -769,7 +823,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         {/* Header */}
                                         <div className={`px-3 py-2 rounded-t-lg border-b flex justify-between items-center ${style.header} ${style.border}`}>
                                             <div className="flex items-center gap-2">
-                                                <div className={`p-0.5 rounded ${style.text} bg-white/20`}>
+                                                <div className={`p-0.5 rounded ${style.text} bg-[var(--tenant-panel)]`}>
                                                     {role.category === 'Operational' ? <Briefcase size={12} /> : <CheckSquare size={12} />}
                                                 </div>
                                                 <span className={`text-[10px] font-bold uppercase ${style.text}`}>{role.category === 'Operational' ? 'Operacional' : 'Admin'}</span>
@@ -797,7 +851,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                                 placeholder="Nome do Cargo"
                                             />
                                             <div className="flex gap-2">
-                                                <div className="flex-1 bg-slate-50 rounded border border-slate-100 px-2 py-1">
+                                                <div className="flex-1 bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] px-2 py-1">
                                                     <label className="text-[8px] font-bold text-slate-400 uppercase block">Salário Base</label>
                                                     <div className="flex items-center">
                                                         <span className="text-xs text-slate-400 mr-1">R$</span>
@@ -808,7 +862,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                                         />
                                                     </div>
                                                 </div>
-                                                <div className="w-16 bg-slate-50 rounded border border-slate-100 px-2 py-1 text-center">
+                                                <div className="w-16 bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] px-2 py-1 text-center">
                                                     <label className="text-[8px] font-bold text-slate-400 uppercase block">Qtd</label>
                                                     <input
                                                         type="number"
@@ -818,7 +872,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="mt-2 pt-2 border-t border-slate-100 text-right">
+                                            <div className="mt-2 pt-2 border-t border-[var(--tenant-border)] text-right">
                                                 <span className="text-[10px] font-bold text-slate-400">Total: </span>
                                                 <span className="text-xs font-black text-slate-800">{formatCurrency(calculateRoleCost(role))}</span>
                                             </div>
@@ -830,29 +884,29 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     </div>
 
                     {/* FLOATING TOOLBAR - MIRO STYLE */}
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md shadow-2xl rounded-full px-4 py-2 border border-slate-200 flex items-center gap-2 z-50">
+                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-[var(--tenant-panel)] backdrop-blur-md shadow-2xl rounded-full px-4 py-2 border border-[var(--tenant-border)] flex items-center gap-2 z-50">
                         <button
                             title="Cursor (Mover)"
-                            className="p-3 rounded-full hover:bg-slate-100 text-slate-600 transition-colors"
+                            className="p-3 rounded-full hover:bg-[var(--tenant-control)] text-slate-600 transition-colors"
                         >
                             <MousePointer size={20} />
                         </button>
-                        <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1"></div>
                         <button
                             onClick={() => addRole('Operational')}
                             title="Adicionar Cargo Operacional"
-                            className="p-3 rounded-full hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition-colors"
+                            className="p-3 rounded-full hover:bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] hover:text-[var(--tenant-secondary)] transition-colors"
                         >
                             <Briefcase size={20} />
                         </button>
                         <button
                             onClick={() => addRole('Administrative')}
                             title="Adicionar Cargo Administrativo"
-                            className="p-3 rounded-full hover:bg-purple-50 text-purple-600 hover:text-purple-700 transition-colors"
+                            className="p-3 rounded-full hover:bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] hover:text-[var(--tenant-secondary)] transition-colors"
                         >
                             <CheckSquare size={20} />
                         </button>
-                        <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1"></div>
                         <button
                             onClick={applyAutoLayout}
                             title="Organizar Automaticamente"
@@ -860,7 +914,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                         >
                             <Wand2 size={20} />
                         </button>
-                        <div className="w-px h-6 bg-slate-300 mx-1"></div>
+                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1"></div>
                         <button
                             onClick={() => addSection()}
 
@@ -872,7 +926,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                         </button>
 
                         {/* Decorative Icons */}
-                        <button onClick={() => addDecoration('factory')} title="Fábrica" className="p-3 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-700"><Factory size={20} /></button>
+                        <button onClick={() => addDecoration('factory')} title="Fábrica" className="p-3 rounded-full hover:bg-[var(--tenant-control)] text-slate-500 hover:text-slate-700"><Factory size={20} /></button>
                         <button onClick={() => addDecoration('flame')} title="Inflamável" className="p-3 rounded-full hover:bg-orange-50 text-orange-500 hover:text-orange-600"><Flame size={20} /></button>
                         <button onClick={() => addDecoration('zap')} title="Elétrico" className="p-3 rounded-full hover:bg-yellow-50 text-yellow-500 hover:text-yellow-600"><Zap size={20} /></button>
                         <button onClick={() => addDecoration('biohazard')} title="Risco Químico/Bio" className="p-3 rounded-full hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700"><Biohazard size={20} /></button>
@@ -881,26 +935,26 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     {/* CONTEXT MENU */}
                     {contextMenu && (
                         <div
-                            className="fixed z-[100] bg-white rounded-lg shadow-xl border border-slate-200 py-1 w-56 text-sm animate-in fade-in zoom-in-95 duration-100"
+                            className="fixed z-[100] bg-[var(--tenant-panel)] rounded-lg shadow-xl border border-[var(--tenant-border)] py-1 w-56 text-sm animate-in fade-in zoom-in-95 duration-100"
                             style={{ top: contextMenu.y, left: contextMenu.x }}
                             onClick={(e) => e.stopPropagation()}
                         >
                             {contextMenu.type === 'node' && (
                                 <>
-                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100 mb-1">
+                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[var(--tenant-control)] border-b border-[var(--tenant-border)] mb-1">
                                         Ações do Card
                                     </div>
-                                    <button onClick={() => updateRole(contextMenu.targetId!, 'parentId', undefined)} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2">
+                                    <button onClick={() => updateRole(contextMenu.targetId!, 'parentId', undefined)} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
                                         <LinkIcon size={14} /> Desconectar Parente
                                     </button>
-                                    <button onClick={() => duplicateRole(contextMenu.targetId!)} className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2">
+                                    <button onClick={() => duplicateRole(contextMenu.targetId!)} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
                                         <Type size={14} /> Duplicar / Dividir
                                     </button>
 
-                                    <div className="px-4 py-2 hover:bg-slate-50 flex items-center gap-2 relative group/colors cursor-pointer">
+                                    <div className="px-4 py-2 hover:bg-[var(--tenant-control)] flex items-center gap-2 relative group/colors cursor-pointer">
                                         <Palette size={14} className="text-slate-400" />
                                         <span>Cor do Card</span>
-                                        <div className="absolute left-full top-0 ml-2 bg-white border border-slate-200 shadow-xl rounded-lg p-3 grid grid-cols-4 gap-2 hidden group-hover/colors:grid w-40">
+                                        <div className="absolute left-full top-0 ml-2 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] shadow-xl rounded-lg p-3 grid grid-cols-4 gap-2 hidden group-hover/colors:grid w-40">
                                             {CARD_COLORS.map(c => (
                                                 <button
                                                     key={c.id}
@@ -911,7 +965,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         </div>
                                     </div>
 
-                                    <div className="h-px bg-slate-100 my-1"></div>
+                                    <div className="h-px bg-[var(--tenant-control)] my-1"></div>
                                     <button onClick={() => { removeEntity('role', contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2">
                                         <Trash2 size={14} /> Excluir
                                     </button>
@@ -920,7 +974,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
                             {contextMenu.type === 'section' && (
                                 <>
-                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100 mb-1">
+                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[var(--tenant-control)] border-b border-[var(--tenant-border)] mb-1">
                                         Área / Lane
                                     </div>
                                     <div className="px-4 py-2 flex gap-2">
@@ -948,7 +1002,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     {/* OVERVIEW INDICATORS */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {/* Efetivo Total */}
-                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Efetivo Total</p>
                                 <div className="flex items-baseline gap-2 mt-1">
@@ -956,13 +1010,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                     <span className="text-xs font-medium text-slate-400">pessoas</span>
                                 </div>
                             </div>
-                            <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
+                            <div className="h-12 w-12 bg-[var(--tenant-secondary-soft)] rounded-full flex items-center justify-center text-[var(--tenant-secondary)]">
                                 <Users size={24} />
                             </div>
                         </div>
 
                         {/* Salário Médio Base */}
-                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Salário Médio Base</p>
                                 <p className="text-3xl font-black text-emerald-600 mt-1 tracking-tight">{formatCurrency(averageSalary)}</p>
@@ -974,7 +1028,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                         </div>
 
                         {/* Custo Total em Folha */}
-                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between">
                             <div>
                                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Custo Total da Folha</p>
                                 <p className="text-3xl font-black text-amber-600 mt-1 tracking-tight">{formatCurrency(totalCost)}</p>
@@ -989,9 +1043,9 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     </div>
 
                     {/* BENEFITS CONFIGURATION SECTION */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 shrink-0">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 shrink-0">
                         <div className="flex items-center gap-2 mb-4">
-                            <Box className="text-purple-600" size={20} />
+                            <Box className="text-[var(--tenant-secondary)]" size={20} />
                             <h3 className="text-lg font-bold text-slate-800">Configuração Global de Benefícios</h3>
                             <span className="text-xs font-medium text-slate-500 ml-2">Aplicado proporcionalmente ao efetivo total</span>
                         </div>
@@ -1002,7 +1056,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                 <label className="text-xs font-bold text-rose-700 block mb-3 flex items-center gap-1">
                                     <HeartPulse size={16} /> Assistência Médica
                                 </label>
-                                <div className="flex items-center gap-1 bg-white p-2.5 rounded-md border border-rose-100 focus-within:ring-2 focus-within:ring-rose-200 focus-within:border-rose-300 transition-all">
+                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-rose-100 focus-within:ring-2 focus-within:ring-rose-200 focus-within:border-rose-300 transition-all">
                                     <span className="text-rose-400 text-xs font-bold">R$</span>
                                     <input
                                         type="number"
@@ -1016,11 +1070,11 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                             </div>
 
                             {/* Dependentes */}
-                            <div className="col-span-1 lg:col-span-1 border border-indigo-200 bg-indigo-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                                <label className="text-xs font-bold text-indigo-700 block mb-3 flex items-center gap-1">
+                            <div className="col-span-1 lg:col-span-1 border border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <label className="text-xs font-bold text-[var(--tenant-secondary)] block mb-3 flex items-center gap-1">
                                     <Users size={16} /> Fator Dependentes
                                 </label>
-                                <div className="bg-white p-2.5 rounded-md border border-indigo-100 flex items-center focus-within:ring-2 focus-within:ring-indigo-200 focus-within:border-indigo-300 transition-all">
+                                <div className="bg-[var(--tenant-panel)] p-2.5 rounded-md border border-[var(--tenant-secondary-border)] flex items-center focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)] transition-all">
                                     <input
                                         type="number"
                                         step="0.1"
@@ -1037,7 +1091,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                 <label className="text-xs font-bold text-orange-700 block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
                                     <ShoppingBag size={16} className="shrink-0" /> Vale Alimentação (VA)
                                 </label>
-                                <div className="flex items-center gap-1 bg-white p-2.5 rounded-md border border-orange-100 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-300 transition-all">
+                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-orange-100 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-300 transition-all">
                                     <span className="text-orange-400 text-xs font-bold">R$</span>
                                     <input
                                         type="number"
@@ -1052,11 +1106,11 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
                             {/* Refeição (VR) vs Refeitório */}
                             <div className="col-span-2 lg:col-span-1 flex flex-col gap-2">
-                                <div className={`border rounded-lg p-4 flex-1 shadow-sm transition-all ${benefits.hasCafeteria ? 'border-slate-200 bg-slate-100/50' : 'border-amber-200 bg-amber-50 hover:shadow-md'}`}>
+                                <div className={`border rounded-lg p-4 flex-1 shadow-sm transition-all ${benefits.hasCafeteria ? 'border-[var(--tenant-border)] bg-[var(--tenant-control)]' : 'border-amber-200 bg-amber-50 hover:shadow-md'}`}>
                                     <label className={`text-xs font-bold block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis ${benefits.hasCafeteria ? 'text-slate-400' : 'text-amber-700'}`}>
                                         <Utensils size={16} className="shrink-0" /> Vale Refeição (VR)
                                     </label>
-                                    <div className={`flex items-center gap-1 p-2.5 rounded-md border transition-all ${benefits.hasCafeteria ? 'bg-white/50 border-slate-200' : 'bg-white border-amber-100 focus-within:ring-2 focus-within:ring-amber-200 focus-within:border-amber-300'}`}>
+                                    <div className={`flex items-center gap-1 p-2.5 rounded-md border transition-all ${benefits.hasCafeteria ? 'bg-[var(--tenant-panel)] border-[var(--tenant-border)]' : 'bg-[var(--tenant-panel)] border-amber-100 focus-within:ring-2 focus-within:ring-amber-200 focus-within:border-amber-300'}`}>
                                         <span className={`text-xs font-bold ${benefits.hasCafeteria ? 'text-slate-300' : 'text-amber-400'}`}>R$</span>
                                         <input
                                             type="number"
@@ -1069,24 +1123,24 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         <span className={`text-[10px] font-bold ${benefits.hasCafeteria ? 'text-slate-300' : 'text-amber-300'}`}>/mês</span>
                                     </div>
                                 </div>
-                                <label className={`flex items-center justify-center gap-2 cursor-pointer border px-3 py-2 rounded-lg transition-colors shadow-sm ${benefits.hasCafeteria ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                <label className={`flex items-center justify-center gap-2 cursor-pointer border px-3 py-2 rounded-lg transition-colors shadow-sm ${benefits.hasCafeteria ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-600 hover:bg-[var(--tenant-control)]'}`}>
                                     <input
                                         type="checkbox"
                                         checked={benefits.hasCafeteria}
                                         onChange={(e) => updateBenefits('hasCafeteria', e.target.checked)}
-                                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                                        className="rounded border-[var(--tenant-border)] text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                                     />
                                     <span className="text-xs font-bold">Possui Refeitório?</span>
                                 </label>
                             </div>
 
                             {/* Transporte (VT) */}
-                            <div className="col-span-1 lg:col-span-1 border border-cyan-200 bg-cyan-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-                                <label className="text-xs font-bold text-cyan-700 block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                            <div className="col-span-1 lg:col-span-1 border border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                                <label className="text-xs font-bold text-[var(--tenant-secondary)] block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
                                     <Bus size={16} className="shrink-0" /> Vale Transporte (VT)
                                 </label>
-                                <div className="flex items-center gap-1 bg-white p-2.5 rounded-md border border-cyan-100 focus-within:ring-2 focus-within:ring-cyan-200 focus-within:border-cyan-300 transition-all">
-                                    <span className="text-cyan-400 text-xs font-bold">R$</span>
+                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-[var(--tenant-secondary-border)] focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)] transition-all">
+                                    <span className="text-[var(--tenant-secondary)] text-xs font-bold">R$</span>
                                     <input
                                         type="number"
                                         value={benefits.transportAllowance}
@@ -1094,16 +1148,16 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0"
                                         placeholder="0,00"
                                     />
-                                    <span className="text-cyan-300 text-[10px] font-bold">/mês</span>
+                                    <span className="text-[var(--tenant-secondary)] text-[10px] font-bold">/mês</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {viewMode === 'list' && (
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] overflow-hidden">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs tracking-wider border-b border-slate-200">
+                                <thead className="bg-[var(--tenant-control)] text-slate-500 font-bold uppercase text-xs tracking-wider border-b border-[var(--tenant-border)]">
                                     <tr>
                                         <th className="px-6 py-4">Cargo / Função</th>
                                         <th className="px-6 py-4">Categoria</th>
@@ -1114,19 +1168,19 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         <th className="px-6 py-4 w-16"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-[var(--tenant-border)]">
                                     {roles.map(role => (
-                                        <tr key={role.id} className="hover:bg-slate-50 group">
+                                        <tr key={role.id} className="hover:bg-[var(--tenant-control)] group">
                                             <td className="px-6 py-4">
                                                 <input type="text" value={role.title} onChange={(e) => updateRole(role.id, 'title', e.target.value)} className="bg-transparent border-none font-bold text-slate-700 p-0 focus:ring-0 w-full" />
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${role.category === 'Operational' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${role.category === 'Operational' ? 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border border-[var(--tenant-secondary-border)]' : 'bg-[var(--tenant-control)] text-slate-600 border border-[var(--tenant-border)]'}`}>
                                                     {role.category === 'Operational' ? 'Operacional' : 'Admin'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full bg-slate-50 border border-slate-200 rounded text-center font-bold text-slate-700 py-1" />
+                                                <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded text-center font-bold text-slate-700 py-1" />
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-1">
@@ -1140,10 +1194,10 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
+                                                    <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-[var(--tenant-control)] border-[var(--tenant-border)] text-slate-300'}`}>
                                                         <Biohazard size={10} /> INS (20%)
                                                     </button>
-                                                    <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
+                                                    <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600' : 'bg-[var(--tenant-control)] border-[var(--tenant-border)] text-slate-300'}`}>
                                                         <Zap size={10} /> PER (30%)
                                                     </button>
                                                 </div>
@@ -1156,9 +1210,9 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                     ))}
                                 </tbody>
                             </table>
-                            <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-4">
-                                <button onClick={() => addRole('Operational')} className="text-xs font-bold bg-white border border-slate-300 text-slate-600 px-4 py-2 rounded-lg hover:bg-blue-50 flex items-center gap-2"><Plus size={14} /> Adicionar Operacional</button>
-                                <button onClick={() => addRole('Administrative')} className="text-xs font-bold bg-white border border-slate-300 text-slate-600 px-4 py-2 rounded-lg hover:bg-purple-50 flex items-center gap-2"><Plus size={14} /> Adicionar Administrativo</button>
+                            <div className="p-4 bg-[var(--tenant-control)] border-t border-[var(--tenant-border)] flex gap-4">
+                                <button onClick={() => addRole('Operational')} className="text-xs font-bold bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-slate-600 px-4 py-2 rounded-lg hover:bg-[var(--tenant-secondary-soft)] flex items-center gap-2"><Plus size={14} /> Adicionar Operacional</button>
+                                <button onClick={() => addRole('Administrative')} className="text-xs font-bold bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-slate-600 px-4 py-2 rounded-lg hover:bg-[var(--tenant-secondary-soft)] flex items-center gap-2"><Plus size={14} /> Adicionar Administrativo</button>
                             </div>
                         </div>
                     )}
@@ -1166,9 +1220,9 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     {viewMode === 'grid' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {roles.map(role => (
-                                <div key={role.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 relative group hover:shadow-md transition-shadow">
+                                <div key={role.id} className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 relative group hover:shadow-md transition-shadow">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className={`p-2 rounded-lg ${role.category === 'Operational' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+                                        <div className={`p-2 rounded-lg ${role.category === 'Operational' ? 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)]' : 'bg-[var(--tenant-control)] text-slate-600'}`}>
                                             {role.category === 'Operational' ? <Briefcase size={20} /> : <CheckSquare size={20} />}
                                         </div>
                                         <button onClick={() => removeEntity('role', role.id)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors">
@@ -1179,7 +1233,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                     <input type="text" value={role.title} onChange={(e) => updateRole(role.id, 'title', e.target.value)} className="w-full text-lg font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 mb-1" />
                                     <p className="text-xs text-slate-400 uppercase font-bold mb-4">{role.category === 'Operational' ? 'Operacional' : 'Administrativo'}</p>
 
-                                    <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                                    <div className="space-y-3 bg-[var(--tenant-control)] p-4 rounded-lg border border-[var(--tenant-border)]">
                                         <div className="flex justify-between items-center">
                                             <label className="text-xs font-bold text-slate-500">Salário Base</label>
                                             <div className="flex items-center gap-1 w-28">
@@ -1193,27 +1247,27 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <label className="text-xs font-bold text-slate-500">Quantidade</label>
-                                            <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-16 bg-white border border-slate-200 text-center font-bold text-slate-700 text-sm rounded py-0.5 focus:ring-0" />
+                                            <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-16 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-center font-bold text-slate-700 text-sm rounded py-0.5 focus:ring-0" />
                                         </div>
                                     </div>
 
                                     <div className="mt-4 flex gap-2">
-                                        <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-white border-slate-200 text-slate-400'}`}>
+                                        <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-400'}`}>
                                             <Biohazard size={14} /> Insalubridade
                                         </button>
-                                        <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-slate-200 text-slate-400'}`}>
+                                        <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-400'}`}>
                                             <Zap size={14} /> Periculosidade
                                         </button>
                                     </div>
 
-                                    <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
+                                    <div className="mt-4 pt-4 border-t border-[var(--tenant-border)] flex justify-between items-center">
                                         <span className="text-xs font-bold text-slate-400 uppercase">Custo Total</span>
                                         <span className="text-lg font-black text-slate-800">{formatCurrency(calculateRoleCost(role))}</span>
                                     </div>
                                 </div>
                             ))}
 
-                            <button onClick={() => addRole('Operational')} className="border-2 border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all min-h-[300px]">
+                            <button onClick={() => addRole('Operational')} className="border-2 border-dashed border-[var(--tenant-border)] rounded-lg p-6 flex flex-col items-center justify-center text-slate-400 hover:border-[var(--tenant-secondary-border)] hover:text-[var(--tenant-secondary)] hover:bg-[var(--tenant-secondary-soft)] transition-all min-h-[300px]">
                                 <Plus size={32} className="mb-2" />
                                 <span className="font-bold text-sm">Adicionar Cargo</span>
                             </button>

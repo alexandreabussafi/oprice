@@ -91,7 +91,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
 
     return (
         <div className="p-8 space-y-8 max-w-[1600px] mx-auto">
-            <header className="flex justify-between items-end border-b border-slate-200 pb-6">
+            <header className="flex justify-between items-end border-b border-[var(--tenant-border)] pb-6">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
                         <Zap size={28} className="text-amber-500" />
@@ -107,9 +107,9 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                 <div className="lg:col-span-8 space-y-8">
 
                     {/* SECTION 1: SCOPE */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <CheckSquare size={20} className="text-blue-600" />
+                            <CheckSquare size={20} className="text-[var(--tenant-secondary)]" />
                             1. Escopo do Serviço
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -120,13 +120,13 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                                     <div
                                         key={svc.id}
                                         onClick={() => toggleService(svc.id)}
-                                        className={`p-4 rounded-xl border cursor-pointer transition-all flex items-start gap-4 ${isSelected ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-200 hover:border-blue-300'}`}
+                                        className={`p-4 rounded-lg border cursor-pointer transition-all flex items-start gap-4 ${isSelected ? 'bg-[var(--tenant-secondary-soft)] border-[var(--tenant-secondary-border)] ring-1 ring-[var(--tenant-primary-soft)]' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] hover:border-[var(--tenant-secondary-border)]'}`}
                                     >
-                                        <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        <div className={`p-2 rounded-lg ${isSelected ? 'bg-[var(--tenant-primary)] text-white' : 'bg-[var(--tenant-control)] text-slate-500'}`}>
                                             <Icon size={24} />
                                         </div>
                                         <div>
-                                            <h4 className={`font-bold ${isSelected ? 'text-blue-900' : 'text-slate-700'}`}>{svc.label}</h4>
+                                            <h4 className={`font-bold ${isSelected ? 'text-[var(--tenant-secondary)]' : 'text-slate-700'}`}>{svc.label}</h4>
                                             <p className="text-xs text-slate-500 mt-1">{svc.description}</p>
                                         </div>
                                     </div>
@@ -136,7 +136,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                     </div>
 
                     {/* SECTION 2: RESOURCES */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                 <Users size={20} className="text-emerald-600" />
@@ -144,7 +144,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                             </h3>
                             <div className="flex gap-2">
                                 {resourceTemplates.map(tmpl => (
-                                    <button key={tmpl.role} onClick={() => addResource(tmpl.role, tmpl.rate)} className="text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded border border-slate-200 transition-colors">
+                                    <button key={tmpl.role} onClick={() => addResource(tmpl.role, tmpl.rate)} className="text-[10px] font-bold bg-[var(--tenant-control)] hover:bg-[var(--tenant-control)] text-slate-600 px-2 py-1 rounded border border-[var(--tenant-border)] transition-colors">
                                         + {tmpl.role}
                                     </button>
                                 ))}
@@ -152,7 +152,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <div className="grid grid-cols-12 gap-4 bg-slate-50 p-2 rounded text-[10px] font-bold text-slate-500 uppercase">
+                            <div className="grid grid-cols-12 gap-4 bg-[var(--tenant-control)] p-2 rounded text-[10px] font-bold text-slate-500 uppercase">
                                 <div className="col-span-4">Profissional</div>
                                 <div className="col-span-2 text-right">Custo Diária</div>
                                 <div className="col-span-2 text-center">Dias</div>
@@ -160,7 +160,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                                 <div className="col-span-2 text-right">Subtotal</div>
                             </div>
                             {(data.spotResources || []).map(res => (
-                                <div key={res.id} className="grid grid-cols-12 gap-4 items-center p-2 border-b border-slate-100">
+                                <div key={res.id} className="grid grid-cols-12 gap-4 items-center p-2 border-b border-[var(--tenant-border)]">
                                     <div className="col-span-4">
                                         <input type="text" value={res.roleName} onChange={e => updateResource(res.id, 'roleName', e.target.value)} className="w-full font-bold text-sm text-slate-700 bg-transparent border-none p-0 focus:ring-0" />
                                     </div>
@@ -168,10 +168,10 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                                         <input type="number" value={res.dailyRateCost} onChange={e => updateResource(res.id, 'dailyRateCost', parseFloat(e.target.value) || 0)} className="w-full text-right text-sm text-slate-600 bg-transparent border-none p-0 focus:ring-0" />
                                     </div>
                                     <div className="col-span-2">
-                                        <input type="number" value={res.days} onChange={e => updateResource(res.id, 'days', parseFloat(e.target.value) || 0)} className="w-full text-center font-bold text-sm bg-slate-50 rounded border border-slate-200 py-1" />
+                                        <input type="number" value={res.days} onChange={e => updateResource(res.id, 'days', parseFloat(e.target.value) || 0)} className="w-full text-center font-bold text-sm bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] py-1" />
                                     </div>
                                     <div className="col-span-2">
-                                        <input type="number" value={res.quantity} onChange={e => updateResource(res.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full text-center font-bold text-sm bg-slate-50 rounded border border-slate-200 py-1" />
+                                        <input type="number" value={res.quantity} onChange={e => updateResource(res.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full text-center font-bold text-sm bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] py-1" />
                                     </div>
                                     <div className="col-span-2 flex justify-end items-center gap-2">
                                         <span className="font-bold text-slate-800 text-sm">{formatCurrency(res.dailyRateCost * res.days * res.quantity)}</span>
@@ -186,7 +186,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                     </div>
 
                     {/* SECTION 3: EXPENSES */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                 <Plane size={20} className="text-amber-600" />
@@ -198,7 +198,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <div className="grid grid-cols-12 gap-4 bg-slate-50 p-2 rounded text-[10px] font-bold text-slate-500 uppercase">
+                            <div className="grid grid-cols-12 gap-4 bg-[var(--tenant-control)] p-2 rounded text-[10px] font-bold text-slate-500 uppercase">
                                 <div className="col-span-4">Descrição</div>
                                 <div className="col-span-3">Categoria</div>
                                 <div className="col-span-2 text-center">Qtd</div>
@@ -206,7 +206,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                                 <div className="col-span-1"></div>
                             </div>
                             {(data.spotExpenses || []).map(exp => (
-                                <div key={exp.id} className="grid grid-cols-12 gap-4 items-center p-2 border-b border-slate-100">
+                                <div key={exp.id} className="grid grid-cols-12 gap-4 items-center p-2 border-b border-[var(--tenant-border)]">
                                     <div className="col-span-4">
                                         <input type="text" value={exp.description} onChange={e => updateExpense(exp.id, 'description', e.target.value)} className="w-full font-bold text-sm text-slate-700 bg-transparent border-none p-0 focus:ring-0" placeholder="Ex: Voo SP-RJ" />
                                     </div>
@@ -216,7 +216,7 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                                         </select>
                                     </div>
                                     <div className="col-span-2">
-                                        <input type="number" value={exp.quantity} onChange={e => updateExpense(exp.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full text-center font-bold text-sm bg-slate-50 rounded border border-slate-200 py-1" />
+                                        <input type="number" value={exp.quantity} onChange={e => updateExpense(exp.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full text-center font-bold text-sm bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] py-1" />
                                     </div>
                                     <div className="col-span-2 text-right">
                                         <input type="number" value={exp.unitCost} onChange={e => updateExpense(exp.id, 'unitCost', parseFloat(e.target.value) || 0)} className="w-full text-right text-sm text-slate-600 bg-transparent border-none p-0 focus:ring-0" />
@@ -233,12 +233,12 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
 
                 {/* RIGHT: SUMMARY */}
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-[#0f172a] rounded-xl p-6 text-white shadow-xl relative overflow-hidden">
+                    <div className="bg-[var(--tenant-primary)] rounded-lg p-6 text-white shadow-xl relative overflow-hidden">
                         <div className="relative z-10">
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Custo Total (Direto)</p>
                             <h3 className="text-3xl font-bold text-[#fbbf24] mb-4">{formatCurrency(totalLabor + totalExpenses)}</h3>
 
-                            <div className="h-px bg-white/10 w-full mb-4"></div>
+                            <div className="h-px bg-[var(--tenant-panel)] w-full mb-4"></div>
 
                             <div className="flex justify-between text-sm mb-2">
                                 <span className="text-slate-400">Mão de Obra</span>
@@ -251,18 +251,18 @@ const SpotEditor: React.FC<SpotEditorProps> = ({ data, updateData }) => {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg border border-[var(--tenant-border)] p-6 shadow-sm">
                         <h4 className="font-bold text-slate-800 text-sm mb-4">Resumo do Projeto</h4>
                         <div className="space-y-4">
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500">Dias Estimados</span>
-                                <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                                <span className="font-bold text-slate-700 bg-[var(--tenant-control)] px-2 py-1 rounded">
                                     {Math.max(...(data.spotResources || []).map(r => r.days), 0)} dias
                                 </span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500">Equipe</span>
-                                <span className="font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                                <span className="font-bold text-slate-700 bg-[var(--tenant-control)] px-2 py-1 rounded">
                                     {(data.spotResources || []).reduce((acc, r) => acc + r.quantity, 0)} pessoas
                                 </span>
                             </div>

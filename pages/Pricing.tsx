@@ -89,7 +89,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
 
     return (
         <div className="p-8 space-y-8 max-w-[1600px] mx-auto print:p-0 print:max-w-none print:w-full">
-            <header className="flex justify-between items-end border-b border-slate-200 pb-6 print:hidden">
+            <header className="flex justify-between items-end border-b border-[var(--tenant-border)] pb-6 print:hidden">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 transition-colors">Precificação (DRE)</h2>
                     <p className="text-slate-500 dark:text-slate-400 mt-1 transition-colors">Demonstrativo de Resultado e Formação do Preço.</p>
@@ -98,7 +98,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                     <div className="relative">
                         <button
                             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                            className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-white dark:bg-slate-900 shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2 border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-slate-700 dark:text-slate-200 font-bold text-sm hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] shadow-sm"
                         >
                             <Download size={18} />
                             Exportar
@@ -106,10 +106,10 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                         </button>
 
                         {isExportMenuOpen && (
-                            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 print:hidden transition-colors">
+                            <div className="absolute right-0 mt-2 w-56 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-xl border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 print:hidden transition-colors">
                                 <button
                                     onClick={handlePrintPDF}
-                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 text-slate-700 dark:text-slate-200 border-b border-slate-50 dark:border-slate-800 transition-colors"
+                                    className="w-full text-left px-4 py-3 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] flex items-center gap-3 text-slate-700 dark:text-slate-200 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] transition-colors"
                                 >
                                     <div className="p-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition-colors"><Printer size={16} /></div>
                                     <div>
@@ -119,7 +119,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                 </button>
                                 <button
                                     onClick={handleExportCSV}
-                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 text-slate-700 dark:text-slate-200 transition-colors"
+                                    className="w-full text-left px-4 py-3 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] flex items-center gap-3 text-slate-700 dark:text-slate-200 transition-colors"
                                 >
                                     <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg transition-colors"><FileSpreadsheet size={16} /></div>
                                     <div>
@@ -133,7 +133,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
 
                     <button
                         disabled={isLocked}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] dark:bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-[#1e293b] dark:hover:bg-indigo-700 shadow-lg shadow-slate-900/10 dark:shadow-indigo-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-4 py-2 bg-[var(--tenant-primary)] dark:bg-[var(--tenant-secondary-soft)] text-white rounded-lg font-bold text-sm hover:brightness-95 dark:hover:bg-[var(--tenant-secondary-soft)] shadow-lg0/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Save size={18} /> Salvar Proposta
                     </button>
@@ -141,7 +141,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
             </header>
 
             {isLocked && (
-                <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center justify-between gap-3 print:hidden transition-colors">
+                <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-center justify-between gap-3 print:hidden transition-colors">
                     <div className="flex items-center gap-3">
                         <ShieldAlert className="text-amber-600 dark:text-amber-400" size={24} />
                         <div>
@@ -176,9 +176,9 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
 
             {/* MODAL PARA NOVA VERSÃO */}
             {isNewVersionModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100 dark:border-slate-800 transition-colors">
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 transition-colors">
+                <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--tenant-bg-dark)_68%,transparent)] dark:bg-[var(--tenant-panel-dark)] backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] transition-colors">
+                        <div className="p-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex items-center justify-between bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] transition-colors">
                             <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Formalizar Nova Versão</h3>
                             <button onClick={() => setIsNewVersionModalOpen(false)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                 <X size={20} />
@@ -194,13 +194,13 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                 value={tempNotes}
                                 onChange={(e) => setTempNotes(e.target.value)}
                                 placeholder="Ex: Ajuste de margem conforme solicitação do cliente..."
-                                className="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 underline-none outline-none transition-all resize-none"
+                                className="w-full h-32 p-3 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 underline-none outline-none transition-all resize-none"
                             />
                         </div>
-                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-3 transition-colors">
+                        <div className="p-6 bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex gap-3 transition-colors">
                             <button
                                 onClick={() => setIsNewVersionModalOpen(false)}
-                                className="flex-1 px-4 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-all"
+                                className="flex-1 px-4 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] rounded-lg transition-all"
                             >
                                 Cancelar
                             </button>
@@ -212,7 +212,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                         setTempNotes("");
                                     }
                                 }}
-                                className="flex-1 px-4 py-2.5 text-sm font-bold bg-amber-600 text-white rounded-xl hover:bg-amber-700 shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2"
+                                className="flex-1 px-4 py-2.5 text-sm font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 shadow-lg shadow-amber-600/20 transition-all flex items-center justify-center gap-2"
                             >
                                 <Save size={18} />
                                 Criar Versão v{data.version + 1}
@@ -223,7 +223,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
             )}
 
             {/* Header visible only on print */}
-            <div className="hidden print:block mb-8 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div className="hidden print:block mb-8 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pb-4">
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Demonstrativo de Formação de Preço (DRE)</h1>
                 <div className="flex justify-between mt-2">
                     <p className="text-sm text-slate-500 dark:text-slate-400">Cliente: <strong>{data.clientName}</strong></p>
@@ -235,7 +235,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
 
                 {/* Left Column: Configuration (4 cols) */}
                 <div className="lg:col-span-4 space-y-6 print:hidden transition-colors">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 transition-colors">
+                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6 transition-colors">
                         <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-6 transition-colors">
                             <Settings size={20} className="text-slate-400 dark:text-slate-500" />
                             Definição de Lucro
@@ -243,7 +243,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
 
                         <div className="space-y-6">
                             <div>
-                                <label className={`block text-xs font-bold uppercase mb-3 ${isMarginModel ? 'text-blue-600' : 'text-emerald-600'}`}>
+                                <label className={`block text-xs font-bold uppercase mb-3 ${isMarginModel ? 'text-[var(--tenant-secondary)]' : 'text-emerald-600'}`}>
                                     {isMarginModel ? 'Margem Alvo (Sobre Venda)' : 'Markup (Sobre Custo)'}
                                     <InfoTooltip text="Percentual de ganho aplicado sobre a base de cálculo. O Markup recai sobre o custo, enquanto a Margem é calculada sobre o preço de venda final." />
                                 </label>
@@ -254,7 +254,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                             disabled={isLocked}
                                             value={((data.targetMargin || 0) * 100).toFixed(2)}
                                             onChange={(e) => updateMargin(e.target.value)}
-                                            className="w-full bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 rounded-xl py-4 pl-4 pr-12 text-right font-bold text-2xl text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-50 dark:disabled:bg-slate-900"
+                                            className="w-full bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)] rounded-lg py-4 pl-4 pr-12 text-right font-bold text-2xl text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] outline-none shadow-sm transition-all disabled:opacity-50 disabled:bg-[var(--tenant-control)] dark:disabled:bg-[var(--tenant-panel-dark)]"
                                         />
                                     ) : (
                                         <input
@@ -262,21 +262,21 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                             disabled={isLocked}
                                             value={(data.markup * 100).toFixed(2)}
                                             onChange={(e) => updateMarkup(e.target.value)}
-                                            className="w-full bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-xl py-4 pl-4 pr-12 text-right font-bold text-2xl text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-50 dark:disabled:bg-slate-900"
+                                            className="w-full bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-emerald-200 dark:border-emerald-800 rounded-lg py-4 pl-4 pr-12 text-right font-bold text-2xl text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all disabled:opacity-50 disabled:bg-[var(--tenant-control)] dark:disabled:bg-[var(--tenant-panel-dark)]"
                                         />
                                     )}
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs font-bold bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded transition-colors">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs font-bold bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] px-2 py-1 rounded transition-colors">
                                         {isMarginModel ? 'MARGEM' : 'MARKUP'}
                                     </span>
                                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-bold transition-colors">%</span>
                                 </div>
-                                <div className={`mt-3 flex justify-between items-center rounded-lg px-3 py-2 border transition-colors ${isMarginModel ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800' : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800'}`}>
-                                    <span className={`text-xs font-medium ${isMarginModel ? 'text-blue-800 dark:text-blue-300' : 'text-emerald-800 dark:text-emerald-300'}`}>Lucro Alvo (Markup)</span>
-                                    <span className={`text-sm font-bold ${isMarginModel ? 'text-blue-700 dark:text-blue-200' : 'text-emerald-700 dark:text-emerald-200'}`}>{formatCurrency(financials.markupAmount)}</span>
+                                <div className={`mt-3 flex justify-between items-center rounded-lg px-3 py-2 border transition-colors ${isMarginModel ? 'bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-secondary-soft)] border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)]' : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800'}`}>
+                                    <span className={`text-xs font-medium ${isMarginModel ? 'text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)]' : 'text-emerald-800 dark:text-emerald-300'}`}>Lucro Alvo (Markup)</span>
+                                    <span className={`text-sm font-bold ${isMarginModel ? 'text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)]' : 'text-emerald-700 dark:text-emerald-200'}`}>{formatCurrency(financials.markupAmount)}</span>
                                 </div>
                             </div>
 
-                            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800 space-y-3 transition-colors">
+                            <div className="p-4 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded-lg border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] space-y-3 transition-colors">
                                 <div className="flex justify-between items-center text-sm">
                                     <span className="text-slate-500 dark:text-slate-400 transition-colors">Custo Direto</span>
                                     <span className="font-bold text-slate-700 dark:text-slate-200 transition-colors">{formatCurrency(financials.totalDirectCost)}</span>
@@ -288,7 +288,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                     </span>
                                     <span className="font-bold text-slate-700 dark:text-slate-200 transition-colors">+ {formatCurrency(financials.contingencyAmount)}</span>
                                 </div>
-                                <div className="h-px bg-slate-200 dark:bg-slate-700 w-full transition-colors"></div>
+                                <div className="h-px bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] w-full transition-colors"></div>
                                 <div className="flex justify-between items-center text-sm">
                                     <span className="text-slate-500 dark:text-slate-400 font-bold transition-colors">Base p/ Markup</span>
                                     <span className="font-bold text-slate-900 dark:text-slate-100 transition-colors">{formatCurrency(financials.totalCostWithContingency)}</span>
@@ -297,11 +297,11 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                         </div>
                     </div>
 
-                    <div className="bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800 p-5 transition-colors">
+                    <div className="bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-secondary-soft)] rounded-lg border border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)] p-5 transition-colors">
                         <div className="flex items-start gap-3">
-                            <AlertCircle size={20} className="text-blue-500 dark:text-blue-400 mt-0.5 shrink-0 transition-colors" />
+                            <AlertCircle size={20} className="text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] mt-0.5 shrink-0 transition-colors" />
                             <div className="space-y-2">
-                                <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed transition-colors">
+                                <p className="text-xs text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] leading-relaxed transition-colors">
                                     <strong>Estrutura DRE:</strong> O relatório à direita segue a estrutura de Demonstrativo de Resultado (Top-Down), partindo do Faturamento Bruto até o Lucro Líquido final.
                                 </p>
                             </div>
@@ -311,8 +311,8 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
 
                 {/* Right Column: DRE Report (8 cols) - Full width on print */}
                 <div className="lg:col-span-8 print:col-span-12 print:w-full transition-colors">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden print:shadow-none print:border-slate-300 transition-colors">
-                        <div className="bg-[#0f172a] dark:bg-slate-950 p-6 text-white flex justify-between items-center relative overflow-hidden print:bg-white print:text-slate-900 print:border-b print:border-slate-300 transition-colors">
+                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-xl border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] overflow-hidden print:shadow-none print:border-[var(--tenant-border)] transition-colors">
+                        <div className="bg-[var(--tenant-primary)] dark:bg-[var(--tenant-panel-dark)] p-6 text-white flex justify-between items-center relative overflow-hidden print:bg-[var(--tenant-panel)] print:text-slate-900 print:border-b print:border-[var(--tenant-border)] transition-colors">
                             <div className="relative z-10">
                                 <h3 className="font-bold text-lg dark:text-slate-100">
                                     {data.type === 'PRODUCT' ? 'Demonstrativo de Venda (Produtos)' : 'Demonstrativo de Formação de Preço'}
@@ -329,23 +329,23 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
 
                         <div className="p-0 transition-colors">
                             <table className="w-full text-sm">
-                                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase text-xs print:bg-white border-b border-slate-200 dark:border-slate-700 transition-colors">
+                                <thead className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-500 dark:text-slate-400 font-semibold uppercase text-xs print:bg-[var(--tenant-panel)] border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] transition-colors">
                                     <tr>
                                         <th className="px-6 py-4 text-left">Componente</th>
                                         <th className="px-6 py-4 text-right">Valor</th>
                                         <th className="px-6 py-4 text-right min-w-[120px]">Ref. %</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-200 transition-colors">
+                                <tbody className="divide-y divide-[var(--tenant-border)] dark:divide-[var(--tenant-border-dark)] print:divide-[var(--tenant-border)] transition-colors">
 
                                     {data.type === 'PRODUCT' ? (
                                         <>
                                             {/* PRODUCT SIMPLE DRE */}
-                                            <tr className="bg-slate-50 dark:bg-slate-800/40 print:bg-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors">
+                                            <tr className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] print:bg-[var(--tenant-panel)] hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
                                                 <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">1. Valor Bruto dos Produtos</td>
                                                 <td className="px-6 py-3 text-right font-bold text-slate-800 dark:text-slate-100">{formatCurrency(financials.monthlyValue)}</td>
                                                 <td className="px-6 py-3 text-right">
-                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-full transition-colors">100%</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] px-2 py-1 rounded-full transition-colors">100%</span>
                                                 </td>
                                             </tr>
                                             <tr className="hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
@@ -357,17 +357,17 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                                     {formatPercent(financials.salesTaxAmount / financials.monthlyValue)}
                                                 </td>
                                             </tr>
-                                            <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700 print:bg-slate-50 font-bold transition-colors">
+                                            <tr className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border-y border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] print:bg-[var(--tenant-control)] font-bold transition-colors">
                                                 <td className="px-6 py-3 text-slate-800 dark:text-slate-100">= 2. Receita Líquida</td>
                                                 <td className="px-6 py-3 text-right text-slate-800 dark:text-slate-100">{formatCurrency(financials.netRevenue)}</td>
                                                 <td className="px-6 py-3 text-right text-[10px] text-slate-500 dark:text-slate-400 transition-colors">{formatPercent(financials.netRevenue / financials.monthlyValue)}</td>
                                             </tr>
-                                            <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Custo dos Produtos (COGS)</td>
+                                            <tr className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-[var(--tenant-border)] dark:hover:border-[var(--tenant-border-dark)]">(-) Custo dos Produtos (COGS)</td>
                                                 <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalDirectCost)})</td>
                                                 <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">{formatPercent(financials.totalDirectCost / financials.monthlyValue)}</td>
                                             </tr>
-                                            <tr className="bg-emerald-50 dark:bg-emerald-900/10 print:bg-white border-l-4 border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors">
+                                            <tr className="bg-emerald-50 dark:bg-emerald-900/10 print:bg-[var(--tenant-panel)] border-l-4 border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors">
                                                 <td className="px-6 py-5 font-bold uppercase tracking-wider flex items-center gap-2">
                                                     <DollarSign size={20} className="text-emerald-600 dark:text-emerald-400 print:text-slate-900 transition-colors" /> = 3. Lucro Bruto (Margem)
                                                 </td>
@@ -382,11 +382,11 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                     ) : (
                                         <>
                                             {/* ORIGINAL SERVICE DRE */}
-                                            <tr className="bg-slate-50 dark:bg-slate-800/40 print:bg-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors">
+                                            <tr className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] print:bg-[var(--tenant-panel)] hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
                                                 <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">1. Faturamento Bruto</td>
                                                 <td className="px-6 py-3 text-right font-bold text-slate-800 dark:text-slate-100">{formatCurrency(financials.monthlyValue)}</td>
                                                 <td className="px-6 py-3 text-right">
-                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-full transition-colors">100%</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] px-2 py-1 rounded-full transition-colors">100%</span>
                                                 </td>
                                             </tr>
 
@@ -401,32 +401,32 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                             </tr>
 
                                             {/* 3. RECEITA LÍQUIDA */}
-                                            <tr className="bg-slate-100/80 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700 print:bg-slate-50 font-bold transition-colors">
+                                            <tr className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border-y border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] print:bg-[var(--tenant-control)] font-bold transition-colors">
                                                 <td className="px-6 py-3 text-slate-800 dark:text-slate-100">= 3. Receita Líquida</td>
                                                 <td className="px-6 py-3 text-right text-slate-800 dark:text-slate-100">{formatCurrency(financials.netRevenue)}</td>
                                                 <td className="px-6 py-3 text-right text-[10px] text-slate-500 dark:text-slate-400 transition-colors">{formatPercent(financials.netRevenue / financials.monthlyValue)}</td>
                                             </tr>
 
                                             {/* 4 & 5. CUSTOS DIRETOS */}
-                                            <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Mão de Obra e Encargos</td>
+                                            <tr className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-[var(--tenant-border)] dark:hover:border-[var(--tenant-border-dark)]">(-) Mão de Obra e Encargos</td>
                                                 <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalLaborCost)})</td>
                                                 <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
                                             </tr>
-                                            <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-slate-300 dark:hover:border-slate-700">(-) Despesas Operacionais / Materiais</td>
+                                            <tr className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-[var(--tenant-border)] dark:hover:border-[var(--tenant-border-dark)]">(-) Despesas Operacionais / Materiais</td>
                                                 <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalOperationalCost + financials.totalSafetyCost + financials.totalSupportCost)})</td>
                                                 <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
                                             </tr>
 
                                             {/* 6. MARGEM OPERACIONAL (CONTRIBUTION) */}
-                                            <tr className="bg-blue-50 dark:bg-blue-900/10 print:bg-white border-l-4 border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors">
-                                                <td className="px-6 py-3 font-bold text-blue-900 dark:text-blue-200 flex items-center gap-2">
+                                            <tr className="bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-secondary-soft)] print:bg-[var(--tenant-panel)] border-l-4 border-[var(--tenant-secondary-border)] hover:bg-[var(--tenant-secondary-soft)] dark:hover:bg-[var(--tenant-secondary-soft)] transition-colors">
+                                                <td className="px-6 py-3 font-bold text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] flex items-center gap-2">
                                                     <Layers size={16} /> = 6. Margem Operacional
                                                 </td>
-                                                <td className="px-6 py-3 text-right font-bold text-blue-900 dark:text-blue-200">{formatCurrency(financials.contributionMarginAmount)}</td>
+                                                <td className="px-6 py-3 text-right font-bold text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)]">{formatCurrency(financials.contributionMarginAmount)}</td>
                                                 <td className="px-6 py-3 text-right">
-                                                    <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 px-2 py-1 rounded-full transition-colors">
+                                                    <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)] px-2 py-1 rounded-full transition-colors">
                                                         Mg. {formatPercent(financials.contributionMarginPercent / 100)}
                                                     </span>
                                                 </td>
@@ -440,13 +440,13 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                             </tr>
 
                                             {/* 8. RESULTADO OPERACIONAL (EBITDA) */}
-                                            <tr className="bg-amber-50 dark:bg-amber-900/10 print:bg-white border-l-4 border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors">
+                                            <tr className="bg-amber-50 dark:bg-amber-900/10 print:bg-[var(--tenant-panel)] border-l-4 border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors">
                                                 <td className="px-6 py-3 font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
                                                     <BarChart4 size={16} /> = 8. Resultado Operacional
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-bold text-amber-900 dark:text-amber-200">{formatCurrency(financials.operationalProfitAmount)}</td>
                                                 <td className="px-6 py-3 text-right">
-                                                    <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 px-2 py-1 rounded-full transition-colors">
+                                                    <span className="inline-flex whitespace-nowrap text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-amber-200 dark:border-amber-800 px-2 py-1 rounded-full transition-colors">
                                                         EBITDA {formatPercent(financials.operationalMarginPercent / 100)}
                                                     </span>
                                                 </td>
@@ -473,7 +473,7 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                             </tr>
 
                                             {/* 11. LUCRO LÍQUIDO */}
-                                            <tr className="bg-[#1e293b] dark:bg-slate-950 text-white print:bg-white print:text-slate-900 print:border-t-2 print:border-slate-900 transition-colors">
+                                            <tr className="bg-[var(--tenant-panel-dark)] dark:bg-[var(--tenant-panel-dark)] text-white print:bg-[var(--tenant-panel)] print:text-slate-900 print:border-t-2 print:border-[var(--tenant-border)] transition-colors">
                                                 <td className="px-6 py-5 font-bold uppercase tracking-wider flex items-center gap-2">
                                                     <DollarSign size={20} className="text-[#fbbf24] dark:text-amber-400 print:text-slate-900 transition-colors" /> = 11. Resultado Líquido
                                                 </td>
@@ -490,7 +490,11 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                     </div>
 
                     <div className="hidden print:block mt-8 text-xs text-slate-400 text-center">
-                        <p>Documento gerado eletronicamente pelo sistema OPrice em {new Date().toLocaleDateString('pt-BR')}.</p>
+                        <div className="mb-2 flex items-center justify-center gap-2">
+                            <span>Powered by</span>
+                            <img src="/oprice-logo-text-blue.png" alt="OPrice" className="h-5 w-auto object-contain" />
+                        </div>
+                        <p>Documento gerado eletronicamente em {new Date().toLocaleDateString('pt-BR')}.</p>
                         <p>Validade da proposta: 15 dias.</p>
                     </div>
                 </div>

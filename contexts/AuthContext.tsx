@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { AppRole, BusinessUnitAccess } from '../types';
+import { AppRole, BusinessUnitAccess, PlatformRole } from '../types';
 
 export interface UserProfile {
     id: string;
@@ -9,6 +9,11 @@ export interface UserProfile {
     full_name: string | null;
     role: AppRole;
     allowed_types: BusinessUnitAccess[];
+    platform_role?: PlatformRole;
+    default_tenant_id?: string | null;
+    phone?: string | null;
+    linkedin_url?: string | null;
+    avatar_url?: string | null;
 }
 
 interface AuthContextType {

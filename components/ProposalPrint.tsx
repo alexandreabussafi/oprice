@@ -25,7 +25,7 @@ const ProposalPrint: React.FC<ProposalPrintProps> = ({ data }) => {
                         {(data.letterheadConfig?.productLogoUrl || data.letterheadConfig?.logoUrl) ? (
                             <img src={data.letterheadConfig.productLogoUrl || data.letterheadConfig.logoUrl} alt="Logo" className="h-16 object-contain" />
                         ) : (
-                            <div className="h-16 flex items-center"><h1 className="text-3xl font-black">{data.letterheadConfig?.companyName || 'OPCAPEX'}</h1></div>
+                            <div className="h-16 flex items-center"><h1 className="text-3xl font-black">{data.letterheadConfig?.companyName || 'OPrice'}</h1></div>
                         )}
                         <h1 className="text-4xl font-light text-slate-400 tracking-widest uppercase">Orçamento</h1>
                     </div>
@@ -172,7 +172,7 @@ const ProposalPrint: React.FC<ProposalPrintProps> = ({ data }) => {
                         )}
                         <div>
                             <h1 className="text-3xl font-black tracking-tight" style={{ color: data.letterheadConfig?.primaryColor || '#0f172a' }}>
-                                {data.letterheadConfig?.companyName || 'OPCAPEX'}
+                                {data.letterheadConfig?.companyName || 'OPrice'}
                             </h1>
                             <p className="text-xs text-slate-500 font-medium tracking-widest uppercase mt-1">
                                 {data.letterheadConfig?.companySlogan || 'Industrial Viability Engine'}
@@ -286,7 +286,7 @@ const ProposalPrint: React.FC<ProposalPrintProps> = ({ data }) => {
                 <div className="text-center">
                     <div className="w-full h-px bg-slate-400 mb-2"></div>
                     <p className="font-bold text-slate-800">{data.responsible}</p>
-                    <p className="text-xs text-slate-500">{data.letterheadConfig?.companyName || 'OPCAPEX'} - Comercial</p>
+                    <p className="text-xs text-slate-500">{data.letterheadConfig?.companyName || 'OPrice'} - Comercial</p>
                 </div>
                 <div className="text-center">
                     <div className="w-full h-px bg-slate-400 mb-2"></div>

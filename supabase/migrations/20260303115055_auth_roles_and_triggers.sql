@@ -1,0 +1,3 @@
+-- Historical remote migration placeholder.
+-- This version already exists in the linked Supabase project's migration history.
+-- Keep this file so `supabase db push` can compare local and remote versions.

@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ProposalData, CatalogProduct, ProductLineItem } from '../types';
-import { Settings, Plus, Search, Trash2, Edit2, Check, X, Package, DollarSign, Calculator, AlertTriangle, Target, FileText, TrendingUp, Globe, CreditCard, Truck } from 'lucide-react';
+import { Settings, Plus, Search, Trash2, Edit2, Check, X, Package, DollarSign, Calculator, AlertTriangle, Target, FileText, TrendingUp, Globe, CreditCard, Truck, Download } from 'lucide-react';
+import { downloadProposalPdf } from '../services/proposalPdf';
+import { getProposalTemplateKind, mergeProposalTemplates } from '../utils/proposalTemplates';
 
 interface ProductEditorProps {
     data: ProposalData;
@@ -12,9 +14,25 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
     const [searchTerm, setSearchTerm] = useState('');
     const [editingLineId, setEditingLineId] = useState<string | null>(null);
     const [tempMargin, setTempMargin] = useState<number>(0);
+    const [pdfLoading, setPdfLoading] = useState(false);
 
     const productLines = data.productLines || [];
     const catalog = globalConfig?.productCatalog || [];
+    const proposalForPdf = {
+        ...data,
+        letterheadConfig: globalConfig?.letterheadConfig || data.letterheadConfig,
+        proposalTemplates: globalConfig?.proposalTemplates || data.proposalTemplates
+    };
+    const proposalTemplate = mergeProposalTemplates(proposalForPdf.proposalTemplates, proposalForPdf.letterheadConfig?.companyName)[getProposalTemplateKind(proposalForPdf)];
+
+    const handleDownloadPdf = async () => {
+        setPdfLoading(true);
+        try {
+            await downloadProposalPdf(proposalForPdf, proposalTemplate);
+        } finally {
+            setPdfLoading(false);
+        }
+    };
 
     // Filter Catalog
     const filteredCatalog = catalog.filter(p =>
@@ -234,7 +252,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto space-y-8 pb-32 print:p-0 print:m-0 print:space-y-0 print:max-w-none print:bg-white">
+        <div className="p-8 max-w-[1600px] mx-auto space-y-8 pb-32 print:p-0 print:m-0 print:space-y-0 print:max-w-none print:bg-[var(--tenant-panel)]">
             <style dangerouslySetInnerHTML={{
                 __html: `
                 @media print {
@@ -263,8 +281,8 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                 </header>
 
                 {/* HEADER FIELDS - ORDEM DE VENDA */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm ring-1 ring-slate-200/50 dark:ring-slate-800/50">
-                    <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg p-6 shadow-sm ring-1 ring-[var(--tenant-border)]/50 dark:ring-[var(--tenant-border-dark)]/50">
+                    <div className="flex items-center gap-2 mb-6 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pb-4">
                         <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
                             <FileText className="text-emerald-600" size={20} />
                         </div>
@@ -284,7 +302,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.salesOrderNumber || ''}
                                 onChange={(e) => updateData({ salesOrderNumber: e.target.value })}
                                 placeholder="Ex: OV-2024-001"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -296,7 +314,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.clientPO || ''}
                                 onChange={(e) => updateData({ clientPO: e.target.value })}
                                 placeholder="Nº Pedido do Cliente"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -308,7 +326,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.deliveryDeadline || ''}
                                 onChange={(e) => updateData({ deliveryDeadline: e.target.value })}
                                 placeholder="Ex: 15 dias úteis"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
                         <div className="space-y-1.5">
@@ -320,14 +338,14 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.validity || ''}
                                 onChange={(e) => updateData({ validity: e.target.value })}
                                 placeholder="Ex: 30 dias"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
                     </div>
 
                     {/* NOVOS CAMPOS COMERCIAIS */}
                     {/* NOVOS CAMPOS COMERCIAIS */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6 border-t border-slate-100 dark:border-slate-800 pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6 border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pt-6">
                         <div className="space-y-1.5 md:col-span-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <Truck size={12} /> Local de Entrega (Full Address)
@@ -337,7 +355,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.deliveryAddress || ''}
                                 onChange={(e) => updateData({ deliveryAddress: e.target.value })}
                                 placeholder="Logradouro, Número, Bairro, Cidade..."
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -350,7 +368,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.shippingAddress || ''}
                                 onChange={(e) => updateData({ shippingAddress: e.target.value })}
                                 placeholder="Ex: João Silva / Depto Recebimento"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -363,7 +381,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.billingAddress || ''}
                                 onChange={(e) => updateData({ billingAddress: e.target.value })}
                                 placeholder="Ex: 00.000.000/0001-00"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -376,7 +394,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.stateRegistration || ''}
                                 onChange={(e) => updateData({ stateRegistration: e.target.value })}
                                 placeholder="Isento ou Nº"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -388,7 +406,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 <select
                                     value={data.destinationState || ''}
                                     onChange={(e) => updateData({ destinationState: e.target.value })}
-                                    className="w-full px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-sm font-bold text-emerald-800 dark:text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner appearance-none cursor-pointer"
+                                    className="w-full px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm font-bold text-emerald-800 dark:text-emerald-300 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner appearance-none cursor-pointer"
                                 >
                                     <option value="" disabled>Selecione UF...</option>
                                     <option value="AC">AC</option>
@@ -432,14 +450,14 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                     type="number"
                                     value={data.paymentTermDays || 30}
                                     onChange={(e) => updateData({ paymentTermDays: parseInt(e.target.value) || 0 })}
-                                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner pr-12"
+                                    className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner pr-12"
                                 />
                                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">DIAS</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6 border-t border-slate-100 dark:border-slate-800 pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6 border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pt-6">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <TrendingUp size={12} /> Vendedor / Responsável
@@ -449,7 +467,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.salesperson || data.responsible || ''}
                                 onChange={(e) => updateData({ salesperson: e.target.value })}
                                 placeholder="Nome do Vendedor"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -461,7 +479,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 <select
                                     value={data.deliveryIncoterm || 'FOB'}
                                     onChange={(e) => updateData({ deliveryIncoterm: e.target.value as 'CIF' | 'FOB' })}
-                                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner appearance-none cursor-pointer"
+                                    className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner appearance-none cursor-pointer"
                                 >
                                     <option value="CIF">CIF (Incluso)</option>
                                     <option value="FOB">FOB (A Combinar)</option>
@@ -479,7 +497,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.freightValue || 0}
                                 onChange={(e) => updateData({ freightValue: parseFloat(e.target.value) || 0 })}
                                 placeholder="R$ 0,00"
-                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none transition-all shadow-inner"
                             />
                         </div>
 
@@ -492,7 +510,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 value={data.discountValue || 0}
                                 onChange={(e) => updateData({ discountValue: parseFloat(e.target.value) || 0 })}
                                 placeholder="R$ 0,00"
-                                className="w-full px-4 py-2.5 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30 rounded-xl text-sm font-bold text-rose-700 dark:text-rose-400 focus:ring-2 focus:ring-rose-500 outline-none transition-all shadow-inner"
+                                className="w-full px-4 py-2.5 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30 rounded-lg text-sm font-bold text-rose-700 dark:text-rose-400 focus:ring-2 focus:ring-rose-500 outline-none transition-all shadow-inner"
                             />
                         </div>
                     </div>
@@ -500,22 +518,22 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
 
                 {/* TOTAIS INDICATORS */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg p-5 shadow-sm">
                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Custo Direto (Materiais)</p>
                         <p className="text-xl font-black text-slate-800 dark:text-slate-100">{formatCurrency(totalCost)}</p>
                     </div>
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+                    <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg p-5 shadow-sm">
                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Impostos (Add-on/Incidência)</p>
                         <p className="text-xl font-black text-slate-800 dark:text-slate-100">{formatCurrency(totalTaxes)}</p>
                     </div>
-                    <div className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 rounded-xl p-5 shadow-sm">
+                    <div className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 rounded-lg p-5 shadow-sm">
                         <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase mb-1">Margem de Lucro</p>
                         <div className="flex items-baseline gap-2">
                             <p className="text-xl font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(totalMargin)}</p>
                             <span className="text-xs font-bold text-emerald-500">{(totalValue > 0 ? (totalMargin / totalValue) * 100 : 0).toFixed(1)}%</span>
                         </div>
                     </div>
-                    <div className="bg-[#0f172a] dark:bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl shadow-slate-900/10">
+                    <div className="bg-[var(--tenant-primary)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] rounded-lg p-5 shadow-xl">
                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Total da Ordem (Faturamento)</p>
                         <p className="text-xl font-black text-emerald-400">{formatCurrency(totalValue)}</p>
                     </div>
@@ -525,8 +543,8 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
 
                     {/* LADO ESQUERDO: Catálogo */}
                     <div className="xl:col-span-4 space-y-4">
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm flex flex-col h-[700px]">
-                            <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
+                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg overflow-hidden shadow-sm flex flex-col h-[700px]">
+                            <div className="p-4 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] shrink-0">
                                 <h2 className="font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2">
                                     <Search size={18} className="text-slate-400" /> Catálogo de Produtos
                                 </h2>
@@ -537,7 +555,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                         placeholder="Buscar produtos, peças..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                                        className="w-full pl-9 pr-4 py-2 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-[var(--tenant-secondary-border)] focus:ring-1 focus:ring-[var(--tenant-primary-soft)] transition-colors"
                                     />
                                 </div>
                             </div>
@@ -548,10 +566,10 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 ) : (
                                     <div className="space-y-2">
                                         {filteredCatalog.map(product => (
-                                            <div key={product.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors group">
+                                            <div key={product.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] border border-transparent hover:border-[var(--tenant-border)] dark:hover:border-[var(--tenant-border-dark)] transition-colors group">
                                                 <div className="flex items-center gap-4">
                                                     {product.imageUrl && (
-                                                        <div className="w-12 h-12 rounded-lg border border-slate-100 dark:border-slate-800 overflow-hidden bg-white shrink-0 shadow-sm transition-transform group-hover:scale-105">
+                                                        <div className="w-12 h-12 rounded-lg border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] overflow-hidden bg-[var(--tenant-panel)] shrink-0 shadow-sm transition-transform group-hover:scale-105">
                                                             <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain" />
                                                         </div>
                                                     )}
@@ -559,14 +577,14 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                         <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{product.name}</p>
                                                         <p className="text-xs text-slate-500 line-clamp-1">{product.description}</p>
                                                         <div className="flex gap-2 mt-1">
-                                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{product.category}</span>
+                                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-600 dark:text-slate-400">{product.category}</span>
                                                             <span className="text-[10px] font-bold text-emerald-600">Custo: {formatCurrency(product.costPrice)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <button
                                                     onClick={() => handleAddItem(product)}
-                                                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                                                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] hover:bg-[var(--tenant-secondary-soft)] hover:text-white transition-colors opacity-0 group-hover:opacity-100"
                                                     title="Adicionar à Proposta"
                                                 >
                                                     <Plus size={16} />
@@ -581,12 +599,12 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
 
                     {/* LADO DIREITO: Itens Selecionados (Carrinho) */}
                     <div className="xl:col-span-8">
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm min-h-[700px] flex flex-col">
-                            <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center shrink-0">
+                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg shadow-sm min-h-[700px] flex flex-col">
+                            <div className="p-4 border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] flex justify-between items-center shrink-0">
                                 <h2 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wide text-xs">
                                     <Target size={18} className="text-emerald-500" /> Sales Lines (Itens do Pedido)
                                 </h2>
-                                <span className="text-[10px] font-black text-slate-500 bg-slate-200/50 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700">
+                                <span className="text-[10px] font-black text-slate-500 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] px-2 py-1 rounded-md border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]">
                                     {productLines.length} SKU(S) • TOTAL QTD: {productLines.reduce((acc, l) => acc + l.quantity, 0)}
                                 </span>
                             </div>
@@ -601,7 +619,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 <div className="p-0 overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
-                                            <tr className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50 dark:bg-slate-900/50">
+                                            <tr className="border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-xs font-semibold text-slate-500 uppercase tracking-wider bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)]">
                                                 <th className="p-4">Produto</th>
                                                 <th className="p-4 text-center">Qtd</th>
                                                 <th className="p-4 text-center">Margem</th>
@@ -611,12 +629,12 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                 <th className="p-4"></th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                                        <tbody className="divide-y divide-[var(--tenant-border)] dark:divide-[var(--tenant-border-dark)]/50">
                                             {productLines.map(line => (
-                                                <tr key={line.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <tr key={line.id} className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
                                                     <td className="p-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-12 h-12 rounded border border-slate-100 dark:border-slate-800 overflow-hidden bg-white shrink-0 flex items-center justify-center p-1">
+                                                            <div className="w-12 h-12 rounded border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] overflow-hidden bg-[var(--tenant-panel)] shrink-0 flex items-center justify-center p-1">
                                                                 {line.imageUrl ? (
                                                                     <img src={line.imageUrl} alt={line.name} className="w-full h-full object-contain" />
                                                                 ) : (
@@ -628,7 +646,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                                 <div className="flex gap-2 items-center mt-1">
                                                                     <p className="text-[10px] font-mono text-slate-400">{line.sku || 'SEM SKU'}</p>
                                                                     <input
-                                                                        className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 px-1 py-0.5 rounded outline-none border border-transparent focus:border-emerald-500 w-20"
+                                                                        className="text-[10px] bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-600 px-1 py-0.5 rounded outline-none border border-transparent focus:border-emerald-500 w-20"
                                                                         value={line.ncm || ''}
                                                                         onChange={(e) => {
                                                                             const updated = productLines.map(l => l.id === line.id ? { ...l, ncm: e.target.value } : l);
@@ -648,7 +666,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                                 min="1"
                                                                 value={line.quantity}
                                                                 onChange={(e) => handleUpdateQuantity(line.id, parseInt(e.target.value) || 1)}
-                                                                className="w-14 text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-md py-1 text-sm font-semibold focus:ring-1 focus:ring-indigo-500"
+                                                                className="w-14 text-center border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-md py-1 text-sm font-semibold focus:ring-1 focus:ring-[var(--tenant-primary-soft)]"
                                                             />
                                                             <input
                                                                 type="text"
@@ -657,7 +675,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                                     const updated = productLines.map(l => l.id === line.id ? { ...l, unit: e.target.value.toUpperCase() } : l);
                                                                     updateData({ productLines: updated });
                                                                 }}
-                                                                className="w-10 text-center border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-md py-1 text-[10px] font-bold text-slate-500 uppercase focus:ring-1 focus:ring-emerald-500"
+                                                                className="w-10 text-center border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded-md py-1 text-[10px] font-bold text-slate-500 uppercase focus:ring-1 focus:ring-emerald-500"
                                                                 placeholder="UN"
                                                                 title="Unidade de Medida"
                                                             />
@@ -673,18 +691,18 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                                     type="number"
                                                                     value={tempMargin}
                                                                     onChange={(e) => setTempMargin(parseFloat(e.target.value) || 0)}
-                                                                    className="w-14 border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-800 rounded-l-md px-1 py-1 text-sm font-bold text-indigo-700 dark:text-indigo-300 text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                                    className="w-14 border border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)] bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] rounded-l-md px-1 py-1 text-sm font-bold text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)] text-right focus:outline-none focus:ring-1 focus:ring-[var(--tenant-primary-soft)]"
                                                                 />
-                                                                <span className="bg-slate-100 dark:bg-slate-800 py-1 px-2 border-y border-r border-slate-200 dark:border-slate-700 text-slate-500 text-sm rounded-r-md">%</span>
+                                                                <span className="bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] py-1 px-2 border-y border-r border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-slate-500 text-sm rounded-r-md">%</span>
                                                                 <button onClick={() => saveMargin(line.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check size={16} /></button>
                                                                 <button onClick={() => setEditingLineId(null)} className="p-1 text-rose-500 hover:bg-rose-50 rounded"><X size={16} /></button>
                                                             </div>
                                                         ) : (
                                                             <div
                                                                 onClick={() => startEditingMargin(line)}
-                                                                className="group flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 py-1 rounded-md transition-colors"
+                                                                className="group flex flex-col items-center justify-center cursor-pointer hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] py-1 rounded-md transition-colors"
                                                             >
-                                                                <span className="font-bold text-sm text-indigo-600 dark:text-indigo-400">
+                                                                <span className="font-bold text-sm text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)]">
                                                                     {((line.overrideMargin || 0) * 100).toFixed(1)}%
                                                                 </span>
                                                                 <p className="text-[10px] text-slate-400 font-medium">Custo: {formatCurrency(line.unitCost)}</p>
@@ -693,7 +711,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                     </td>
                                                     <td className="p-4 text-center w-40 whitespace-nowrap">
                                                         <div className="flex flex-col gap-1.5">
-                                                            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] shadow-sm">
                                                                 <span className="text-[10px] uppercase font-bold text-slate-400">ICMS</span>
                                                                 <input
                                                                     type="number"
@@ -703,7 +721,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                                 />
                                                                 <span className="text-[10px] text-slate-400">%</span>
                                                             </div>
-                                                            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] shadow-sm">
                                                                 <span className="text-[10px] uppercase font-bold text-slate-400">IPI</span>
                                                                 <input
                                                                     type="number"
@@ -741,7 +759,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                 </div>
 
                 {/* STICKY FOOTER SUMMARY */}
-                <div className="fixed bottom-0 left-64 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4 z-40 print:hidden">
+                <div className="fixed bottom-0 left-64 right-0 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] backdrop-blur-md border-t border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-4 z-40 print:hidden">
                     <div className="max-w-7xl mx-auto flex items-center justify-between">
                         <div className="flex gap-8">
                             <div>
@@ -769,10 +787,18 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                             </div>
                             <button
                                 onClick={() => window.print()}
-                                className="flex items-center gap-2 px-6 py-3 bg-[#0f172a] dark:bg-slate-800 text-white rounded-xl font-bold shadow-xl hover:bg-slate-800 dark:hover:bg-slate-700 transition-all hover:-translate-y-0.5"
+                                className="flex items-center gap-2 px-6 py-3 bg-[var(--tenant-primary)] dark:bg-[var(--tenant-control-dark)] text-white rounded-lg font-bold shadow-xl hover:bg-[var(--tenant-panel)] dark:hover:bg-[var(--tenant-control-dark)] transition-all hover:-translate-y-0.5"
                             >
                                 <FileText size={18} />
                                 Imprimir Proposta
+                            </button>
+                            <button
+                                onClick={handleDownloadPdf}
+                                disabled={pdfLoading}
+                                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold shadow-xl hover:bg-emerald-700 transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <Download size={18} />
+                                {pdfLoading ? 'Gerando PDF' : 'Baixar PDF'}
                             </button>
                         </div>
                     </div>
@@ -781,7 +807,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
             </div> {/* FECHA TELA INTERATIVA */}
 
             {/* LAYOUT DE IMPRESSÃO (DANFE) */}
-            <div className="hidden print:block w-full bg-white text-black font-sans box-border" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+            <div className="hidden print:block w-full bg-[var(--tenant-panel)] text-black font-sans box-border" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
                 <table className="w-full border-collapse">
                     <thead className="table-header-group">
                         <tr>
@@ -796,7 +822,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                             </td>
                         </tr>
                     </thead>
-                    <tbody className="bg-white">
+                    <tbody className="bg-[var(--tenant-panel)]">
                         <tr>
                             <td className="p-0 border-0 align-top px-8 pt-4 pb-8">
 
@@ -815,7 +841,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
 
                                 {/* 2. CUSTOMER INFORMATION */}
                                 <div className="mb-8">
-                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2 mb-4">Dados do Cliente</h2>
+                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-[var(--tenant-border)] pb-2 mb-4">Dados do Cliente</h2>
                                     <div className="grid grid-cols-2 gap-x-12 gap-y-4 text-xs">
                                         <div>
                                             <p className="text-[10px] text-slate-400 uppercase font-semibold">Empresa / Razão Social</p>
@@ -846,10 +872,10 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
 
                                 {/* 3. ITEMS TABLE */}
                                 <div className="mb-8">
-                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2 mb-4">Itens da Cotação</h2>
+                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-[var(--tenant-border)] pb-2 mb-4">Itens da Cotação</h2>
                                     <table className="w-full text-left border-collapse text-xs">
                                         <thead>
-                                            <tr className="bg-slate-50 text-slate-500 border-y border-slate-200">
+                                            <tr className="bg-[var(--tenant-control)] text-slate-500 border-y border-[var(--tenant-border)]">
                                                 <th className="py-2 px-2 font-semibold uppercase text-center w-12 text-[9px]">Item</th>
                                                 <th className="py-2 px-2 font-semibold uppercase w-20 text-[9px]">Código</th>
                                                 <th className="py-2 px-2 font-semibold uppercase text-[9px]">Descrição</th>
@@ -862,16 +888,16 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                                 <th className="py-2 px-2 font-semibold uppercase text-right w-20 text-[9px]">Total</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100">
+                                        <tbody className="divide-y divide-[var(--tenant-border)]">
                                             {productLines.map((line) => (
-                                                <tr key={line.id} className="page-break-inside-avoid text-slate-700 hover:bg-slate-50 transition-colors">
+                                                <tr key={line.id} className="page-break-inside-avoid text-slate-700 hover:bg-[var(--tenant-control)] transition-colors">
                                                     <td className="py-3 px-2 align-middle text-center">
                                                         {line.imageUrl ? (
-                                                            <div className="w-10 h-10 mx-auto overflow-hidden bg-white flex items-center justify-center border border-slate-100 rounded">
+                                                            <div className="w-10 h-10 mx-auto overflow-hidden bg-[var(--tenant-panel)] flex items-center justify-center border border-[var(--tenant-border)] rounded">
                                                                 <img src={line.imageUrl} alt={line.name} className="max-w-full max-h-full object-contain mix-blend-multiply" />
                                                             </div>
                                                         ) : (
-                                                            <div className="w-10 h-10 mx-auto bg-slate-50 flex items-center justify-center text-[8px] text-slate-300 border border-slate-100 rounded">S/Img</div>
+                                                            <div className="w-10 h-10 mx-auto bg-[var(--tenant-control)] flex items-center justify-center text-[8px] text-slate-300 border border-[var(--tenant-border)] rounded">S/Img</div>
                                                         )}
                                                     </td>
                                                     <td className="py-3 px-2 font-mono text-[9px] align-middle">{line.sku || '-'}</td>
@@ -892,7 +918,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                 {/* 4. FINANCIAL SUMMARY */}
                                 <div className="mb-8 flex justify-end page-break-inside-avoid">
                                     <div className="w-80 space-y-2">
-                                        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1 mb-2">Resumo Financeiro</h2>
+                                        <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-[var(--tenant-border)] pb-1 mb-2">Resumo Financeiro</h2>
                                         <div className="flex justify-between text-xs text-slate-600">
                                             <span className="uppercase">Subtotal dos Produtos:</span>
                                             <span className="font-semibold">{formatCurrency((productLines?.reduce((acc, l) => acc + (l.finalPrice / (1 + (l.ipiPercent || 0))) * l.quantity, 0) || 0))}</span>
@@ -909,7 +935,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
                                             <span className="uppercase">Descontos:</span>
                                             <span className="font-semibold">- {formatCurrency(data.discountValue || 0)}</span>
                                         </div>
-                                        <div className="flex justify-between text-sm pt-2 mt-2 border-t border-slate-200">
+                                        <div className="flex justify-between text-sm pt-2 mt-2 border-t border-[var(--tenant-border)]">
                                             <span className="font-bold uppercase text-slate-800">Total da Cotação:</span>
                                             <span className="font-bold text-slate-800">{formatCurrency(totalValue)}</span>
                                         </div>
@@ -918,7 +944,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
 
                                 {/* 5. COMMERCIAL CONDITIONS */}
                                 <div className="mb-8 page-break-inside-avoid">
-                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2 mb-4">Condições Comerciais</h2>
+                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-[var(--tenant-border)] pb-2 mb-4">Condições Comerciais</h2>
                                     <div className="grid grid-cols-2 gap-6 text-xs text-slate-700">
                                         <div className="flex justify-between">
                                             <span className="font-semibold text-slate-400 uppercase">Condição de Pagamento:</span>
@@ -941,7 +967,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({ data, updateData, globalC
 
                                 {/* 6. OBSERVATIONS */}
                                 <div className="page-break-inside-avoid">
-                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2 mb-4">Observações e Informações Adicionais</h2>
+                                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-[var(--tenant-border)] pb-2 mb-4">Observações e Informações Adicionais</h2>
                                     <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
                                         {data.scope || 'Nenhuma observação comercial adicional foi especificada para esta cotação até o momento destas negociações (Orçamento Padrão). Dúvidas, contate nosso suporte.'}
                                     </div>
