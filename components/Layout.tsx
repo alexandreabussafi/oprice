@@ -76,6 +76,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
   };
   const sidebarControlActiveStyle = {
     backgroundColor: sidebarUsesDarkSurface ? 'rgba(255,255,255,0.09)' : tenantTheme.primarySubtle,
+    backgroundImage: tenantTheme.activeNavGradient,
     borderColor: tenantTheme.primaryBorder,
     color: sidebarAccent
   };
@@ -186,15 +187,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
   return (
     // PRINT FIX: Reset min-h-screen and flex to allow natural document flow
     <div
-      className={`flex h-dvh overflow-hidden bg-[var(--tenant-bg)] font-sans text-[var(--tenant-text)] transition-colors duration-300 dark:bg-[var(--tenant-bg-dark)] dark:text-[var(--tenant-text-dark)] print:block print:h-auto print:static print:overflow-visible print:bg-[var(--tenant-panel)] ${isProducts ? 'theme-products' : 'theme-services'}`}
+      className={`flex h-dvh overflow-hidden bg-[var(--tenant-bg)] [background-image:var(--tenant-bg-gradient)] font-sans text-[var(--tenant-text)] transition-colors duration-300 dark:bg-[var(--tenant-bg-dark)] dark:[background-image:var(--tenant-bg-gradient-dark)] dark:text-[var(--tenant-text-dark)] print:block print:h-auto print:static print:overflow-visible print:bg-[var(--tenant-panel)] print:[background-image:none] ${isProducts ? 'theme-products' : 'theme-services'}`}
       style={tenantTheme.cssVars}
     >
 
       {/* Sidebar - Alive & Light/Dark Theme */}
-      <aside className={`fixed inset-y-0 left-0 z-50 hidden ${sidebarCollapsed ? 'w-20' : 'w-64'} shrink-0 flex-col overflow-hidden border-r border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] text-slate-700 shadow-[4px_0_24px_rgba(15,23,42,0.04)] transition-all duration-300 ease-in-out dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)] dark:text-slate-300 lg:static lg:inset-0 lg:flex lg:translate-x-0 print:hidden`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 hidden ${sidebarCollapsed ? 'w-20' : 'w-64'} shrink-0 flex-col overflow-hidden border-r border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] [background-image:var(--tenant-sidebar-gradient)] text-slate-700 shadow-[4px_0_24px_rgba(15,23,42,0.04)] transition-all duration-300 ease-in-out dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)] dark:[background-image:var(--tenant-sidebar-gradient-dark)] dark:text-slate-300 lg:static lg:inset-0 lg:flex lg:translate-x-0 print:hidden`}
+      >
 
         {/* Header da Sidebar */}
-        <div className={`relative flex h-20 shrink-0 items-center ${sidebarCollapsed ? 'justify-center px-3' : 'gap-3 px-4'} border-b border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)]`} style={{ borderTop: `3px solid ${brandPrimary}` }}>
+        <div
+          className={`relative flex h-20 shrink-0 items-center ${sidebarCollapsed ? 'justify-center px-3' : 'gap-3 px-4'} border-b border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] [background-image:var(--tenant-sidebar-gradient)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)] dark:[background-image:var(--tenant-sidebar-gradient-dark)]`}
+        >
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1" style={{ backgroundImage: tenantTheme.topAccentGradient }} />
           <button
             type="button"
             onClick={() => setSidebarCollapsed(prev => !prev)}
@@ -239,7 +245,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
         </div>
 
         {isCRMMode && hasMultipleBUs && !sidebarCollapsed && (
-          <div className="border-b border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] p-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)]">
+          <div className="border-b border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] [background-image:var(--tenant-sidebar-gradient)] p-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)] dark:[background-image:var(--tenant-sidebar-gradient-dark)]">
             <div className="relative flex h-9 items-center rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-1 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
               <div
                 className={`absolute inset-y-1 w-[calc(50%-4px)] rounded-lg transition-all duration-300 shadow-sm ${isProducts ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}
@@ -288,7 +294,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 title={item.label}
-                style={isActive ? { borderColor: brandPrimary, backgroundColor: tenantTheme.primarySubtle, color: brandPrimary } : undefined}
+                style={isActive ? { borderColor: brandPrimary, backgroundColor: tenantTheme.primarySubtle, backgroundImage: tenantTheme.activeNavGradient, color: sidebarAccent } : undefined}
                 className={`group flex w-full items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'} rounded-md border-l-2 py-2 text-sm font-bold transition-all duration-200 ${isActive
                   ? 'border-y-transparent border-r-transparent shadow-sm dark:text-slate-100'
                   : `border-transparent text-slate-500 hover:bg-[var(--tenant-control)] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-white ${!sidebarCollapsed ? 'hover:translate-x-0.5' : ''}`
@@ -296,7 +302,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
               >
                 <div
                   className="rounded-md p-1.5 text-slate-400 transition-colors group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-200"
-                  style={isActive ? { color: brandPrimary, backgroundColor: tenantTheme.primarySoft } : undefined}
+                  style={isActive ? { color: sidebarAccent, backgroundColor: tenantTheme.primarySoft } : undefined}
                 >
                   <Icon size={18} />
                 </div>
@@ -318,7 +324,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
         </nav>
 
         {/* Toggle Theme & User Footer */}
-        <div className={`mt-auto ${sidebarCollapsed ? 'p-2' : 'p-3'} shrink-0 space-y-2 border-t border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)]`}>
+        <div className={`mt-auto ${sidebarCollapsed ? 'p-2' : 'p-3'} shrink-0 space-y-2 border-t border-[var(--tenant-border)] bg-[var(--tenant-sidebar)] [background-image:var(--tenant-sidebar-gradient)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-sidebar-dark)] dark:[background-image:var(--tenant-sidebar-gradient-dark)]`}>
 
           <div className={`grid gap-2 ${isCRMMode ? (canOpenTenantSettings ? 'grid-cols-3' : 'grid-cols-2') : 'grid-cols-1'}`}>
             {isCRMMode && (
@@ -383,7 +389,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
       </aside>
 
       {/* Main Content - Unlocked for Print */}
-      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--tenant-bg)] transition-[margin] duration-300 dark:bg-[var(--tenant-bg-dark)] print:block print:h-auto print:w-full print:static print:overflow-visible print:bg-[var(--tenant-panel)] print:ml-0">
+      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--tenant-bg)] [background-image:var(--tenant-bg-gradient)] transition-[margin] duration-300 dark:bg-[var(--tenant-bg-dark)] dark:[background-image:var(--tenant-bg-gradient-dark)] print:block print:h-auto print:w-full print:static print:overflow-visible print:bg-[var(--tenant-panel)] print:[background-image:none] print:ml-0">
         <div className="shrink-0 border-b border-[var(--tenant-border)] bg-[var(--tenant-surface)] px-3 py-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-surface-dark)] lg:hidden print:hidden">
           <div className="flex min-h-12 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">

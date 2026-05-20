@@ -3,7 +3,7 @@ import { ArrowLeft, Building2, Check, Eye, EyeOff, Image, Loader2, Plus, Save, S
 import { AppRole, BusinessUnitAccess, PlatformRole, Tenant, TenantModule } from '../types';
 import { useTenant } from '../contexts/TenantContext';
 import { Button, IconButton } from '../components/ui';
-import { createTenantTheme } from '../utils/theme';
+import { OPRICE_BRAND_PRIMARY, OPRICE_BRAND_SECONDARY, createTenantTheme } from '../utils/theme';
 import { PRICING_MODULE_DEFINITIONS, normalizeTenantModules, resolveDefaultBusinessUnitForModules, tenantSupportsPricingBusinessUnit } from '../utils/pricingModules';
 
 const MODULE_CATALOG: {
@@ -110,8 +110,8 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
     displayName: '',
     companyName: '',
     defaultBusinessUnit: 'SERVICES' as Tenant['defaultBusinessUnit'],
-    primaryColor: '#0f172a',
-    secondaryColor: '#047857',
+    primaryColor: OPRICE_BRAND_PRIMARY,
+    secondaryColor: OPRICE_BRAND_SECONDARY,
     backgroundLight: '#f8fafc',
     backgroundDark: '#151a24',
     sidebarLight: '#ffffff',
@@ -178,8 +178,8 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
       displayName: branding.displayName || selectedTenant.name,
       companyName: branding.companyName || selectedTenant.name,
       defaultBusinessUnit: selectedTenant.defaultBusinessUnit,
-      primaryColor: branding.primaryColor || '#0f172a',
-      secondaryColor: branding.secondaryColor || '#047857',
+      primaryColor: branding.primaryColor || OPRICE_BRAND_PRIMARY,
+      secondaryColor: branding.secondaryColor || OPRICE_BRAND_SECONDARY,
       backgroundLight: branding.backgroundLight || '#f8fafc',
       backgroundDark: branding.backgroundDark || '#151a24',
       sidebarLight: branding.sidebarLight || '#ffffff',
@@ -208,8 +208,8 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
       displayName: '',
       companyName: '',
       defaultBusinessUnit: 'SERVICES',
-      primaryColor: '#0f172a',
-      secondaryColor: '#047857',
+      primaryColor: OPRICE_BRAND_PRIMARY,
+      secondaryColor: OPRICE_BRAND_SECONDARY,
       backgroundLight: '#f8fafc',
       backgroundDark: '#151a24',
       sidebarLight: '#ffffff',
@@ -829,14 +829,15 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
                     </label>
                     <p className="mt-3 text-xs leading-relaxed text-slate-500">O arquivo será salvo no bucket público branding-assets em uma pasta isolada do tenant.</p>
 
-                    <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: selectedTheme.borderLight, backgroundColor: selectedTheme.backgroundLight }}>
+                    <div className="mt-5 overflow-hidden rounded-lg border" style={{ borderColor: selectedTheme.borderLight, backgroundColor: selectedTheme.backgroundLight, backgroundImage: selectedTheme.backgroundGradientLight }}>
                       <div className="flex min-h-44">
-                        <aside className="w-20 border-r p-3" style={{ borderColor: selectedTheme.borderLight, backgroundColor: selectedTheme.sidebarLight }}>
+                        <aside className="relative w-20 border-r p-3" style={{ borderColor: selectedTheme.borderLight, backgroundColor: selectedTheme.sidebarLight, backgroundImage: selectedTheme.sidebarGradientLight }}>
+                          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1" style={{ backgroundImage: selectedTheme.topAccentGradient }} />
                           <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-md border bg-[var(--tenant-panel)]" style={{ borderColor: selectedTheme.primaryBorder }}>
                             {form.logoUrl ? <img src={form.logoUrl} className="h-7 w-7 object-contain" /> : <Building2 size={18} style={{ color: selectedTheme.primary }} />}
                           </div>
                           <div className="space-y-2">
-                            <div className="h-7 rounded-md" style={{ backgroundColor: selectedTheme.primarySubtle, borderLeft: `3px solid ${selectedTheme.primary}` }} />
+                            <div className="h-7 rounded-md" style={{ backgroundColor: selectedTheme.primarySubtle, backgroundImage: selectedTheme.activeNavGradient, borderLeft: `3px solid ${selectedTheme.primary}` }} />
                             <div className="h-7 rounded-md bg-[var(--tenant-control)]" />
                             <div className="h-7 rounded-md bg-[var(--tenant-control)]" />
                           </div>

@@ -38,6 +38,7 @@ import { addDaysDateInput as addProposalFollowUpDays, buildProposalSendTemplateV
 import { applyPricingModuleDefaultsToProposal, withPricingModuleCompatibility } from './utils/pricingModuleAdapters';
 import { getDefaultPricingModuleForBusinessUnit, getPricingModuleDefinition, getSafeEditorTabForProposal, isEditorTabAllowedForProposal, isPricingModuleEnabledForTenant, isPricingModuleId, tenantSupportsPricingBusinessUnit } from './utils/pricingModules';
 import { getPricingModuleForProposal, getSalesPipelineForCreation, getSalesPipelineForProposal, isClosedStage, mapStageBetweenPipelines } from './utils/salesPipelines';
+import { OPRICE_BRAND_PRIMARY, OPRICE_BRAND_SECONDARY } from './utils/theme';
 
 // Default Tax Config (The System Standard)
 const defaultTaxConfig: ProposalData['taxConfig'] = {
@@ -123,8 +124,8 @@ const defaultKits: KitTemplate[] = [
 
 const defaultLetterheadConfig: ProposalData['letterheadConfig'] = {
   logoUrl: '/oprice-logo-text-blue.png',
-  primaryColor: '#0f172a',
-  secondaryColor: '#047857',
+  primaryColor: OPRICE_BRAND_PRIMARY,
+  secondaryColor: OPRICE_BRAND_SECONDARY,
   companyName: 'OPrice',
   companySlogan: 'Pricing System',
   addressLine1: 'Av. Industrial, 1000',
@@ -593,8 +594,8 @@ function App() {
     letterheadConfig: {
       ...globalConfig.letterheadConfig,
       logoUrl: tenantBranding.logoUrl || globalConfig.letterheadConfig?.logoUrl || '/oprice-logo-text-blue.png',
-      primaryColor: tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || '#0f172a',
-      secondaryColor: tenantBranding.secondaryColor || globalConfig.letterheadConfig?.secondaryColor || '#047857',
+      primaryColor: tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || OPRICE_BRAND_PRIMARY,
+      secondaryColor: tenantBranding.secondaryColor || globalConfig.letterheadConfig?.secondaryColor || OPRICE_BRAND_SECONDARY,
       companyName: tenantBranding.companyName || tenantBranding.displayName || activeTenant?.name || globalConfig.letterheadConfig?.companyName || 'OPrice'
     }
   });
@@ -605,7 +606,7 @@ function App() {
     const tenantSlogan = tenantBranding.slogan || globalConfig.letterheadConfig?.companySlogan || 'Pricing System';
     const title = `${tenantName} | ${tenantSlug} - ${tenantSlogan}`;
     const faviconUrl = tenantBranding.faviconUrl || tenantBranding.logoUrl || '/pwa-icon-192.png';
-    const themeColor = tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || '#0f172a';
+    const themeColor = tenantBranding.primaryColor || globalConfig.letterheadConfig?.primaryColor || OPRICE_BRAND_PRIMARY;
 
     document.title = title;
     ensureHeadMeta('meta[name="description"]', { name: 'description' }, `${tenantName} (${tenantSlug}) - ${tenantSlogan}`);

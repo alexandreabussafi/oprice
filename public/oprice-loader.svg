@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <defs>
+    <linearGradient id="opriceGradient" x1="10" y1="84" x2="84" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1d5cff"/>
+      <stop offset="42%" stop-color="#7a35ff"/>
+      <stop offset="73%" stop-color="#ff2fa6"/>
+      <stop offset="100%" stop-color="#ff74cf"/>
+    </linearGradient>
+    <filter id="softGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="0" stdDeviation="2.1" flood-color="#ff2fa6" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <style>
+
+  .base { fill: none; stroke: rgba(255,255,255,.13); stroke-width: 7.6; stroke-linecap: round; }
+  .ring { fill: none; stroke: url(#opriceGradient); stroke-width: 7.2; stroke-linecap: round; stroke-dasharray: 72 116; transform-origin: 48px 48px; }
+  .spark { fill: none; stroke: url(#opriceGradient); stroke-width: 6.4; stroke-linecap: round; stroke-linejoin: round; }
+  .bar { fill: none; stroke: url(#opriceGradient); stroke-width: 7.4; stroke-linecap: round; }
+  .glint { fill: #fff; opacity: .9; }
+
+  .ring { animation: ringSpin 1.15s linear infinite, ringDash 1.65s ease-in-out infinite; }
+  .spark { animation: sparkLift 1.65s ease-in-out infinite; transform-origin: 72px 16px; }
+  .bar-a { animation: barLift 1.2s ease-in-out infinite; transform-origin: 34px 62px; }
+  .bar-b { animation: barLift 1.2s ease-in-out infinite .12s; transform-origin: 48px 62px; }
+  .bar-c { animation: barLift 1.2s ease-in-out infinite .24s; transform-origin: 62px 62px; }
+  @keyframes ringSpin { to { transform: rotate(360deg); } }
+  @keyframes ringDash {
+    0%, 100% { stroke-dasharray: 56 116; }
+    50% { stroke-dasharray: 88 116; }
+  }
+  @keyframes sparkLift {
+    0%, 100% { opacity: .76; transform: translate3d(-1px, 1px, 0); }
+    50% { opacity: 1; transform: translate3d(1px, -1px, 0); }
+  }
+  @keyframes barLift {
+    0%, 100% { opacity: .58; transform: scaleY(.82); }
+    50% { opacity: 1; transform: scaleY(1.08); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ring, .spark, .bar { animation: none !important; }
+  }
+</style>
+
+  <g filter="url(#softGlow)">
+    <path class="base" d="M78.4 26.4A36.8 36.8 0 1 0 48 84.8"/>
+    <path class="ring" d="M78.4 26.4A36.8 36.8 0 1 0 48 84.8" pathLength="116"/>
+    <g class="spark">
+      <path d="M66.8 11.6h16.4v16.4M82 13.2 61.6 33.6"/>
+      <circle class="glint" cx="83.8" cy="10.8" r="2.2"/>
+    </g>
+    <path class="bar bar-a" d="M34 62V44"/>
+    <path class="bar bar-b" d="M48 62V32"/>
+    <path class="bar bar-c" d="M62 62V50"/>
+  </g>
+</svg>

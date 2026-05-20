@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "generate:loader": "node scripts/generate-oprice-loader-assets.mjs",
     "check:encoding": "node scripts/check-encoding.mjs",
     "check:theme": "node scripts/check-theme-hardcodes.mjs",
     "build": "npm run check:encoding && npm run check:theme && vite build",
@@ -26,7 +27,9 @@
     "@playwright/test": "^1.60.0",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "gifenc": "^1.0.3",
     "typescript": "~5.8.2",
+    "upng-js": "^2.1.0",
     "vite": "^6.2.0"
   }
 }
