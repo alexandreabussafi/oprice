@@ -4,7 +4,7 @@ import { TenantMembership } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
 import { Badge } from '../components/ui';
-import { createTenantTheme } from '../utils/theme';
+import { OPRICE_BRAND_PRIMARY, OPRICE_BRAND_SECONDARY, OPRICE_BRAND_VIOLET, createTenantTheme } from '../utils/theme';
 
 const OPRICE_LOGO_LIGHT = '/oprice-logo-text-blue.png';
 const OPRICE_LOGO_DARK = '/oprice-logo-text-white.png';
@@ -31,7 +31,9 @@ const TenantEntry: React.FC<TenantEntryProps> = ({ onOpenPortal }) => {
     '--entry-text-dark': '#f8fafc',
     '--entry-muted': '#64748b',
     '--entry-muted-dark': '#94a3b8',
-    '--entry-strong': '#111827'
+    '--entry-strong': OPRICE_BRAND_PRIMARY,
+    '--entry-accent': OPRICE_BRAND_SECONDARY,
+    '--entry-gradient': `linear-gradient(120deg, ${OPRICE_BRAND_PRIMARY} 0%, ${OPRICE_BRAND_VIOLET} 48%, ${OPRICE_BRAND_SECONDARY} 100%)`
   } as React.CSSProperties;
 
   useEffect(() => {
@@ -101,7 +103,7 @@ const TenantEntry: React.FC<TenantEntryProps> = ({ onOpenPortal }) => {
               className="group flex w-full items-center justify-between rounded-lg border border-[var(--entry-border)] bg-[var(--entry-panel)] p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--entry-strong)] hover:shadow-md dark:border-[var(--entry-border-dark)] dark:bg-[var(--entry-panel-dark)] dark:hover:border-[var(--entry-muted-dark)]"
             >
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--entry-strong)] text-white dark:bg-[var(--entry-control-dark)]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--entry-strong)] text-white shadow-sm dark:bg-[var(--entry-control-dark)]" style={{ backgroundImage: 'var(--entry-gradient)' }}>
                   <Crown size={22} />
                 </div>
                 <div>

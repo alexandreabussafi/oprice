@@ -8,7 +8,7 @@ import InfoTooltip from '../components/InfoTooltip';
 import { useTenant } from '../contexts/TenantContext';
 import { mergeProposalTemplates, PROPOSAL_TEMPLATE_KINDS, PROPOSAL_TEMPLATE_LABELS } from '../utils/proposalTemplates';
 import { PageHeader, PageShell } from '../components/ui';
-import { createTenantTheme } from '../utils/theme';
+import { OPRICE_BRAND_PRIMARY, OPRICE_BRAND_SECONDARY, createTenantTheme } from '../utils/theme';
 import { getEnabledPricingModules } from '../utils/pricingModules';
 import { PIPELINE_CATEGORY_OPTIONS, PIPELINE_VARIANT_LABELS, getPipelineOptionKey, getPipelineStageStyle, getSalesPipelineFromConfig, getSalesPipelineOptions, normalizeSalesPipelineConfig } from '../utils/salesPipelines';
 import { DEFAULT_PROPOSAL_SEND_FOLLOW_UP_TEMPLATE, normalizeProposalSendAutomation } from '../utils/proposalSendAutomation';
@@ -77,8 +77,8 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
         companyName: '',
         slogan: '',
         faviconUrl: '',
-        primaryColor: '#0f172a',
-        secondaryColor: '#047857',
+        primaryColor: OPRICE_BRAND_PRIMARY,
+        secondaryColor: OPRICE_BRAND_SECONDARY,
         backgroundLight: '#f8fafc',
         backgroundDark: '#151a24',
         sidebarLight: '#ffffff',
@@ -601,8 +601,8 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
             companyName: branding.companyName || globalConfig.letterheadConfig?.companyName || activeTenant?.name || '',
             slogan: branding.slogan || globalConfig.letterheadConfig?.companySlogan || '',
             faviconUrl: branding.faviconUrl || '',
-            primaryColor: branding.primaryColor || globalConfig.letterheadConfig?.primaryColor || '#0f172a',
-            secondaryColor: branding.secondaryColor || globalConfig.letterheadConfig?.secondaryColor || '#047857',
+            primaryColor: branding.primaryColor || globalConfig.letterheadConfig?.primaryColor || OPRICE_BRAND_PRIMARY,
+            secondaryColor: branding.secondaryColor || globalConfig.letterheadConfig?.secondaryColor || OPRICE_BRAND_SECONDARY,
             backgroundLight: branding.backgroundLight || '#f8fafc',
             backgroundDark: branding.backgroundDark || '#151a24',
             sidebarLight: branding.sidebarLight || '#ffffff',
@@ -1235,7 +1235,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                             </div>
                         </div>
 
-                        <div className="overflow-hidden rounded-lg border shadow-sm" style={{ borderColor: tenantThemePreview.borderLight, backgroundColor: tenantThemePreview.backgroundLight }}>
+                        <div className="overflow-hidden rounded-lg border shadow-sm" style={{ borderColor: tenantThemePreview.borderLight, backgroundColor: tenantThemePreview.backgroundLight, backgroundImage: tenantThemePreview.backgroundGradientLight }}>
                             <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: tenantThemePreview.borderLight, backgroundColor: tenantThemePreview.panelLight }}>
                                 <div className="flex h-5 w-5 items-center justify-center rounded-sm bg-[var(--tenant-panel)]">
                                     {(brandForm.faviconUrl || brandForm.logoUrl) ? <img src={brandForm.faviconUrl || brandForm.logoUrl} className="h-4 w-4 object-contain" /> : <Building2 size={12} style={{ color: tenantThemePreview.primary }} />}
@@ -1245,12 +1245,13 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                 </p>
                             </div>
                             <div className="flex min-h-64">
-                                <aside className="w-24 border-r p-3" style={{ borderColor: tenantThemePreview.borderLight, backgroundColor: tenantThemePreview.sidebarLight }}>
+                                <aside className="relative w-24 border-r p-3" style={{ borderColor: tenantThemePreview.borderLight, backgroundColor: tenantThemePreview.sidebarLight, backgroundImage: tenantThemePreview.sidebarGradientLight }}>
+                                    <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1" style={{ backgroundImage: tenantThemePreview.topAccentGradient }} />
                                     <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md border bg-[var(--tenant-panel)] p-2" style={{ borderColor: tenantThemePreview.primaryBorder }}>
                                         {brandForm.logoUrl ? <img src={brandForm.logoUrl} className="h-full w-full object-contain" /> : <Building2 size={18} style={{ color: tenantThemePreview.primary }} />}
                                     </div>
                                     <div className="space-y-2">
-                                        <div className="h-8 rounded-md" style={{ backgroundColor: tenantThemePreview.controlActiveLight, borderLeft: `3px solid ${tenantThemePreview.primary}` }} />
+                                        <div className="h-8 rounded-md" style={{ backgroundColor: tenantThemePreview.controlActiveLight, backgroundImage: tenantThemePreview.activeNavGradient, borderLeft: `3px solid ${tenantThemePreview.primary}` }} />
                                         <div className="h-8 rounded-md" style={{ backgroundColor: tenantThemePreview.controlLight }} />
                                         <div className="h-8 rounded-md" style={{ backgroundColor: tenantThemePreview.controlLight }} />
                                     </div>
@@ -2170,7 +2171,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     <div className="flex gap-2">
                                         <input
                                             type="color"
-                                            value={globalConfig.letterheadConfig?.primaryColor || '#0f172a'}
+                                            value={globalConfig.letterheadConfig?.primaryColor || OPRICE_BRAND_PRIMARY}
                                             onChange={(e) => setGlobalConfig({
                                                 ...globalConfig,
                                                 letterheadConfig: { ...globalConfig.letterheadConfig!, primaryColor: e.target.value }
@@ -2193,7 +2194,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     <div className="flex gap-2">
                                         <input
                                             type="color"
-                                            value={globalConfig.letterheadConfig?.secondaryColor || '#047857'}
+                                            value={globalConfig.letterheadConfig?.secondaryColor || OPRICE_BRAND_SECONDARY}
                                             onChange={(e) => setGlobalConfig({
                                                 ...globalConfig,
                                                 letterheadConfig: { ...globalConfig.letterheadConfig!, secondaryColor: e.target.value }
@@ -2309,7 +2310,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     )}
                                 </div>
                                 <div>
-                                    <h4 className="font-black text-xl leading-none" style={{ color: globalConfig.letterheadConfig?.primaryColor || '#0f172a' }}>
+                                    <h4 className="font-black text-xl leading-none" style={{ color: globalConfig.letterheadConfig?.primaryColor || OPRICE_BRAND_PRIMARY }}>
                                         {globalConfig.letterheadConfig?.companyName || 'NOME DA EMPRESA'}
                                     </h4>
                                     <p className="text-[10px] text-slate-500 uppercase tracking-tighter mt-1 font-bold">

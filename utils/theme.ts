@@ -1,8 +1,13 @@
 import type { CSSProperties } from 'react';
 import type { TenantBranding } from '../types';
 
-const FALLBACK_PRIMARY = '#0f172a';
-const FALLBACK_SECONDARY = '#047857';
+export const OPRICE_BRAND_PRIMARY = '#1d5cff';
+export const OPRICE_BRAND_SECONDARY = '#ff2fa6';
+export const OPRICE_BRAND_VIOLET = '#7a35ff';
+export const OPRICE_BRAND_ROSE = '#ff74cf';
+
+const FALLBACK_PRIMARY = OPRICE_BRAND_PRIMARY;
+const FALLBACK_SECONDARY = OPRICE_BRAND_SECONDARY;
 const FALLBACK_BACKGROUND_LIGHT = '#f8fafc';
 const FALLBACK_BACKGROUND_DARK = '#151a24';
 const FALLBACK_SIDEBAR_LIGHT = '#ffffff';
@@ -49,6 +54,12 @@ export interface TenantTheme {
   secondaryBorder: string;
   primaryOnDark: string;
   secondaryOnDark: string;
+  sidebarGradientLight: string;
+  sidebarGradientDark: string;
+  backgroundGradientLight: string;
+  backgroundGradientDark: string;
+  topAccentGradient: string;
+  activeNavGradient: string;
   cssVars: CSSProperties & Record<string, string>;
 }
 
@@ -97,6 +108,18 @@ const readableOnDark = (hex: string) => {
   return mixHex(hex, '#ffffff', 0.62);
 };
 
+const surfaceGradient = (base: string, primary: string, secondary: string, dark = false) => {
+  const primaryMix = mixHex(base, primary, dark ? 0.14 : 0.07);
+  const secondaryMix = mixHex(base, secondary, dark ? 0.18 : 0.055);
+  return `linear-gradient(165deg, ${base} 0%, ${primaryMix} 48%, ${secondaryMix} 100%)`;
+};
+
+const backgroundGradient = (base: string, primary: string, secondary: string, dark = false) => {
+  const primaryMix = mixHex(base, primary, dark ? 0.08 : 0.035);
+  const secondaryMix = mixHex(base, secondary, dark ? 0.1 : 0.04);
+  return `linear-gradient(135deg, ${base} 0%, ${primaryMix} 46%, ${secondaryMix} 100%)`;
+};
+
 export const createTenantTheme = (branding?: TenantBranding): TenantTheme => {
   const primary = normalizeHex(branding?.primaryColor, FALLBACK_PRIMARY);
   const secondary = normalizeHex(branding?.secondaryColor, FALLBACK_SECONDARY);
@@ -118,6 +141,21 @@ export const createTenantTheme = (branding?: TenantBranding): TenantTheme => {
   const borderDark = normalizeHex(branding?.borderDark, FALLBACK_BORDER_DARK);
   const primaryOnDark = readableOnDark(primary);
   const secondaryOnDark = readableOnDark(secondary);
+  const primarySoft = hexToRgba(primary, 0.1);
+  const secondarySoft = hexToRgba(secondary, 0.1);
+  const primarySubtle = hexToRgba(primary, 0.06);
+  const secondarySubtle = hexToRgba(secondary, 0.06);
+  const primaryBorder = hexToRgba(primary, 0.28);
+  const secondaryBorder = hexToRgba(secondary, 0.28);
+  const sidebarGradientLight = surfaceGradient(sidebarLight, primary, secondary);
+  const sidebarGradientDark = surfaceGradient(sidebarDark, primary, secondary, true);
+  const backgroundGradientLight = backgroundGradient(backgroundLight, primary, secondary);
+  const backgroundGradientDark = backgroundGradient(backgroundDark, primary, secondary, true);
+  const isOpriceFallback = primary === OPRICE_BRAND_PRIMARY && secondary === OPRICE_BRAND_SECONDARY;
+  const topAccentGradient = isOpriceFallback
+    ? `linear-gradient(90deg, ${OPRICE_BRAND_PRIMARY} 0%, ${OPRICE_BRAND_VIOLET} 48%, ${OPRICE_BRAND_SECONDARY} 78%, ${OPRICE_BRAND_ROSE} 100%)`
+    : `linear-gradient(90deg, ${primary} 0%, ${mixHex(primary, secondary, 0.5)} 52%, ${secondary} 100%)`;
+  const activeNavGradient = `linear-gradient(90deg, ${hexToRgba(primary, 0.14)} 0%, ${hexToRgba(secondary, 0.08)} 100%)`;
 
   return {
     primary,
@@ -138,21 +176,31 @@ export const createTenantTheme = (branding?: TenantBranding): TenantTheme => {
     textDark,
     borderLight,
     borderDark,
-    primarySoft: hexToRgba(primary, 0.1),
-    secondarySoft: hexToRgba(secondary, 0.1),
-    primarySubtle: hexToRgba(primary, 0.06),
-    secondarySubtle: hexToRgba(secondary, 0.06),
-    primaryBorder: hexToRgba(primary, 0.28),
-    secondaryBorder: hexToRgba(secondary, 0.28),
+    primarySoft,
+    secondarySoft,
+    primarySubtle,
+    secondarySubtle,
+    primaryBorder,
+    secondaryBorder,
     primaryOnDark,
     secondaryOnDark,
+    sidebarGradientLight,
+    sidebarGradientDark,
+    backgroundGradientLight,
+    backgroundGradientDark,
+    topAccentGradient,
+    activeNavGradient,
     cssVars: {
       '--tenant-primary': primary,
       '--tenant-secondary': secondary,
       '--tenant-bg': backgroundLight,
       '--tenant-bg-dark': backgroundDark,
+      '--tenant-bg-gradient': backgroundGradientLight,
+      '--tenant-bg-gradient-dark': backgroundGradientDark,
       '--tenant-sidebar': sidebarLight,
       '--tenant-sidebar-dark': sidebarDark,
+      '--tenant-sidebar-gradient': sidebarGradientLight,
+      '--tenant-sidebar-gradient-dark': sidebarGradientDark,
       '--tenant-panel': panelLight,
       '--tenant-panel-dark': panelDark,
       '--tenant-control': controlLight,
@@ -165,14 +213,16 @@ export const createTenantTheme = (branding?: TenantBranding): TenantTheme => {
       '--tenant-text-dark': textDark,
       '--tenant-border': borderLight,
       '--tenant-border-dark': borderDark,
-      '--tenant-primary-soft': hexToRgba(primary, 0.1),
-      '--tenant-secondary-soft': hexToRgba(secondary, 0.1),
-      '--tenant-primary-subtle': hexToRgba(primary, 0.06),
-      '--tenant-secondary-subtle': hexToRgba(secondary, 0.06),
-      '--tenant-primary-border': hexToRgba(primary, 0.28),
-      '--tenant-secondary-border': hexToRgba(secondary, 0.28),
+      '--tenant-primary-soft': primarySoft,
+      '--tenant-secondary-soft': secondarySoft,
+      '--tenant-primary-subtle': primarySubtle,
+      '--tenant-secondary-subtle': secondarySubtle,
+      '--tenant-primary-border': primaryBorder,
+      '--tenant-secondary-border': secondaryBorder,
       '--tenant-primary-on-dark': primaryOnDark,
-      '--tenant-secondary-on-dark': secondaryOnDark
+      '--tenant-secondary-on-dark': secondaryOnDark,
+      '--tenant-top-accent-gradient': topAccentGradient,
+      '--tenant-active-nav-gradient': activeNavGradient
     }
   };
 };
