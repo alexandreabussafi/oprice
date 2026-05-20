@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import InfoTooltip from '../components/InfoTooltip';
 import { useTenant } from '../contexts/TenantContext';
 import { mergeProposalTemplates, PROPOSAL_TEMPLATE_KINDS, PROPOSAL_TEMPLATE_LABELS } from '../utils/proposalTemplates';
+import { PageHeader, PageShell } from '../components/ui';
 import { OPRICE_BRAND_PRIMARY, OPRICE_BRAND_SECONDARY, createTenantTheme } from '../utils/theme';
 import { getEnabledPricingModules, getEnabledPricingSettingsSections } from '../utils/pricingModules';
 import { PIPELINE_CATEGORY_OPTIONS, PIPELINE_VARIANT_LABELS, getPipelineOptionKey, getPipelineStageStyle, getSalesPipelineFromConfig, getSalesPipelineOptions, normalizeSalesPipelineConfig } from '../utils/salesPipelines';
