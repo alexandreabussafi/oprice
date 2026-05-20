@@ -4,7 +4,7 @@ import { AppRole, BusinessUnitAccess, PlatformRole, Tenant, TenantModule } from 
 import { useTenant } from '../contexts/TenantContext';
 import { Button, IconButton } from '../components/ui';
 import { createTenantTheme } from '../utils/theme';
-import { PRICING_MODULE_DEFINITIONS } from '../utils/pricingModules';
+import { PRICING_MODULE_DEFINITIONS, normalizeTenantModules, resolveDefaultBusinessUnitForModules, tenantSupportsPricingBusinessUnit } from '../utils/pricingModules';
 
 const MODULE_CATALOG: {
   id: TenantModule;
@@ -144,6 +144,10 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
     borderLight: form.borderLight,
     borderDark: form.borderDark
   });
+  const selectedEnabledModules = normalizeTenantModules(selectedTenant?.enabledModules || ['CRM_CORE']);
+  const selectedSupportsServices = tenantSupportsPricingBusinessUnit(selectedEnabledModules, 'SERVICES');
+  const selectedSupportsProducts = tenantSupportsPricingBusinessUnit(selectedEnabledModules, 'PRODUCTS');
+  const selectedHasPricingModule = selectedSupportsServices || selectedSupportsProducts;
   const paletteFields: Array<{ key: keyof typeof form; label: string; group: 'Identidade' | 'Light' | 'Dark' }> = [
     { key: 'primaryColor', label: 'Primaria', group: 'Identidade' },
     { key: 'secondaryColor', label: 'Secundaria', group: 'Identidade' },
@@ -224,13 +228,14 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
     setSaving(true);
     setNotice(null);
     try {
+      const enabledModules = normalizeTenantModules(selectedTenant?.enabledModules || ['CRM_CORE']);
       await upsertTenant({
         id: selectedTenant?.id,
         name: form.name.trim(),
         slug: form.slug.trim().toLowerCase(),
         status: selectedTenant?.status || 'ACTIVE',
-        defaultBusinessUnit: form.defaultBusinessUnit,
-        enabledModules: selectedTenant?.enabledModules || ['CRM_CORE'],
+        defaultBusinessUnit: resolveDefaultBusinessUnitForModules(enabledModules, form.defaultBusinessUnit),
+        enabledModules,
         branding: selectedTenant?.branding || {}
       });
       showNotice('success', tenantError ? 'Tenant salvo no modo local.' : 'Tenant salvo no Supabase.');
@@ -249,7 +254,10 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
       const next = current.includes(module)
         ? current.filter(m => m !== module)
         : [...current, module];
-      await updateTenantModules(selectedTenant.id, Array.from(new Set(['CRM_CORE', ...next])) as TenantModule[]);
+      const normalizedNext = normalizeTenantModules(next);
+      const nextDefaultBusinessUnit = resolveDefaultBusinessUnitForModules(normalizedNext, selectedTenant.defaultBusinessUnit);
+      await updateTenantModules(selectedTenant.id, normalizedNext);
+      setForm(prev => ({ ...prev, defaultBusinessUnit: nextDefaultBusinessUnit }));
       showNotice('success', 'Módulos atualizados.');
     } catch (error: any) {
       showNotice('error', error.message || 'Erro ao atualizar módulos.');
@@ -502,8 +510,8 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
                       <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nome do tenant" className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-4 py-3 text-sm font-semibold outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]" />
                       <input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="slug" className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-4 py-3 text-sm font-semibold outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]" />
                       <select value={form.defaultBusinessUnit} onChange={e => setForm({ ...form, defaultBusinessUnit: e.target.value as Tenant['defaultBusinessUnit'] })} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-4 py-3 text-sm font-semibold outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
-                        <option value="SERVICES">Serviços</option>
-                        <option value="PRODUCTS">Produtos</option>
+                        <option value="SERVICES" disabled={selectedHasPricingModule && !selectedSupportsServices}>Serviços</option>
+                        <option value="PRODUCTS" disabled={selectedHasPricingModule && !selectedSupportsProducts}>Produtos</option>
                       </select>
                     </div>
                   </div>
@@ -511,30 +519,37 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
               )}
 
               {activeTab === 'modules' && selectedTenant && (
-                <div className="grid grid-cols-2 gap-4">
-                  {MODULE_CATALOG.map(module => {
-                    const enabled = selectedTenant.enabledModules.includes(module.id);
-                    return (
-                      <button
-                        key={module.id}
-                        onClick={() => toggleModule(module.id)}
-                        disabled={module.required}
-                        className={`rounded-lg border p-4 text-left transition ${enabled ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/50 dark:bg-emerald-500/10' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] hover:border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:hover:border-[var(--tenant-border-dark)]'} ${module.required ? 'cursor-not-allowed' : ''}`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="font-black">{module.label}</p>
-                            <p className="mt-1 text-sm text-slate-400">{module.description}</p>
+                <div className="space-y-4">
+                  {!selectedHasPricingModule && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                      CRM Core esta ativo sem modulo de cotacao. O tenant podera usar contas, contatos, tarefas e inbox, mas nao criara novas cotacoes ate ativar Servicos, Produto, SaaS ou IoT.
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    {MODULE_CATALOG.map(module => {
+                      const enabled = selectedTenant.enabledModules.includes(module.id);
+                      return (
+                        <button
+                          key={module.id}
+                          onClick={() => toggleModule(module.id)}
+                          disabled={module.required}
+                          className={`rounded-lg border p-4 text-left transition ${enabled ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-500/50 dark:bg-emerald-500/10' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] hover:border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:hover:border-[var(--tenant-border-dark)]'} ${module.required ? 'cursor-not-allowed' : ''}`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-black">{module.label}</p>
+                              <p className="mt-1 text-sm text-slate-400">{module.description}</p>
+                            </div>
+                            {enabled && <Check size={18} className="text-emerald-600 dark:text-emerald-300" />}
                           </div>
-                          {enabled && <Check size={18} className="text-emerald-600 dark:text-emerald-300" />}
-                        </div>
-                        <div className="mt-4 space-y-1">
-                          {module.includes.map(item => <p key={item} className="text-xs font-semibold text-slate-500 dark:text-slate-300">- {item}</p>)}
-                        </div>
-                        <p className="mt-4 border-t border-[var(--tenant-border)] pt-3 text-xs font-bold text-slate-500 dark:border-[var(--tenant-border-dark)]">{module.impact}</p>
-                      </button>
-                    );
-                  })}
+                          <div className="mt-4 space-y-1">
+                            {module.includes.map(item => <p key={item} className="text-xs font-semibold text-slate-500 dark:text-slate-300">- {item}</p>)}
+                          </div>
+                          <p className="mt-4 border-t border-[var(--tenant-border)] pt-3 text-xs font-bold text-slate-500 dark:border-[var(--tenant-border-dark)]">{module.impact}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -751,8 +766,8 @@ const SuperAdminPortal: React.FC<SuperAdminPortalProps> = ({ onBack }) => {
                       <input value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} placeholder="Nome no app" className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-4 py-3 text-sm font-semibold outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]" />
                       <input value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} placeholder="Razao/nome comercial" className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-4 py-3 text-sm font-semibold outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]" />
                       <select value={form.defaultBusinessUnit} onChange={e => setForm({ ...form, defaultBusinessUnit: e.target.value as Tenant['defaultBusinessUnit'] })} className="rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-panel)] px-4 py-3 text-sm font-semibold outline-none focus:border-[var(--tenant-primary)] focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
-                        <option value="SERVICES">Serviços</option>
-                        <option value="PRODUCTS">Produtos</option>
+                        <option value="SERVICES" disabled={selectedHasPricingModule && !selectedSupportsServices}>Serviços</option>
+                        <option value="PRODUCTS" disabled={selectedHasPricingModule && !selectedSupportsProducts}>Produtos</option>
                       </select>
                       <div className="col-span-2 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]">
                         <div className="mb-4 flex items-center justify-between gap-3">

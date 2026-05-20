@@ -309,6 +309,20 @@ export type ProposalTemplateKind = 'PRODUCT_SALES' | 'SERVICES_CONTINUOUS' | 'SE
 export type PricingModuleId = Exclude<TenantModule, 'CRM_CORE'>;
 export type SaasSlaPlanId = 'essential' | 'professional' | 'enterprise';
 export type PricingModuleBusinessUnit = 'SERVICES' | 'PRODUCTS';
+export type PricingCommercialModel = 'SERVICE_COST_PLUS' | 'PRODUCT_MARGIN' | 'SUBSCRIPTION_REVENUE' | 'IOT_HYBRID';
+export type PricingSettingsSection =
+  | 'FINANCE_COSTS'
+  | 'SERVICE_CHARGES'
+  | 'SERVICE_KITS'
+  | 'SERVICE_ACCOUNTING'
+  | 'PRODUCT_CATALOG'
+  | 'PRODUCT_TAXES'
+  | 'PRODUCT_ACCOUNTING'
+  | 'PRODUCT_LAYOUT'
+  | 'SAAS_DEFAULTS'
+  | 'SAAS_REVENUE_TAXES'
+  | 'PROPOSAL_TEMPLATES'
+  | 'PIPELINES';
 export type PipelineVariant = 'DEFAULT' | 'CONTINUOUS' | 'SPOT';
 export type PipelineStageCategory = 'intake' | 'diagnosis' | 'solution' | 'pricing' | 'proposal' | 'negotiation' | 'closing' | 'won' | 'lost';
 
@@ -337,9 +351,14 @@ export interface PricingModuleCapabilities {
   socialCharges?: boolean;
   serviceLabor?: boolean;
   safetyAndSupport?: boolean;
+  serviceCosting?: boolean;
+  serviceMargin?: boolean;
   productCatalog?: boolean;
   productTaxes?: boolean;
+  productMargin?: boolean;
   subscription?: boolean;
+  subscriptionRevenue?: boolean;
+  setupFee?: boolean;
   iot?: boolean;
 }
 
@@ -350,8 +369,12 @@ export interface PricingModuleDefinition {
   description: string;
   businessUnit: PricingModuleBusinessUnit;
   proposalType: ProposalType;
+  allowedProposalTypes: ProposalType[];
+  commercialModel: PricingCommercialModel;
   defaultTemplateKind: ProposalTemplateKind;
   defaultEditorTab: string;
+  editorTabs: string[];
+  settingsSections: PricingSettingsSection[];
   includes: string[];
   capabilities: PricingModuleCapabilities;
 }

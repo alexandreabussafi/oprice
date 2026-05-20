@@ -6,7 +6,7 @@ import { AppRole, BusinessUnitAccess, GoogleConnectionStatus, MicrosoftConnectio
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { createTenantTheme } from '../utils/theme';
-import { getPricingModuleLabel, tenantSupportsPricingBusinessUnit } from '../utils/pricingModules';
+import { getAllowedEditorTabsForProposal, getPricingModuleLabel, tenantSupportsPricingBusinessUnit } from '../utils/pricingModules';
 
 const OPRICE_LOGO_LIGHT = '/oprice-logo-text-blue.png';
 const OPRICE_LOGO_DARK = '/oprice-logo-text-white.png';
@@ -48,7 +48,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
   const [profileAvatarUrl, setProfileAvatarUrl] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const enabledModules = activeTenant?.enabledModules || ['CRM_CORE', 'SERVICES_COMPLEX', 'PRODUCT_SALES'];
+  const enabledModules = activeTenant?.enabledModules || [];
   const tenantSupportsServices = tenantSupportsPricingBusinessUnit(enabledModules, 'SERVICES');
   const tenantSupportsProducts = tenantSupportsPricingBusinessUnit(enabledModules, 'PRODUCTS');
   const branding = activeTenant?.branding || {};
@@ -162,6 +162,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onBa
     if (proposalType === 'PRODUCT') menuItems = productMenuItems;
     else if (proposalType === 'SPOT') menuItems = spotMenuItems;
     else menuItems = continuousMenuItems;
+    if (proposalType && pricingModule) {
+      const allowedTabs = new Set(getAllowedEditorTabsForProposal({ type: proposalType, pricingModule }));
+      menuItems = menuItems.filter(item => allowedTabs.has(item.id));
+    }
   }
 
   const userCanServices = currentUser.allowed_types.includes('SERVICES') || currentUser.allowed_types.includes('BOTH');

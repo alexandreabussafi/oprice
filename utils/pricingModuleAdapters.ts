@@ -121,13 +121,13 @@ export const normalizePricingModulesConfig = (config: ProposalData): TenantPrici
 
   return {
     SERVICES_COMPLEX: {
-      ...(current.SERVICES_COMPLEX || {}),
       ...legacy.SERVICES_COMPLEX,
+      ...(current.SERVICES_COMPLEX || {}),
       pipelines: normalizeModulePipelines('SERVICES_COMPLEX', current.SERVICES_COMPLEX?.pipelines || legacy.SERVICES_COMPLEX.pipelines)
     },
     PRODUCT_SALES: {
-      ...(current.PRODUCT_SALES || {}),
       ...legacy.PRODUCT_SALES,
+      ...(current.PRODUCT_SALES || {}),
       pipelines: normalizeModulePipelines('PRODUCT_SALES', current.PRODUCT_SALES?.pipelines || legacy.PRODUCT_SALES.pipelines)
     },
     SAAS_SUBSCRIPTION: {

@@ -36,7 +36,7 @@ import { auditRepository } from './services/auditRepository';
 import { createDefaultProposalTemplates, mergeProposalTemplates } from './utils/proposalTemplates';
 import { addDaysDateInput as addProposalFollowUpDays, buildProposalSendTemplateVariables, createDefaultProposalSendAutomationConfig, getDefaultProposalSendAutomationTemplate, normalizeProposalSendAutomation, renderProposalSendTemplate } from './utils/proposalSendAutomation';
 import { applyPricingModuleDefaultsToProposal, withPricingModuleCompatibility } from './utils/pricingModuleAdapters';
-import { getDefaultPricingModuleForBusinessUnit, getEditorTabForPricingModule as getPricingEditorTab, tenantSupportsPricingBusinessUnit } from './utils/pricingModules';
+import { getDefaultPricingModuleForBusinessUnit, getPricingModuleDefinition, getSafeEditorTabForProposal, isEditorTabAllowedForProposal, isPricingModuleEnabledForTenant, isPricingModuleId, tenantSupportsPricingBusinessUnit } from './utils/pricingModules';
 import { getPricingModuleForProposal, getSalesPipelineForCreation, getSalesPipelineForProposal, isClosedStage, mapStageBetweenPipelines } from './utils/salesPipelines';
 
 // Default Tax Config (The System Standard)
@@ -1682,6 +1682,12 @@ function App() {
   // Computed: The actual data object of the current proposal
   const currentData = tenantProposals.find(p => p.id === currentId);
 
+  useEffect(() => {
+    if (view !== 'EDITOR' || !currentData) return;
+    const safeTab = getSafeEditorTabForProposal(currentData, activeTab);
+    if (safeTab !== activeTab) setActiveTab(safeTab);
+  }, [view, currentData?.id, currentData?.type, currentData?.pricingModule, activeTab]);
+
   // ---- GUARD RETURNS (all hooks declared above, safe to return early now) ----
   if (loading) {
     return <div className="flex h-screen w-screen items-center justify-center bg-[var(--tenant-bg)] text-slate-500 dark:bg-[var(--tenant-bg-dark)]">Carregando...</div>;
@@ -1707,12 +1713,12 @@ function App() {
 
   // --- CRM ACTIONS ---
 
-  const getDefaultProductPricingModule = (): TenantModule => {
-    return getDefaultPricingModuleForBusinessUnit(activeTenant.enabledModules, 'PRODUCTS') || 'PRODUCT_SALES';
+  const getDefaultProductPricingModule = (): PricingModuleId | null => {
+    return getDefaultPricingModuleForBusinessUnit(activeTenant.enabledModules, 'PRODUCTS');
   };
 
   const getEditorTabForPricingModule = (type: ProposalType, pricingModule?: TenantModule) => {
-    return getPricingEditorTab(type, pricingModule);
+    return getSafeEditorTabForProposal({ type, pricingModule });
   };
 
   const getDefaultStageForPricing = (pricingModule: PricingModuleId, type: ProposalType) =>
@@ -1804,9 +1810,23 @@ function App() {
     const today = new Date();
     const expiry = new Date();
     expiry.setDate(today.getDate() + 15);
-    const resolvedPricingModule: PricingModuleId = payload.type === 'PRODUCT'
-      ? ((payload.pricingModule && payload.pricingModule !== 'CRM_CORE' ? payload.pricingModule : getDefaultProductPricingModule()) as PricingModuleId)
-      : 'SERVICES_COMPLEX';
+    const requestedPricingModule = isPricingModuleId(payload.pricingModule) ? payload.pricingModule : null;
+    const resolvedPricingModule = payload.type === 'PRODUCT'
+      ? (requestedPricingModule || getDefaultProductPricingModule())
+      : (requestedPricingModule || (isPricingModuleEnabledForTenant('SERVICES_COMPLEX', activeTenant.enabledModules) ? 'SERVICES_COMPLEX' : null));
+
+    if (!resolvedPricingModule || !isPricingModuleEnabledForTenant(resolvedPricingModule, activeTenant.enabledModules)) {
+      const error = new Error('Este tenant nao possui modulo ativo para criar este tipo de cotacao.');
+      setCrmDataError(error.message);
+      throw error;
+    }
+
+    const moduleDefinition = getPricingModuleDefinition(resolvedPricingModule);
+    if (!moduleDefinition?.allowedProposalTypes.includes(payload.type)) {
+      const error = new Error('Modulo de pricing invalido para este tipo de cotacao.');
+      setCrmDataError(error.message);
+      throw error;
+    }
 
     let newProp: ProposalData = {
       ...defaultProposalTemplate,
@@ -2577,9 +2597,12 @@ function App() {
     const allVersions = tenantProposals.filter(p => p.proposalId === currentData.proposalId).sort((a, b) => b.version - a.version);
     const currentProposalFamilyIds = new Set(allVersions.map(proposal => proposal.id));
     const isLocked = isClosedStage(currentData.stage, getSalesPipelineForProposal(currentData, brandedGlobalConfig)) || currentData.status === 'Archived';
+    const effectiveActiveTab = isEditorTabAllowedForProposal(currentData, activeTab)
+      ? activeTab
+      : getSafeEditorTabForProposal(currentData, activeTab);
 
     const editorContent = (() => {
-      switch (activeTab) {
+      switch (effectiveActiveTab) {
         case 'dashboard':
           return <Dashboard
             data={currentData}
@@ -2630,11 +2653,11 @@ function App() {
 
         // SHARED ROUTES
         case 'settings':
-          return <Settings data={currentData} updateData={updateCurrentData} resetData={resetCurrentData} />;
+          return isEditorTabAllowedForProposal(currentData, 'settings') ? <Settings data={currentData} updateData={updateCurrentData} resetData={resetCurrentData} /> : null;
         case 'pricing':
-          return <Pricing data={currentData} updateData={updateCurrentData} onCreateNewVersion={handleCreateNewVersion} />;
+          return isEditorTabAllowedForProposal(currentData, 'pricing') ? <Pricing data={currentData} updateData={updateCurrentData} onCreateNewVersion={handleCreateNewVersion} /> : null;
         case 'taxes':
-          return <Taxes data={currentData} updateData={updateCurrentData} />;
+          return isEditorTabAllowedForProposal(currentData, 'taxes') ? <Taxes data={currentData} updateData={updateCurrentData} /> : null;
 
         default:
           return <Dashboard data={currentData} setActiveTab={setActiveTab} globalConfig={brandedGlobalConfig} />;
@@ -2642,7 +2665,7 @@ function App() {
     })();
 
     return (
-      <div className={isLocked && activeTab !== 'dashboard' ? "pointer-events-none opacity-90 select-none cursor-not-allowed" : ""}>
+      <div className={isLocked && effectiveActiveTab !== 'dashboard' ? "pointer-events-none opacity-90 select-none cursor-not-allowed" : ""}>
         {editorContent}
       </div>
     );

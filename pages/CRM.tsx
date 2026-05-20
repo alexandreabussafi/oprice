@@ -5,9 +5,9 @@ import { calculateFinancials, formatCurrency, formatPercent } from '../utils/pri
 import { Plus, Search, FileText, CheckCircle, XCircle, X, Clock, Copy, Edit3, Trash2, PieChart, TrendingUp, Calendar, User, LayoutGrid, List, ArrowRight, DollarSign, Users, Briefcase, GripVertical, ExternalLink, BarChart3, Zap, Repeat, AlertCircle, Snowflake, Filter, Save, Landmark, Package, Activity, History, CreditCard, PhoneCall, MailCheck, CalendarDays, Paperclip, File as FileIcon, UserPlus, Building2, Link2, ClipboardCheck, Ban, RefreshCw } from 'lucide-react';
 import { buildCommercialTimeline, buildGmailReplyHeaders, getCommunicationDate, getThreadReplySourceMessage, groupCommunicationThreads, groupTimelineByDay, type CommunicationThread } from '../utils/crmTraceability';
 import { Button, PageHeader, ResponsiveDrawer } from '../components/ui';
-import { getDefaultPricingModuleForBusinessUnit, getEnabledPricingModules, getPricingModuleDefinition, getPricingModuleLabel } from '../utils/pricingModules';
+import { getDefaultPricingModuleForBusinessUnit, getEnabledPricingModules, getPricingModuleDefinition, getPricingModuleLabel, isPricingModuleEnabledForTenant } from '../utils/pricingModules';
 import { applyProposalTemplateVariables } from '../utils/proposalTemplates';
-import { getKanbanStagesForPipeline, getPipelineOptionForProposal, getPipelineOptionKey, getPipelineStage, getPipelineStageCategory, getPipelineStageLabel, getPipelineStageStyle, getSalesPipelineForProposal, getSalesPipelineFromConfig, getSalesPipelineOptions, isClosedStage, isLostStage, isWonStage, parsePipelineOptionKey } from '../utils/salesPipelines';
+import { PIPELINE_VARIANT_LABELS, getKanbanStagesForPipeline, getPipelineOptionForProposal, getPipelineOptionKey, getPipelineStage, getPipelineStageCategory, getPipelineStageLabel, getPipelineStageStyle, getSalesPipelineForProposal, getSalesPipelineFromConfig, getSalesPipelineOptions, isClosedStage, isLostStage, isWonStage, parsePipelineOptionKey, type SalesPipelineOption } from '../utils/salesPipelines';
 import { generateProposalEmailAttachment, getProposalPdfTemplate } from '../services/proposalPdf';
 import { getDefaultProposalSendAutomationTemplate, normalizeProposalSendAutomation } from '../utils/proposalSendAutomation';
 import { useTenant } from '../contexts/TenantContext';
@@ -110,7 +110,7 @@ const CRM: React.FC<CRMProps> = ({
     initialViewMode = 'kanban',
     initialSection = 'pipeline',
     businessUnit,
-    enabledModules = ['CRM_CORE', 'SERVICES_COMPLEX', 'PRODUCT_SALES'] as TenantModule[]
+    enabledModules = []
 }) => {
     const { activeTenant } = useTenant();
     const portalTenantTheme = useMemo(() => createTenantTheme(activeTenant?.branding), [activeTenant?.branding]);
@@ -122,21 +122,44 @@ const CRM: React.FC<CRMProps> = ({
     const hasSaasModule = productPricingModules.includes('SAAS_SUBSCRIPTION');
     const hasIotModule = productPricingModules.includes('IOT_SUBSCRIPTION');
     const hasProductSalesModule = productPricingModules.includes('PRODUCT_SALES');
-    const defaultProductPricingModule = getDefaultPricingModuleForBusinessUnit(enabledModules, 'PRODUCTS') || 'PRODUCT_SALES';
-    const pipelineOptions = useMemo(() => getSalesPipelineOptions(enabledModules, businessUnit), [enabledModules, businessUnit]);
-    const fallbackPipelineOption = pipelineOptions[0] || {
-        key: getPipelineOptionKey('SERVICES_COMPLEX', 'CONTINUOUS'),
-        pricingModule: 'SERVICES_COMPLEX' as PricingModuleId,
-        variant: 'CONTINUOUS' as const,
-        label: 'Continuo',
-        shortLabel: 'Continuo',
-        proposalType: 'CONTINUOUS' as ProposalType
-    };
+    const defaultProductPricingModule = getDefaultPricingModuleForBusinessUnit(enabledModules, 'PRODUCTS') || undefined;
+    const activePipelineOptions = useMemo(() => getSalesPipelineOptions(enabledModules, businessUnit), [enabledModules, businessUnit]);
+    const isProposalModuleEnabled = (proposal: ProposalData) =>
+        isPricingModuleEnabledForTenant(proposal.pricingModule, enabledModules);
+    const isProposalInBusinessUnit = (proposal: ProposalData) =>
+        (proposal.type === 'PRODUCT' ? 'PRODUCTS' : 'SERVICES') === businessUnit;
+    const legacyPipelineOptions = useMemo<SalesPipelineOption[]>(() => {
+        const byKey = new Map<string, SalesPipelineOption>();
+        proposals
+            .filter(proposal => proposal.isCurrentVersion && isProposalInBusinessUnit(proposal) && !isProposalModuleEnabled(proposal))
+            .forEach(proposal => {
+                const key = getPipelineOptionForProposal(proposal);
+                if (byKey.has(key)) return;
+                const parsed = parsePipelineOptionKey(key);
+                if (!parsed) return;
+                const definition = getPricingModuleDefinition(parsed.pricingModule);
+                const variantLabel = PIPELINE_VARIANT_LABELS[parsed.variant];
+                const baseLabel = parsed.pricingModule === 'SERVICES_COMPLEX'
+                    ? variantLabel
+                    : definition?.shortLabel || definition?.label || parsed.pricingModule;
+                byKey.set(key, {
+                    key,
+                    pricingModule: parsed.pricingModule,
+                    variant: parsed.variant,
+                    label: `${baseLabel} (desativado)`,
+                    shortLabel: `${baseLabel} legado`,
+                    proposalType: proposal.type
+                });
+            });
+        return Array.from(byKey.values());
+    }, [proposals, enabledModules, businessUnit]);
+    const pipelineOptions = useMemo(() => [...activePipelineOptions, ...legacyPipelineOptions], [activePipelineOptions, legacyPipelineOptions]);
+    const fallbackPipelineOption = pipelineOptions[0] || null;
     const [viewMode, setViewMode] = useState<'list' | 'kanban'>(initialViewMode as 'list' | 'kanban');
     const [crmSection, setCrmSection] = useState<'pipeline' | 'inbox'>(initialSection);
     const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [pipelineFilter, setPipelineFilter] = useState<string>(fallbackPipelineOption.key);
+    const [pipelineFilter, setPipelineFilter] = useState<string>(fallbackPipelineOption?.key || '');
     const [showFrozen, setShowFrozen] = useState(false);
     const [inboxFilter, setInboxFilter] = useState<'NEW' | 'SUGGESTED' | 'LINKED' | 'IGNORED'>('NEW');
     const [inboxClientSelection, setInboxClientSelection] = useState<Record<string, string>>({});
@@ -158,7 +181,7 @@ const CRM: React.FC<CRMProps> = ({
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createStep, setCreateStep] = useState<1 | 2>(1);
     const [createType, setCreateType] = useState<ProposalType>(businessUnit === 'PRODUCTS' ? 'PRODUCT' : 'CONTINUOUS');
-    const [createPricingModule, setCreatePricingModule] = useState<TenantModule | undefined>(businessUnit === 'PRODUCTS' ? defaultProductPricingModule : 'SERVICES_COMPLEX');
+    const [createPricingModule, setCreatePricingModule] = useState<TenantModule | undefined>(businessUnit === 'PRODUCTS' ? defaultProductPricingModule : servicePricingModules[0]);
     const [createClientId, setCreateClientId] = useState<string>('');
     const [createInlineClientName, setCreateInlineClientName] = useState('');
     const [createMotion, setCreateMotion] = useState<OpportunityMotion>('NewBusiness');
@@ -234,13 +257,13 @@ const CRM: React.FC<CRMProps> = ({
     const [activeRightPanelTab, setActiveRightPanelTab] = useState<'overview' | 'activities' | 'timeline'>('overview');
 
     const activePipelineOption = pipelineOptions.find(option => option.key === pipelineFilter) || fallbackPipelineOption;
-    const parsedPipelineFilter = parsePipelineOptionKey(activePipelineOption.key) || {
-        pricingModule: fallbackPipelineOption.pricingModule,
-        variant: fallbackPipelineOption.variant
-    };
-    const activePipeline = getSalesPipelineFromConfig(globalConfig, parsedPipelineFilter.pricingModule, parsedPipelineFilter.variant);
+    const parsedPipelineFilter = activePipelineOption ? parsePipelineOptionKey(activePipelineOption.key) : null;
+    const activePipeline = parsedPipelineFilter
+        ? getSalesPipelineFromConfig(globalConfig, parsedPipelineFilter.pricingModule, parsedPipelineFilter.variant)
+        : null;
     const getProposalPipeline = (proposal: ProposalData) => getSalesPipelineForProposal(proposal, globalConfig);
     const getPipelineOptionIcon = (option = activePipelineOption) => {
+        if (!option) return Package;
         if (option.pricingModule === 'SERVICES_COMPLEX' && option.variant === 'SPOT') return Zap;
         if (option.pricingModule === 'SERVICES_COMPLEX') return Repeat;
         if (option.pricingModule === 'SAAS_SUBSCRIPTION') return CreditCard;
@@ -311,12 +334,21 @@ const CRM: React.FC<CRMProps> = ({
     // Sync pipeline and creation defaults when Business Unit changes
     useEffect(() => {
         const currentOption = pipelineOptions.find(option => option.key === pipelineFilter);
-        const nextOption = currentOption || pipelineOptions[0];
-        if (!nextOption) return;
-        if (!currentOption) setPipelineFilter(nextOption.key);
-        setCreateType(nextOption.proposalType);
-        setCreatePricingModule(nextOption.pricingModule);
-    }, [businessUnit, pipelineOptions, pipelineFilter]);
+        const nextFilterOption = currentOption || pipelineOptions[0];
+        const nextCreateOption = activePipelineOptions.find(option => option.key === pipelineFilter) || activePipelineOptions[0];
+        if (!nextFilterOption) {
+            setPipelineFilter('');
+            setCreatePricingModule(undefined);
+            return;
+        }
+        if (!currentOption) setPipelineFilter(nextFilterOption.key);
+        if (nextCreateOption) {
+            setCreateType(nextCreateOption.proposalType);
+            setCreatePricingModule(nextCreateOption.pricingModule);
+        } else {
+            setCreatePricingModule(undefined);
+        }
+    }, [businessUnit, pipelineOptions, activePipelineOptions, pipelineFilter]);
 
     useEffect(() => {
         const currentOption = pipelineOptions.find(option => option.key === pipelineFilter);
@@ -336,6 +368,11 @@ const CRM: React.FC<CRMProps> = ({
     const selectedProposal = proposals.find(p => p.id === selectedPreviewId);
     const selectedProposalPipeline = selectedProposal ? getProposalPipeline(selectedProposal) : activePipeline;
     const selectedFinancials = selectedProposal ? calculateFinancials(selectedProposal) : null;
+    const getModuleDisabledNotice = (proposal: ProposalData) => {
+        if (isProposalModuleEnabled(proposal)) return null;
+        const label = getPricingModuleLabel(proposal.pricingModule, 'Modulo legado');
+        return `${label} esta desabilitado neste tenant. A oportunidade permanece visivel como historico; novas cotacoes deste modulo ficam bloqueadas.`;
+    };
     const workspaceLoading = googleWorkspaceLoading || microsoftWorkspaceLoading;
     const connectedProviders: WorkspaceProvider[] = [
         ...(googleConnection.connected ? ['google' as WorkspaceProvider] : []),
@@ -495,6 +532,10 @@ const CRM: React.FC<CRMProps> = ({
 
     const submitCreateProposal = async () => {
         if (isCreatingProposal) return;
+        if (!createPricingModule || !isPricingModuleEnabledForTenant(createPricingModule, enabledModules)) {
+            setCreateError('Este tenant nao possui modulo ativo para criar cotacoes nesta unidade.');
+            return;
+        }
         setIsCreatingProposal(true);
         setCreateError(null);
         try {
@@ -1136,6 +1177,9 @@ const CRM: React.FC<CRMProps> = ({
                 const contact = await ensureInboxContact(communication, client.id);
                 let proposalId: string | undefined;
                 if (action === 'createLeadProposal') {
+                    if (!activePipelineOption || !isPricingModuleEnabledForTenant(activePipelineOption.pricingModule, enabledModules)) {
+                        throw new Error('Nao ha modulo de cotacao ativo para criar oportunidade pela Inbox CRM.');
+                    }
                     const proposal = await onCreateProposal({
                         type: activePipelineOption.proposalType,
                         clientId: client.id,
@@ -1610,7 +1654,9 @@ const CRM: React.FC<CRMProps> = ({
         const matchesFrozen = showFrozen || p.status !== 'Frozen';
         const isArchived = p.status === 'Archived';
 
-        const matchesPipeline = getPipelineOptionForProposal(p) === activePipelineOption.key;
+        const matchesPipeline = activePipelineOption
+            ? getPipelineOptionForProposal(p) === activePipelineOption.key
+            : false;
 
         return matchesSearch && matchesFrozen && !isArchived && matchesPipeline;
     });
@@ -1625,6 +1671,7 @@ const CRM: React.FC<CRMProps> = ({
         .filter(p =>
             !isClosedStage(p.stage, getProposalPipeline(p)) &&
             p.status === 'Active' &&
+            activePipelineOption &&
             getPipelineOptionForProposal(p) === activePipelineOption.key
         ).reduce((acc, p) => acc + p.value, 0);
 
@@ -1651,11 +1698,12 @@ const CRM: React.FC<CRMProps> = ({
         }
     };
 
-    const kanbanColumns = getKanbanStagesForPipeline(activePipeline, filteredProposals);
+    const kanbanColumns = activePipeline ? getKanbanStagesForPipeline(activePipeline, filteredProposals) : [];
 
     const getStatusBadge = (stage: OpportunityStage, status: OpportunityStatus = 'Active', pipelineConfig = activePipeline) => {
         if (status === 'Frozen') return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border border-[var(--tenant-secondary-border)] transition-colors"><Snowflake size={12} /> Congelado</span>;
         if (status === 'Archived') return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-500 dark:text-slate-400 border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] transition-colors"><Trash2 size={12} /> Arquivado</span>;
+        if (!pipelineConfig) return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[var(--tenant-control)] text-slate-500 border border-[var(--tenant-border)] transition-colors dark:bg-[var(--tenant-control-dark)] dark:text-slate-400 dark:border-[var(--tenant-border-dark)]"><AlertCircle size={12} /> Sem modulo</span>;
 
         const stageConfig = getPipelineStage(pipelineConfig, stage);
         const label = getPipelineStageLabel(pipelineConfig, stage);
@@ -1855,14 +1903,17 @@ const CRM: React.FC<CRMProps> = ({
                             >
                                 Apontar
                             </Button>
+                            {activePipelineOptions.length > 0 && (
                             <Button
                                 type="button"
                                 icon={Plus}
                                 className="min-h-11 flex-1 sm:w-auto sm:flex-none"
                                 onClick={() => {
+                                const createOption = activePipelineOptions.find(option => option.key === pipelineFilter) || activePipelineOptions[0];
+                                if (!createOption) return;
                                 if (businessUnit === 'PRODUCTS' && hasProductModule) {
-                                    setCreateType(activePipelineOption.proposalType);
-                                    setCreatePricingModule(activePipelineOption.pricingModule);
+                                    setCreateType(createOption.proposalType);
+                                    setCreatePricingModule(createOption.pricingModule);
                                     setCreateStep(2);
                                 } else if (!hasServicesModule) {
                                     return;
@@ -1880,6 +1931,7 @@ const CRM: React.FC<CRMProps> = ({
                             <span className="sm:hidden">Nova</span>
                             <span className="hidden sm:inline">Nova Cotação</span>
                         </Button>
+                            )}
                             </>
                             )}
                         </>
@@ -1912,7 +1964,17 @@ const CRM: React.FC<CRMProps> = ({
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-hidden px-3 pb-4 sm:px-6 lg:px-8 lg:pb-8 flex flex-col">
-                    {crmSection === 'inbox' ? renderInboxView() : viewMode === 'list' ? (
+                    {crmSection === 'inbox' ? renderInboxView() : !activePipelineOption ? (
+                        <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-8 text-center transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                            <div className="max-w-md">
+                                <Package className="mx-auto mb-4 text-slate-300 dark:text-slate-600" size={36} />
+                                <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">CRM sem modulo de cotacao ativo</h3>
+                                <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
+                                    Contas, contatos, tarefas e inbox continuam disponiveis. Ative Servicos, Produto, SaaS ou IoT no SuperAdmin para criar novas cotacoes.
+                                </p>
+                            </div>
+                        </div>
+                    ) : viewMode === 'list' ? (
                         /* LIST VIEW */
                         <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] shadow-sm transition-colors dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
                             <div className="flex shrink-0 items-center gap-3 border-b border-[var(--tenant-border)] bg-[var(--tenant-control)] p-2.5 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] sm:gap-4 sm:p-4">
@@ -1967,6 +2029,11 @@ const CRM: React.FC<CRMProps> = ({
                                                         <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${prop.type === 'SPOT' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800' : prop.type === 'PRODUCT' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border-[var(--tenant-secondary-border)]'}`}>
                                                             {getProposalTypeLabel(prop)}
                                                         </span>
+                                                        {getModuleDisabledNotice(prop) && (
+                                                            <span title={getModuleDisabledNotice(prop) || undefined} className="ml-2 inline-flex rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black uppercase text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                                                Legado
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 transition-colors">
@@ -2046,6 +2113,11 @@ const CRM: React.FC<CRMProps> = ({
                                                                     : prop.pricingModule === 'IOT_SUBSCRIPTION'
                                                                         ? <Activity size={14} className="text-[var(--tenant-secondary)]" title="IoT e sensores" />
                                                                         : prop.type === 'PRODUCT' && <Package size={14} className="text-emerald-500" title="Cotação de Produtos" />}
+                                                                {getModuleDisabledNotice(prop) && (
+                                                                    <span title={getModuleDisabledNotice(prop) || undefined} className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                                                                        Legado
+                                                                    </span>
+                                                                )}
                                                                 <GripVertical size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                             </div>
                                                         </div>
@@ -2066,10 +2138,14 @@ const CRM: React.FC<CRMProps> = ({
                                                         <div className="flex justify-between items-end">
                                                             <div>
                                                                 <p className="text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight transition-colors">{formatCurrency(prop.value)}</p>
-                                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium transition-colors">Margem: <span className={prop.markup < 0.15 ? 'text-red-600 dark:text-red-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'}>{formatPercent(prop.markup)}</span></p>
+                                                                {prop.pricingModule === 'SAAS_SUBSCRIPTION' ? (
+                                                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium transition-colors">MRR: <span className="font-bold text-[var(--tenant-primary)]">{formatCurrency(Math.max(0, ((prop.saasUnitPrice || 0) * (prop.saasQuantity || 1)) * (1 - (prop.saasMonthlyDiscount || 0))))}</span></p>
+                                                                ) : (
+                                                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium transition-colors">Margem: <span className={prop.markup < 0.15 ? 'text-red-600 dark:text-red-400 font-bold' : 'text-emerald-600 dark:text-emerald-400'}>{formatPercent(prop.markup)}</span></p>
+                                                                )}
                                                             </div>
                                                             <div className="flex gap-2">
-                                                                {prop.markup < 0.15 && (
+                                                                {prop.pricingModule !== 'SAAS_SUBSCRIPTION' && prop.markup < 0.15 && (
                                                                     <div className="w-5 h-5 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center animate-pulse" title="Margem abaixo do limite (15%)">
                                                                         <AlertCircle size={12} />
                                                                     </div>
@@ -2292,6 +2368,12 @@ const CRM: React.FC<CRMProps> = ({
                                         </div>
                                     )}
 
+                                    {getModuleDisabledNotice(selectedProposal) && (
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                                            {getModuleDisabledNotice(selectedProposal)}
+                                        </div>
+                                    )}
+
                                     {/* FINANCIAL SUMMARY BLOCK */}
                                     {(() => {
                                         if (!selectedProposal) return null;
@@ -2300,6 +2382,7 @@ const CRM: React.FC<CRMProps> = ({
                                         const saasGrossMrr = (selectedProposal.saasUnitPrice || 0) * (selectedProposal.saasQuantity || 1);
                                         const saasNetMrr = Math.max(0, saasGrossMrr - (saasGrossMrr * (selectedProposal.saasMonthlyDiscount || 0)));
                                         const saasTaxRate = selectedProposal.taxConfig.salesTaxes.filter(tax => tax.active).reduce((sum, tax) => sum + tax.rate, 0) || 0;
+                                        const saasSetupFee = selectedProposal.saasSetupFee || 0;
                                         const displayMonthlyValue = isSaas ? saasNetMrr : financials.monthlyValue;
                                         const displayTaxRate = isSaas ? saasTaxRate : financials.salesTaxAmount / (financials.monthlyValue || 1);
                                         const totalHeadcount = Math.round(selectedProposal.roles?.reduce((acc, r) => acc + r.quantity, 0) * 10) / 10; // Arredonda para 1 casa decimal se necessário
@@ -2311,16 +2394,29 @@ const CRM: React.FC<CRMProps> = ({
                                                 </h4>
 
                                                 <div className="grid grid-cols-2 gap-3">
+                                                    {isSaas && (
+                                                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Setup</p>
+                                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><CreditCard size={14} className="text-slate-400" /> {formatCurrency(saasSetupFee)}</p>
+                                                        </div>
+                                                    )}
                                                     <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
                                                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Preço (Mensal)</p>
                                                         <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(displayMonthlyValue)}</p>
                                                     </div>
-                                                    <div className={`border p-3 rounded-lg shadow-sm ${selectedProposal.targetMargin < 0.15 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}`}>
-                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Margem (Target)</p>
-                                                        <p className={`text-lg font-black ${selectedProposal.targetMargin < 0.15 ? 'text-red-600 dark:text-red-400' : 'text-[var(--tenant-primary)]'}`}>
-                                                            {formatPercent(selectedProposal.targetMargin)}
-                                                        </p>
-                                                    </div>
+                                                    {isSaas ? (
+                                                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">ARR Liquido</p>
+                                                            <p className="text-lg font-black text-[var(--tenant-primary)]">{formatCurrency(saasNetMrr * 12)}</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className={`border p-3 rounded-lg shadow-sm ${selectedProposal.targetMargin < 0.15 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]'}`}>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Margem (Target)</p>
+                                                            <p className={`text-lg font-black ${selectedProposal.targetMargin < 0.15 ? 'text-red-600 dark:text-red-400' : 'text-[var(--tenant-primary)]'}`}>
+                                                                {formatPercent(selectedProposal.targetMargin)}
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                     {selectedProposal.type === 'CONTINUOUS' && (
                                                         <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-3 rounded-lg shadow-sm">
                                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-1">Total de Vidas (HC)</p>
@@ -2343,7 +2439,7 @@ const CRM: React.FC<CRMProps> = ({
                                     })()}
 
                                     {/* ALERT: Margin Validation */}
-                                    {selectedProposal.targetMargin < 0.15 && (
+                                    {selectedProposal.pricingModule !== 'SAAS_SUBSCRIPTION' && selectedProposal.targetMargin < 0.15 && (
                                         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex gap-3 animate-pulse">
                                             <XCircle className="text-red-600 dark:text-red-400 shrink-0" size={20} />
                                             <div>
@@ -2370,7 +2466,7 @@ const CRM: React.FC<CRMProps> = ({
                                                     }
                                                 }}
                                             >
-                                                {selectedProposalPipeline.stages
+                                                {(selectedProposalPipeline?.stages || [])
                                                     .filter(stage => stage.active || stage.id === selectedProposal.stage)
                                                     .sort((a, b) => a.order - b.order)
                                                     .map(stage => (
