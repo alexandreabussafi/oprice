@@ -96,13 +96,13 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
 
     return (
         <div className="p-8 space-y-8 max-w-[1600px] mx-auto">
-            <header className="flex justify-between items-end border-b border-[var(--tenant-border)] pb-6">
+            <header className="flex justify-between items-end border-b border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] pb-6">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-800 flex items-center gap-2">
+                    <h2 className="text-3xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <PenTool size={28} className="text-[var(--tenant-primary)]" />
                         Definição do Projeto
                     </h2>
-                    <p className="text-slate-500 mt-1">Configuração do cronograma, parâmetros financeiros locais e escopo técnico.</p>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">Configuração do cronograma, parâmetros financeiros locais e escopo técnico.</p>
                 </div>
                 <div className="flex gap-3">
                     <button
@@ -111,7 +111,7 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                 window.print();
                             }, 100);
                         }}
-                        className="flex items-center gap-2 px-4 py-2 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-slate-700 rounded-lg font-bold text-sm hover:bg-[var(--tenant-control)] shadow-sm transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] text-slate-700 dark:text-slate-200 rounded-lg font-bold text-sm hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] shadow-sm transition-colors"
                     >
                         <Printer size={18} /> Gerar PDF (Proposta)
                     </button>
@@ -156,19 +156,19 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                         </div>
 
                         {/* ATTACHMENTS (Still useful for Products) */}
-                        <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6">
+                            <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-4">
                                 <Paperclip size={18} className="text-[var(--tenant-secondary)]" />
                                 Arquivos e Catálogos
                             </h3>
                             <div
-                                className={`relative overflow-hidden z-0 border-2 border-dashed rounded-lg p-6 text-center transition-all ${isDragging ? 'border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)]' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] hover:bg-[var(--tenant-control)]'}`}
+                                className={`relative overflow-hidden z-0 border-2 border-dashed rounded-lg p-6 text-center transition-all ${isDragging ? 'border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)]' : 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)]'}`}
                                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                                 onDragLeave={() => setIsDragging(false)}
                                 onDrop={(e) => { e.preventDefault(); setIsDragging(false); }}
                             >
                                 <UploadCloud className="mx-auto text-slate-400 mb-2" size={32} />
-                                <p className="text-sm text-slate-600 font-medium text-center">Anexar documentos técnicos ou catálogos</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 font-medium text-center">Anexar documentos técnicos ou catálogos</p>
                                 <input
                                     type="file"
                                     multiple
@@ -178,11 +178,11 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                             </div>
                             <div className="space-y-2 mt-4">
                                 {(documents.attachments || []).map(file => (
-                                    <div key={file.id} className="flex items-center justify-between p-3 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg shadow-sm">
+                                    <div key={file.id} className="flex items-center justify-between p-3 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg shadow-sm">
                                         <div className="flex items-center gap-3 overflow-hidden">
-                                            <div className="p-2 bg-[var(--tenant-control)] rounded text-slate-500"><File size={16} /></div>
+                                            <div className="p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded text-slate-500 dark:text-slate-400"><File size={16} /></div>
                                             <div className="min-w-0">
-                                                <p className="text-sm font-bold text-slate-700 truncate">{file.name}</p>
+                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{file.name}</p>
                                                 <p className="text-[10px] text-slate-400">{file.size} • {file.uploadDate}</p>
                                             </div>
                                         </div>
@@ -198,30 +198,30 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                         <div className="lg:col-span-7 space-y-6">
 
                             {/* 1. CRONOGRAMA DO PROJETO */}
-                            <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
-                                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6">
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
                                     <Calendar size={18} className="text-[var(--tenant-secondary)]" />
                                     Cronograma Financeiro
                                 </h3>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Início Previsto</label>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Início Previsto</label>
                                         <input
                                             type="date"
                                             value={data.contractStartDate ? data.contractStartDate.split('T')[0] : ''}
                                             onChange={(e) => updateRoot('contractStartDate', e.target.value)}
-                                            className="w-full p-2 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
+                                            className="w-full p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Duração Contrato</label>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Duração Contrato</label>
                                         <div className="relative">
                                             <input
                                                 type="number"
                                                 value={data.contractDuration}
                                                 onChange={(e) => updateRoot('contractDuration', parseInt(e.target.value) || 12)}
-                                                className="w-full p-2 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
+                                                className="w-full p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">meses</span>
                                         </div>
@@ -230,27 +230,27 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Mobilização Prévia</label>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Mobilização Prévia</label>
                                         <div className="relative">
                                             <input
                                                 type="number"
                                                 value={data.mobilizationMonths}
                                                 onChange={(e) => updateRoot('mobilizationMonths', parseInt(e.target.value) || 1)}
-                                                className="w-full p-2 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
+                                                className="w-full p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">meses</span>
                                         </div>
                                         <p className="text-[10px] text-slate-400 mt-1">Investimento antes da receita</p>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">WACC / TMA Projeto</label>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">WACC / TMA Projeto</label>
                                         <div className="relative">
                                             <input
                                                 type="number"
                                                 step="0.1"
                                                 value={((data.wacc || 0.12) * 100).toFixed(2)}
                                                 onChange={(e) => updateRoot('wacc', (parseFloat(e.target.value) || 0) / 100)}
-                                                className="w-full p-2 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
+                                                className="w-full p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)]"
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">% a.a.</span>
                                         </div>
@@ -260,38 +260,38 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                             </div>
 
                             {/* 2. CICLO DE CAIXA */}
-                            <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
-                                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6">
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
                                     <Clock size={18} className="text-amber-600" />
                                     Ciclo de Caixa (Prazos)
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Recebimento (Cliente)</label>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Recebimento (Cliente)</label>
                                         <div className="relative">
                                             <input
                                                 type="number"
                                                 value={data.paymentTermDays}
                                                 onChange={(e) => updateRoot('paymentTermDays', parseInt(e.target.value) || 30)}
-                                                className="w-full p-2 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
+                                                className="w-full p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500"
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">dias</span>
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Pagto. Fornecedor</label>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Pagto. Fornecedor</label>
                                         <div className="relative">
                                             <input
                                                 type="number"
                                                 value={data.supplierPaymentTermDays || 30}
                                                 onChange={(e) => updateRoot('supplierPaymentTermDays', parseInt(e.target.value) || 30)}
-                                                className="w-full p-2 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
+                                                className="w-full p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500"
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">dias</span>
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Dia Pagto. Folha</label>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Dia Pagto. Folha</label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Dia</span>
                                             <input
@@ -300,7 +300,7 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                                 min="1"
                                                 value={data.payrollCashFlowDay || 5}
                                                 onChange={(e) => updateRoot('payrollCashFlowDay', parseInt(e.target.value) || 5)}
-                                                className="w-full pl-10 p-2 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500"
+                                                className="w-full pl-10 p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500"
                                             />
                                         </div>
                                         <p className="text-[10px] text-slate-400 mt-1">Dia útil do mês seguinte</p>
@@ -309,15 +309,15 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                             </div>
 
                             {/* 3. PARÂMETROS LOCAIS */}
-                            <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
-                                <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6">
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2 text-sm uppercase tracking-wider">
                                     <Globe size={18} className="text-emerald-600" />
                                     Parâmetros Locais (Override)
                                 </h3>
-                                <div className="p-4 bg-[var(--tenant-control)] rounded-lg border border-[var(--tenant-border)] flex items-start gap-4">
+                                <div className="p-4 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded-lg border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] flex items-start gap-4">
                                     <div className="flex-1">
-                                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">ISS - Alíquota Local</label>
-                                        <p className="text-[10px] text-slate-500 mb-3 leading-tight">
+                                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 uppercase mb-1">ISS - Alíquota Local</label>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3 leading-tight">
                                             Define a alíquota específica para o município deste projeto.
                                             Se preenchido, substitui o valor global (ex: 5%) nas projeções.
                                         </p>
@@ -332,7 +332,7 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                                         updateRoot('issTaxOverride', val);
                                                     }}
                                                     placeholder="Global"
-                                                    className="w-full pl-3 pr-8 py-2 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg text-sm font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none placeholder-slate-300"
+                                                    className="w-full pl-3 pr-8 py-2 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none placeholder-slate-300 dark:placeholder-slate-600"
                                                 />
                                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
                                             </div>
@@ -347,42 +347,42 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                         </div>
                                     </div>
 
-                                    <div className="w-px bg-[var(--tenant-control)] self-stretch mx-2"></div>
+                                    <div className="w-px bg-[var(--tenant-border)] dark:bg-[var(--tenant-border-dark)] self-stretch mx-2"></div>
 
                                     <div className="flex-1 opacity-50 pointer-events-none">
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Outros Impostos</label>
-                                        <p className="text-[10px] text-slate-400">Gerenciados na configuração global.</p>
+                                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Outros Impostos</label>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500">Gerenciados na configuração global.</p>
                                     </div>
                                 </div>
                             </div>
 
                             {/* 4. ANEXOS E MEMO */}
-                            <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6">
                                 <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                         <Paperclip size={18} className="text-[var(--tenant-secondary)]" />
                                         Documentação de Suporte
                                     </h3>
                                 </div>
 
                                 <div className="mb-6">
-                                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                                    <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1 flex items-center gap-1">
                                         <Hash size={12} /> Número da Solicitação (Cliente)
                                     </label>
                                     <input
                                         type="text"
                                         value={documents.technicalNumber || ''}
                                         onChange={(e) => updateDoc('technicalNumber', e.target.value)}
-                                        className="w-full p-2 border border-[var(--tenant-border)] rounded-lg focus:ring-2 focus:ring-[#fbbf24] outline-none"
+                                        className="w-full p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-[#fbbf24] outline-none placeholder-slate-400 dark:placeholder-slate-600"
                                         placeholder="Ex: RFQ-2023-998"
                                     />
                                 </div>
 
                                 <div className="space-y-3">
-                                    <p className="text-xs font-bold text-slate-500 uppercase">Arquivos Anexados</p>
+                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Arquivos Anexados</p>
                                     {/* SAFEGUARD: Added 'relative', 'overflow-hidden' and 'z-0' to strictly contain the input */}
                                     <div
-                                        className={`relative overflow-hidden z-0 border-2 border-dashed rounded-lg p-6 text-center transition-all ${isDragging ? 'border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)]' : 'border-[var(--tenant-border)] bg-[var(--tenant-control)] hover:bg-[var(--tenant-control)]'}`}
+                                        className={`relative overflow-hidden z-0 border-2 border-dashed rounded-lg p-6 text-center transition-all ${isDragging ? 'border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)]' : 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)]'}`}
                                         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                                         onDragLeave={() => setIsDragging(false)}
                                         onDrop={(e) => {
@@ -391,7 +391,7 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                         }}
                                     >
                                         <UploadCloud className="mx-auto text-slate-400 mb-2" size={32} />
-                                        <p className="text-sm text-slate-600 font-medium">Arraste arquivos ou clique para anexar</p>
+                                        <p className="text-sm text-slate-600 dark:text-slate-300 font-medium">Arraste arquivos ou clique para anexar</p>
                                         <p className="text-[10px] text-slate-400 mt-1">PDF, Excel, Imagens (Máx 10MB)</p>
                                         <input
                                             type="file"
@@ -403,11 +403,11 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
 
                                     <div className="space-y-2 mt-4">
                                         {(documents.attachments || []).map(file => (
-                                            <div key={file.id} className="flex items-center justify-between p-3 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg shadow-sm">
+                                            <div key={file.id} className="flex items-center justify-between p-3 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg shadow-sm">
                                                 <div className="flex items-center gap-3 overflow-hidden">
-                                                    <div className="p-2 bg-[var(--tenant-control)] rounded text-slate-500"><File size={16} /></div>
+                                                    <div className="p-2 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] rounded text-slate-500 dark:text-slate-400"><File size={16} /></div>
                                                     <div className="min-w-0">
-                                                        <p className="text-sm font-bold text-slate-700 truncate">{file.name}</p>
+                                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{file.name}</p>
                                                         <p className="text-[10px] text-slate-400">{file.size} • {file.uploadDate}</p>
                                                     </div>
                                                 </div>
@@ -438,7 +438,7 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                                     type="text"
                                                     value={budgetDisplay}
                                                     onChange={handleBudgetChange}
-                                                    className="w-full bg-[var(--tenant-panel)] border border-white/20 rounded-lg py-3 pl-10 pr-4 text-2xl font-bold text-white placeholder-white/30 focus:bg-[var(--tenant-panel)] focus:border-[#fbbf24] outline-none transition-all"
+                                                    className="w-full bg-[color-mix(in_srgb,currentColor_10%,transparent)] border border-white/25 rounded-lg py-3 pl-10 pr-4 text-2xl font-bold text-white placeholder-white/40 focus:bg-[color-mix(in_srgb,currentColor_15%,transparent)] focus:border-[#fbbf24] outline-none transition-all"
                                                     placeholder="0,00"
                                                 />
                                             </div>
@@ -451,7 +451,7 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                             </div>
                                         </div>
 
-                                        <div className="h-px bg-[var(--tenant-panel)] w-full"></div>
+                                        <div className="h-px bg-[color-mix(in_srgb,currentColor_30%,transparent)] w-full"></div>
 
                                         {clientBudget > 0 && (
                                             <div className={`p-4 rounded-lg border ${isOverBudget ? 'bg-red-500/20 border-red-500/50' : 'bg-emerald-500/20 border-emerald-500/50'}`}>
@@ -477,7 +477,7 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                         )}
 
                                         {!clientBudget && (
-                                            <div className="flex items-center gap-2 p-3 bg-[var(--tenant-secondary-soft)]0/20 border border-[var(--tenant-secondary-border)] rounded-lg text-[var(--tenant-secondary)] text-xs">
+                                            <div className="flex items-center gap-2 p-3 bg-[color-mix(in_srgb,currentColor_10%,transparent)] border border-white/25 rounded-lg text-white/90 text-xs">
                                                 <AlertTriangle size={16} />
                                                 Informe o Budget do cliente para visualizar a análise de gap.
                                             </div>
@@ -486,28 +486,28 @@ const Documents: React.FC<DocumentsProps> = ({ data, updateData, globalConfig })
                                 </div>
                             </div>
 
-                            <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
-                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6">
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                                     <FileText size={18} className="text-[var(--tenant-secondary)]" />
                                     Memo do Cliente
                                 </h3>
                                 <textarea
                                     value={documents.clientMemo}
                                     onChange={(e) => updateDoc('clientMemo', e.target.value)}
-                                    className="w-full h-32 p-4 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] outline-none resize-none"
+                                    className="w-full h-32 p-4 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] outline-none resize-none placeholder-slate-400 dark:placeholder-slate-600"
                                     placeholder="Ex: Cliente solicita equipe de 5 pessoas para turno administrativo..."
                                 />
                             </div>
 
-                            <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6">
-                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <div className="bg-[var(--tenant-panel)] dark:bg-[var(--tenant-panel-dark)] rounded-lg shadow-sm border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] p-6">
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                                     <CheckCircle2 size={18} className="text-emerald-600" />
                                     Entregáveis (Escopo Técnico)
                                 </h3>
                                 <textarea
                                     value={documents.deliverables}
                                     onChange={(e) => updateDoc('deliverables', e.target.value)}
-                                    className="w-full h-40 p-4 bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none"
+                                    className="w-full h-40 p-4 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none placeholder-slate-400 dark:placeholder-slate-600"
                                     placeholder="1. Fornecimento de mão de obra especializada...&#10;2. Gestão de EPIs...&#10;3. Relatórios mensais de performance..."
                                 />
                             </div>

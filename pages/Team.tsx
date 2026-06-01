@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ProposalData, Role, CanvasSection, CanvasDecoration, ProfitSharingInstallment } from '../types';
+import { ProposalData, Role, CanvasSection, CanvasDecoration, ProfitSharingInstallment, ConnectionSide } from '../types';
 import { calculateFinancials, formatCurrency } from '../utils/pricingEngine';
 import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard, HeartPulse, ShoppingBag, Utensils, Bus, Wand2, Maximize2, CalendarDays } from 'lucide-react';
 
@@ -11,21 +11,21 @@ interface TeamProps {
 
 // Cores para personalização dos cards
 const CARD_COLORS = [
-    { id: 'slate', bg: 'bg-[var(--tenant-control)]', border: 'border-[var(--tenant-border)]', header: 'bg-[var(--tenant-control)]', text: 'text-slate-700' },
-    { id: 'blue', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]', header: 'bg-[var(--tenant-secondary-soft)]', text: 'text-[var(--tenant-secondary)]' },
-    { id: 'emerald', bg: 'bg-emerald-50', border: 'border-emerald-200', header: 'bg-emerald-100', text: 'text-emerald-700' },
-    { id: 'amber', bg: 'bg-amber-50', border: 'border-amber-200', header: 'bg-amber-100', text: 'text-amber-700' },
-    { id: 'red', bg: 'bg-red-50', border: 'border-red-200', header: 'bg-red-100', text: 'text-red-700' },
-    { id: 'purple', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]', header: 'bg-[var(--tenant-secondary-soft)]', text: 'text-[var(--tenant-secondary)]' },
-    { id: 'dark', bg: 'bg-[var(--tenant-panel-dark)]', border: 'border-[var(--tenant-border)]', header: 'bg-[var(--tenant-primary)]', text: 'text-white' },
+    { id: 'slate', bg: 'bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)]', border: 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]', header: 'bg-[var(--tenant-control)] dark:bg-[var(--tenant-surface-dark)]', text: 'text-slate-700 dark:text-slate-200' },
+    { id: 'blue', bg: 'bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-panel-dark)]', border: 'border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)]', header: 'bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-control-dark)]', text: 'text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)]' },
+    { id: 'emerald', bg: 'bg-emerald-50 dark:bg-emerald-950/25', border: 'border-emerald-200 dark:border-emerald-900/60', header: 'bg-emerald-100 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300' },
+    { id: 'amber', bg: 'bg-amber-50 dark:bg-amber-950/25', border: 'border-amber-200 dark:border-amber-900/60', header: 'bg-amber-100 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300' },
+    { id: 'red', bg: 'bg-red-50 dark:bg-red-950/25', border: 'border-red-200 dark:border-red-900/60', header: 'bg-red-100 dark:bg-red-950/40', text: 'text-red-700 dark:text-red-300' },
+    { id: 'purple', bg: 'bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-panel-dark)]', border: 'border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)]', header: 'bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-control-dark)]', text: 'text-[var(--tenant-secondary)] dark:text-[var(--tenant-secondary)]' },
+    { id: 'dark', bg: 'bg-[var(--tenant-panel-dark)]', border: 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]', header: 'bg-[var(--tenant-primary)]', text: 'text-white' },
 ];
 
 const SECTION_COLORS = [
-    { id: 'gray', bg: 'bg-[var(--tenant-control)]', border: 'border-[var(--tenant-border)]' },
-    { id: 'blue', bg: 'bg-[var(--tenant-secondary-soft)]', border: 'border-[var(--tenant-secondary-border)]' },
-    { id: 'green', bg: 'bg-emerald-100/20', border: 'border-emerald-200' },
-    { id: 'yellow', bg: 'bg-amber-100/20', border: 'border-amber-200' },
-    { id: 'red', bg: 'bg-red-100/20', border: 'border-red-200' },
+    { id: 'gray', bg: 'bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)]/60', border: 'border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)]' },
+    { id: 'blue', bg: 'bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-panel-dark)]/60', border: 'border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)]' },
+    { id: 'green', bg: 'bg-emerald-100/20 dark:bg-emerald-950/20', border: 'border-emerald-200 dark:border-emerald-900/60' },
+    { id: 'yellow', bg: 'bg-amber-100/20 dark:bg-amber-950/20', border: 'border-amber-200 dark:border-amber-900/60' },
+    { id: 'red', bg: 'bg-red-100/20 dark:bg-red-950/20', border: 'border-red-200 dark:border-red-900/60' },
 ];
 
 const MONTH_OPTIONS = [
@@ -54,6 +54,9 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const [isDraggingUI, setIsDraggingUI] = useState(false);
     const [connectingNodeIdState, setConnectingNodeIdState] = useState<string | null>(null);
     const connectingNodeIdRef = useRef<string | null>(null);
+    const connectingSourceSideRef = useRef<ConnectionSide | null>(null);
+    const connectionStartPointRef = useRef<{ x: number; y: number } | null>(null);
+    const connectionDragStartedRef = useRef(false);
 
     // Wrapper to keep ref and state in sync
     const connectingNodeId = connectingNodeIdState;
@@ -136,18 +139,60 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         updateData({ roles: sanitizeRoleHierarchy(roles) });
     };
 
+    const commitRoleConnection = useCallback((sourceId: string, targetId: string, targetSide?: ConnectionSide | null) => {
+        if (!sourceId || sourceId === targetId) return false;
+
+        const currentRoles = dataRef.current.roles;
+        if (wouldCreateRoleCycle(currentRoles, targetId, sourceId)) return false;
+
+        const updatedRoles = currentRoles.map(role =>
+            role.id === targetId
+                ? {
+                    ...role,
+                    parentId: sourceId,
+                    parentSourceSide: connectingSourceSideRef.current || undefined,
+                    childTargetSide: targetSide || undefined
+                }
+                : role
+        );
+
+        updateData({ roles: sanitizeRoleHierarchy(updatedRoles) });
+        return true;
+    }, [updateData]);
+
     // --- ROBUST EVENT SYSTEM TO PREVENT "STICKY HAND" ---
     // We use stable function refs that NEVER get recreated. All state is read via refs.
     const activeCleanupRef = useRef<(() => void) | null>(null);
 
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+        const sourceId = connectingNodeIdRef.current;
+        let keepPendingConnection = false;
+        if (sourceId) {
+            const dropElement = (e.target instanceof Element ? e.target : document.elementFromPoint(e.clientX, e.clientY));
+            const targetRoleElement = dropElement?.closest<HTMLElement>('[data-role-id]');
+            const targetConnectorElement = dropElement?.closest<HTMLElement>('[data-connector-side]');
+            const targetId = targetRoleElement?.dataset.roleId;
+            const targetSide = targetConnectorElement?.dataset.connectorSide as ConnectionSide | undefined;
+
+            if (targetId && targetId !== sourceId) {
+                commitRoleConnection(sourceId, targetId, targetSide);
+            } else if (!connectionDragStartedRef.current) {
+                keepPendingConnection = true;
+            }
+        }
+
         // Clean up Refs
         isPanningRef.current = false;
         dragInfoRef.current = null;
+        connectionStartPointRef.current = null;
+        connectionDragStartedRef.current = false;
+        if (!keepPendingConnection) {
+            connectingSourceSideRef.current = null;
+        }
 
         // Clean up UI State
         setIsDraggingUI(false);
-        if (connectingNodeIdRef.current) setConnectingNodeId(null);
+        if (connectingNodeIdRef.current && !keepPendingConnection) setConnectingNodeId(null);
 
         // Remove Listeners using the stored cleanup
         if (activeCleanupRef.current) {
@@ -155,7 +200,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             activeCleanupRef.current = null;
         }
         document.body.style.cursor = 'default';
-    }, [setConnectingNodeId]);
+    }, [commitRoleConnection, setConnectingNodeId]);
 
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
         // --- SAFETY VALVE: THE "STICKY HAND" FIX ---
@@ -221,6 +266,12 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
         // 3. Connecting Line Logic
         if (connectingNodeIdRef.current && canvasRef.current) {
+            const startPoint = connectionStartPointRef.current;
+            if (startPoint && !connectionDragStartedRef.current) {
+                const distance = Math.hypot(e.clientX - startPoint.x, e.clientY - startPoint.y);
+                if (distance > 4) connectionDragStartedRef.current = true;
+            }
+
             const rect = canvasRef.current.getBoundingClientRect();
             const worldX = (e.clientX - rect.left - panRef.current.x) / scaleRef.current;
             const worldY = (e.clientY - rect.top - panRef.current.y) / scaleRef.current;
@@ -244,6 +295,15 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
+        if (e.button === 0 && connectingNodeIdRef.current) {
+            setContextMenu(null);
+            connectingSourceSideRef.current = null;
+            connectionStartPointRef.current = null;
+            connectionDragStartedRef.current = false;
+            setConnectingNodeId(null);
+            return;
+        }
+
         // Middle mouse or Space+Click to Pan
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
             isPanningRef.current = true;
@@ -262,6 +322,22 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     };
 
     const handleEntityMouseDown = (e: React.MouseEvent, type: any, id: string, initialObj: any) => {
+        if (e.button === 0 && !e.altKey && connectingNodeIdRef.current) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            const sourceId = connectingNodeIdRef.current;
+            if (type === 'role' && sourceId !== id) {
+                commitRoleConnection(sourceId, id, null);
+            }
+
+            connectingSourceSideRef.current = null;
+            connectionStartPointRef.current = null;
+            connectionDragStartedRef.current = false;
+            setConnectingNodeId(null);
+            return;
+        }
+
         if (e.button !== 0 || e.altKey || connectingNodeId) return;
         e.stopPropagation();
         e.preventDefault();
@@ -278,10 +354,27 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         startGlobalListeners();
     };
 
-    const handleConnectorMouseDown = (e: React.MouseEvent, roleId: string) => {
+    const handleConnectorMouseDown = (e: React.MouseEvent, roleId: string, side: ConnectionSide) => {
         e.stopPropagation();
         e.preventDefault();
+        setContextMenu(null);
 
+        const currentSourceId = connectingNodeIdRef.current;
+        if (currentSourceId) {
+            if (currentSourceId !== roleId) {
+                commitRoleConnection(currentSourceId, roleId, side);
+            }
+
+            connectingSourceSideRef.current = null;
+            connectionStartPointRef.current = null;
+            connectionDragStartedRef.current = false;
+            setConnectingNodeId(null);
+            return;
+        }
+
+        connectingSourceSideRef.current = side;
+        connectionStartPointRef.current = { x: e.clientX, y: e.clientY };
+        connectionDragStartedRef.current = false;
         setConnectingNodeId(roleId);
 
         if (canvasRef.current) {
@@ -371,14 +464,24 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const duplicateRole = (roleId: string) => {
         const source = data.roles.find(r => r.id === roleId);
         if (!source) return;
-        const newRole = {
+        const shouldSplitQuantity = source.quantity > 1;
+        const originalQuantity = shouldSplitQuantity ? Math.ceil(source.quantity / 2) : source.quantity;
+        const newQuantity = shouldSplitQuantity ? Math.floor(source.quantity / 2) : 1;
+        const newRole: Role = {
             ...source,
             id: Math.random().toString(36).substr(2, 9),
+            title: shouldSplitQuantity ? source.title : `${source.title} Copia`,
+            quantity: newQuantity,
             x: (source.x || 0) + 50,
             y: (source.y || 0) + 50,
-            parentId: source.parentId
+            parentId: source.parentId,
+            parentSourceSide: source.parentSourceSide,
+            childTargetSide: source.childTargetSide
         };
-        updateRoles([...data.roles, newRole]);
+        updateRoles([
+            ...data.roles.map(role => role.id === roleId ? { ...role, quantity: originalQuantity } : role),
+            newRole
+        ]);
     };
 
     const updateRole = (id: string, field: keyof Role, value: any) => {
@@ -442,13 +545,25 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
     const onConnectorMouseUp = (e: React.MouseEvent, targetId: string) => {
         e.stopPropagation();
-        if (connectingNodeId && connectingNodeId !== targetId) {
-            if (wouldCreateRoleCycle(data.roles, targetId, connectingNodeId)) {
+        const sourceId = connectingNodeIdRef.current;
+        if (sourceId && sourceId === targetId) {
+            if (connectionDragStartedRef.current) {
+                connectingSourceSideRef.current = null;
+                connectionStartPointRef.current = null;
+                connectionDragStartedRef.current = false;
                 setConnectingNodeId(null);
-                return;
             }
-            updateRole(targetId, 'parentId', connectingNodeId);
+            return;
         }
+
+        if (sourceId && sourceId !== targetId) {
+            const targetConnectorElement = (e.target as Element).closest<HTMLElement>('[data-connector-side]');
+            const targetSide = targetConnectorElement?.dataset.connectorSide as ConnectionSide | undefined;
+            commitRoleConnection(sourceId, targetId, targetSide);
+        }
+        connectingSourceSideRef.current = null;
+        connectionStartPointRef.current = null;
+        connectionDragStartedRef.current = false;
         setConnectingNodeId(null);
     };
 
@@ -542,7 +657,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             case 'box': return <Box size={size} />;
             case 'flame': return <Flame size={size} className="text-orange-500" />;
             case 'zap': return <Zap size={size} className="text-yellow-500" />;
-            case 'skull': return <Skull size={size} className="text-slate-800" />;
+            case 'skull': return <Skull size={size} className="text-slate-800 dark:text-slate-200" />;
             case 'biohazard': return <Biohazard size={size} className="text-emerald-600" />;
             default: return <Briefcase size={size} />;
         }
@@ -714,16 +829,16 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         : 0;
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-[var(--tenant-control)]">
+        <div className="flex flex-col h-full overflow-hidden bg-[var(--tenant-control)] text-[var(--tenant-text)] dark:bg-[var(--tenant-bg-dark)] dark:text-[var(--tenant-text-dark)]">
             {/* Header Toolbar */}
-            <div className="p-6 pb-2 shrink-0 z-20 relative bg-[var(--tenant-panel)] border-b border-[var(--tenant-border)]">
+            <div className="p-6 pb-2 shrink-0 z-20 relative bg-[var(--tenant-panel)] border-b border-[var(--tenant-border)] dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                 <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100">
                             {viewMode === 'organogram' ? <Workflow size={28} className="text-[var(--tenant-primary)]" /> : <Users size={28} className="text-[var(--tenant-primary)]" />}
                             Quadro de Pessoal
                         </h2>
-                        <p className="text-slate-500 text-sm mt-1">
+                        <p className="text-slate-500 text-sm mt-1 dark:text-slate-400">
                             {viewMode === 'organogram'
                                 ? 'Canvas Interativo: Arraste para organizar (Miro Style).'
                                 : 'Definição de cargos, salários e adicionais trabalhistas.'}
@@ -732,17 +847,17 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
                     <div className="flex gap-4">
                         {viewMode === 'organogram' && (
-                            <div className="flex bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg p-1 shadow-sm items-center">
-                                <button onClick={() => setScale(s => Math.max(0.2, s - 0.1))} className="p-2 hover:bg-[var(--tenant-control)] text-slate-500 rounded"><ZoomOut size={16} /></button>
-                                <span className="text-xs font-mono font-bold w-12 text-center select-none">{Math.round(scale * 100)}%</span>
-                                <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-2 hover:bg-[var(--tenant-control)] text-slate-500 rounded"><ZoomIn size={16} /></button>
+                            <div className="flex bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg p-1 shadow-sm items-center dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
+                                <button onClick={() => setScale(s => Math.max(0.2, s - 0.1))} className="p-2 hover:bg-[var(--tenant-control)] text-slate-500 rounded dark:text-slate-400 dark:hover:bg-[var(--tenant-surface-dark)] dark:hover:text-slate-100"><ZoomOut size={16} /></button>
+                                <span className="text-xs font-mono font-bold w-12 text-center select-none text-slate-700 dark:text-slate-200">{Math.round(scale * 100)}%</span>
+                                <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-2 hover:bg-[var(--tenant-control)] text-slate-500 rounded dark:text-slate-400 dark:hover:bg-[var(--tenant-surface-dark)] dark:hover:text-slate-100"><ZoomIn size={16} /></button>
                             </div>
                         )}
 
-                        <div className="flex bg-[var(--tenant-control)] p-1 rounded-lg">
-                            <button onClick={() => setViewMode('list')} className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400'}`}><LayoutList size={20} /></button>
-                            <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400'}`}><LayoutGrid size={20} /></button>
-                            <button onClick={() => setViewMode('organogram')} className={`p-2 rounded-md ${viewMode === 'organogram' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm' : 'text-slate-400'}`}><Workflow size={20} /></button>
+                        <div className="flex bg-[var(--tenant-control)] p-1 rounded-lg dark:bg-[var(--tenant-control-dark)]">
+                            <button onClick={() => setViewMode('list')} className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm dark:bg-[var(--tenant-panel-dark)] dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-200'}`}><LayoutList size={20} /></button>
+                            <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm dark:bg-[var(--tenant-panel-dark)] dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-200'}`}><LayoutGrid size={20} /></button>
+                            <button onClick={() => setViewMode('organogram')} className={`p-2 rounded-md ${viewMode === 'organogram' ? 'bg-[var(--tenant-panel)] text-[var(--tenant-primary)] shadow-sm dark:bg-[var(--tenant-panel-dark)] dark:text-white' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-200'}`}><Workflow size={20} /></button>
                         </div>
                     </div>
                 </div>
@@ -750,7 +865,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
             {/* VIEW CONTENT */}
             {viewMode === 'organogram' ? (
-                <div className={`flex-1 relative overflow-hidden min-h-[600px] select-none bg-[var(--tenant-bg)] ${isDraggingUI ? 'cursor-grabbing' : 'cursor-grab'}`}>
+                <div className={`flex-1 relative overflow-hidden min-h-[600px] select-none bg-[var(--tenant-bg)] dark:bg-[var(--tenant-bg-dark)] ${isDraggingUI ? 'cursor-grabbing' : 'cursor-grab'}`}>
                     {/* Infinite Canvas */}
                     <div
                         ref={canvasRef}
@@ -783,15 +898,15 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         onMouseDown={(e) => handleEntityMouseDown(e, 'section', section.id, section)}
                                         onContextMenu={(e) => handleContextMenuCanvas(e, 'section', section.id)}
                                     >
-                                        <div className="absolute top-0 left-0 px-4 py-2 bg-[var(--tenant-panel)] rounded-br-xl backdrop-blur-sm border-r border-b border-inherit">
+                                        <div className="absolute top-0 left-0 px-4 py-2 bg-[var(--tenant-panel)] rounded-br-xl backdrop-blur-sm border-r border-b border-inherit dark:bg-[var(--tenant-panel-dark)]">
                                             <input
                                                 value={section.title}
                                                 onChange={(e) => updateSection(section.id, 'title', e.target.value)}
-                                                className="bg-transparent font-bold text-slate-500 text-xs uppercase tracking-wider outline-none w-48"
+                                                className="bg-transparent font-bold text-slate-500 text-xs uppercase tracking-wider outline-none w-48 dark:text-slate-300"
                                             />
                                         </div>
                                         <div
-                                            className="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize hover:bg-[color-mix(in_srgb,var(--tenant-text)_10%,transparent)] rounded-tl flex items-end justify-end p-1 text-slate-400"
+                                            className="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize hover:bg-[color-mix(in_srgb,var(--tenant-text)_10%,transparent)] rounded-tl flex items-end justify-end p-1 text-slate-400 dark:text-slate-500"
                                             onMouseDown={(e) => handleEntityMouseDown(e, 'resize-section', section.id, { x: 0, y: 0, width: section.width, height: section.height })}
                                         >
                                             <Grip size={14} />
@@ -801,7 +916,12 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                             })}
 
                             {/* LAYER 1: CONNECTIONS */}
-                            <svg className="absolute top-[-10000px] left-[-10000px] w-[20000px] h-[20000px] pointer-events-none overflow-visible" style={{ zIndex: 5 }}>
+                            <svg
+                                className="absolute top-[-10000px] left-[-10000px] w-[20000px] h-[20000px] pointer-events-none overflow-visible"
+                                viewBox="-10000 -10000 20000 20000"
+                                preserveAspectRatio="none"
+                                style={{ zIndex: 5 }}
+                            >
                                 <defs>
                                     <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                                         <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
@@ -815,7 +935,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         <path
                                             key={role.id}
                                             d={getSmartPath(parent, role)}
-                                            stroke="#94a3b8" strokeWidth="2" fill="none" markerEnd="url(#arrowhead)"
+                                            stroke="#94a3b8" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)"
                                         />
                                     );
                                 })}
@@ -840,40 +960,41 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                             {decorations.map(deco => (
                                 <div
                                     key={deco.id}
-                                    className="absolute text-slate-400 hover:text-slate-600 transition-colors cursor-move"
+                                    className="absolute text-slate-400 hover:text-slate-600 transition-colors cursor-move dark:text-slate-500 dark:hover:text-slate-200"
                                     style={{ left: deco.x, top: deco.y, transform: `scale(${deco.scale})`, zIndex: 5 }}
                                     onMouseDown={(e) => handleEntityMouseDown(e, 'decoration', deco.id, deco)}
                                     onContextMenu={(e) => handleContextMenuCanvas(e, 'decoration', deco.id)}
                                 >
                                     {getDecorationIcon(deco.type)}
-                                    {deco.label && <div className="absolute top-full left-1/2 -translate-x-1/2 text-[10px] font-bold mt-1 bg-[var(--tenant-panel)] px-1 rounded shadow-sm whitespace-nowrap">{deco.label}</div>}
+                                    {deco.label && <div className="absolute top-full left-1/2 -translate-x-1/2 text-[10px] font-bold mt-1 bg-[var(--tenant-panel)] px-1 rounded shadow-sm whitespace-nowrap dark:bg-[var(--tenant-panel-dark)] dark:text-slate-200">{deco.label}</div>}
                                 </div>
                             ))}
 
                             {/* LAYER 3: ROLES (Cards) - Highest Z-Index */}
                             {roles.map(role => {
                                 const style = CARD_COLORS.find(c => c.id === (role.color || 'slate')) || CARD_COLORS[0];
-                                const connectorStyle = "absolute w-4 h-4 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair hover:bg-[var(--tenant-secondary-soft)] hover:border-[var(--tenant-secondary-border)] z-50 shadow-sm";
+                                const connectorStyle = `absolute w-5 h-5 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] rounded-full flex items-center justify-center ${connectingNodeId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity cursor-crosshair hover:bg-[var(--tenant-secondary-soft)] hover:border-[var(--tenant-secondary-border)] z-50 shadow-sm`;
 
                                 return (
                                     <div
                                         key={role.id}
-                                        className={`absolute w-64 bg-[var(--tenant-panel)] rounded-lg shadow-sm border group hover:shadow-xl transition-shadow ${style.border} ${connectingNodeId === role.id ? 'ring-2 ring-[#fbbf24]' : ''}`}
+                                        data-role-id={role.id}
+                                        className={`absolute w-64 ${style.bg} rounded-lg shadow-sm border group hover:shadow-xl transition-shadow ${style.border} ${connectingNodeId === role.id ? 'ring-2 ring-[#fbbf24]' : ''} ${connectingNodeId && connectingNodeId !== role.id ? 'hover:ring-2 hover:ring-[var(--tenant-secondary-border)]' : ''}`}
                                         style={{ left: role.x, top: role.y, zIndex: 10 }}
                                         onMouseDown={(e) => handleEntityMouseDown(e, 'role', role.id, role)}
                                         onMouseUp={(e) => onConnectorMouseUp(e, role.id)}
                                         onContextMenu={(e) => handleContextMenuCanvas(e, 'node', role.id)}
                                     >
                                         {/* Connectors (N/S/E/W) */}
-                                        <div className={`${connectorStyle} -top-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
-                                        <div className={`${connectorStyle} -bottom-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
-                                        <div className={`${connectorStyle} top-1/2 -left-2 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
-                                        <div className={`${connectorStyle} top-1/2 -right-2 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
+                                        <div data-connector-side="top" className={`${connectorStyle} -top-2.5 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'top')} />
+                                        <div data-connector-side="bottom" className={`${connectorStyle} -bottom-2.5 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'bottom')} />
+                                        <div data-connector-side="left" className={`${connectorStyle} top-1/2 -left-2.5 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'left')} />
+                                        <div data-connector-side="right" className={`${connectorStyle} top-1/2 -right-2.5 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'right')} />
 
                                         {/* Header */}
                                         <div className={`px-3 py-2 rounded-t-lg border-b flex justify-between items-center ${style.header} ${style.border}`}>
                                             <div className="flex items-center gap-2">
-                                                <div className={`p-0.5 rounded ${style.text} bg-[var(--tenant-panel)]`}>
+                                                <div className={`p-0.5 rounded ${style.text} bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)]`}>
                                                     {role.category === 'Operational' ? <Briefcase size={12} /> : <CheckSquare size={12} />}
                                                 </div>
                                                 <span className={`text-[10px] font-bold uppercase ${style.text}`}>{role.category === 'Operational' ? 'Operacional' : 'Admin'}</span>
@@ -897,34 +1018,34 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                             <input
                                                 value={role.title}
                                                 onChange={(e) => updateRole(role.id, 'title', e.target.value)}
-                                                className="w-full font-bold text-slate-800 text-sm bg-transparent border-none p-0 focus:ring-0 mb-2 placeholder-slate-400"
+                                                className="w-full font-bold text-slate-800 text-sm bg-transparent border-none p-0 focus:ring-0 mb-2 placeholder-slate-400 dark:text-slate-100 dark:placeholder-slate-500"
                                                 placeholder="Nome do Cargo"
                                             />
                                             <div className="flex gap-2">
-                                                <div className="flex-1 bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] px-2 py-1">
-                                                    <label className="text-[8px] font-bold text-slate-400 uppercase block">Salário Base</label>
+                                                <div className="flex-1 bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] px-2 py-1 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
+                                                    <label className="text-[8px] font-bold text-slate-400 uppercase block dark:text-slate-500">Salário Base</label>
                                                     <div className="flex items-center">
-                                                        <span className="text-xs text-slate-400 mr-1">R$</span>
+                                                        <span className="text-xs text-slate-400 mr-1 dark:text-slate-500">R$</span>
                                                         <input
                                                             value={role.baseSalary.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                             onChange={(e) => handleSalaryChange(role.id, e.target.value)}
-                                                            className="w-full bg-transparent text-xs font-bold text-slate-700 border-none p-0 focus:ring-0"
+                                                            className="w-full bg-transparent text-xs font-bold text-slate-700 border-none p-0 focus:ring-0 dark:text-slate-100"
                                                         />
                                                     </div>
                                                 </div>
-                                                <div className="w-16 bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] px-2 py-1 text-center">
-                                                    <label className="text-[8px] font-bold text-slate-400 uppercase block">Qtd</label>
+                                                <div className="w-16 bg-[var(--tenant-control)] rounded border border-[var(--tenant-border)] px-2 py-1 text-center dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
+                                                    <label className="text-[8px] font-bold text-slate-400 uppercase block dark:text-slate-500">Qtd</label>
                                                     <input
                                                         type="number"
                                                         value={role.quantity}
                                                         onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                                        className="w-full bg-transparent text-xs font-bold text-slate-700 border-none p-0 focus:ring-0 text-center"
+                                                        className="w-full bg-transparent text-xs font-bold text-slate-700 border-none p-0 focus:ring-0 text-center dark:text-slate-100"
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="mt-2 pt-2 border-t border-[var(--tenant-border)] text-right">
-                                                <span className="text-[10px] font-bold text-slate-400">Total: </span>
-                                                <span className="text-xs font-black text-slate-800">{formatCurrency(calculateRoleCost(role))}</span>
+                                            <div className="mt-2 pt-2 border-t border-[var(--tenant-border)] text-right dark:border-[var(--tenant-border-dark)]">
+                                                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">Total: </span>
+                                                <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatCurrency(calculateRoleCost(role))}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -934,14 +1055,14 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     </div>
 
                     {/* FLOATING TOOLBAR - MIRO STYLE */}
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-[var(--tenant-panel)] backdrop-blur-md shadow-2xl rounded-full px-4 py-2 border border-[var(--tenant-border)] flex items-center gap-2 z-50">
+                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-[var(--tenant-panel)] backdrop-blur-md shadow-2xl rounded-full px-4 py-2 border border-[var(--tenant-border)] flex items-center gap-2 z-50 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                         <button
                             title="Cursor (Mover)"
-                            className="p-3 rounded-full hover:bg-[var(--tenant-control)] text-slate-600 transition-colors"
+                            className="p-3 rounded-full hover:bg-[var(--tenant-control)] text-slate-600 transition-colors dark:text-slate-300 dark:hover:bg-[var(--tenant-control-dark)]"
                         >
                             <MousePointer size={20} />
                         </button>
-                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1"></div>
+                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1 dark:bg-[var(--tenant-border-dark)]"></div>
                         <button
                             onClick={() => addRole('Operational')}
                             title="Adicionar Cargo Operacional"
@@ -956,55 +1077,56 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                         >
                             <CheckSquare size={20} />
                         </button>
-                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1"></div>
+                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1 dark:bg-[var(--tenant-border-dark)]"></div>
                         <button
                             onClick={applyAutoLayout}
                             title="Organizar Automaticamente"
-                            className="p-3 rounded-full hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 transition-colors"
+                            className="p-3 rounded-full hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 transition-colors dark:text-emerald-300 dark:hover:bg-emerald-950/30"
                         >
                             <Wand2 size={20} />
                         </button>
-                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1"></div>
+                        <div className="w-px h-6 bg-[var(--tenant-control)] mx-1 dark:bg-[var(--tenant-border-dark)]"></div>
                         <button
                             onClick={() => addSection()}
 
                             title="Criar Área (Lane)"
-                            className="p-3 rounded-full hover:bg-amber-50 text-amber-600 hover:text-amber-700 transition-colors relative group"
+                            className="p-3 rounded-full hover:bg-amber-50 text-amber-600 hover:text-amber-700 transition-colors relative group dark:text-amber-300 dark:hover:bg-amber-950/30"
                         >
                             <Square size={20} className="fill-current opacity-50" />
-                            <Plus size={10} className="absolute top-2 right-2 text-amber-800 font-bold" />
+                            <Plus size={10} className="absolute top-2 right-2 text-amber-800 font-bold dark:text-amber-200" />
                         </button>
 
                         {/* Decorative Icons */}
-                        <button onClick={() => addDecoration('factory')} title="Fábrica" className="p-3 rounded-full hover:bg-[var(--tenant-control)] text-slate-500 hover:text-slate-700"><Factory size={20} /></button>
-                        <button onClick={() => addDecoration('flame')} title="Inflamável" className="p-3 rounded-full hover:bg-orange-50 text-orange-500 hover:text-orange-600"><Flame size={20} /></button>
-                        <button onClick={() => addDecoration('zap')} title="Elétrico" className="p-3 rounded-full hover:bg-yellow-50 text-yellow-500 hover:text-yellow-600"><Zap size={20} /></button>
-                        <button onClick={() => addDecoration('biohazard')} title="Risco Químico/Bio" className="p-3 rounded-full hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700"><Biohazard size={20} /></button>
+                        <button onClick={() => addDecoration('factory')} title="Fábrica" className="p-3 rounded-full hover:bg-[var(--tenant-control)] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[var(--tenant-control-dark)] dark:hover:text-slate-100"><Factory size={20} /></button>
+                        <button onClick={() => addDecoration('flame')} title="Inflamável" className="p-3 rounded-full hover:bg-orange-50 text-orange-500 hover:text-orange-600 dark:text-orange-300 dark:hover:bg-orange-950/30"><Flame size={20} /></button>
+                        <button onClick={() => addDecoration('zap')} title="Elétrico" className="p-3 rounded-full hover:bg-yellow-50 text-yellow-500 hover:text-yellow-600 dark:text-yellow-300 dark:hover:bg-yellow-950/30"><Zap size={20} /></button>
+                        <button onClick={() => addDecoration('biohazard')} title="Risco Químico/Bio" className="p-3 rounded-full hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-950/30"><Biohazard size={20} /></button>
                     </div>
 
                     {/* CONTEXT MENU */}
                     {contextMenu && (
                         <div
-                            className="fixed z-[100] bg-[var(--tenant-panel)] rounded-lg shadow-xl border border-[var(--tenant-border)] py-1 w-56 text-sm animate-in fade-in zoom-in-95 duration-100"
+                            className="fixed z-[100] bg-[var(--tenant-panel)] rounded-lg shadow-xl border border-[var(--tenant-border)] py-1 w-56 text-sm animate-in fade-in zoom-in-95 duration-100 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-200"
                             style={{ top: contextMenu.y, left: contextMenu.x }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                         >
                             {contextMenu.type === 'node' && (
                                 <>
-                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[var(--tenant-control)] border-b border-[var(--tenant-border)] mb-1">
+                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[var(--tenant-control)] border-b border-[var(--tenant-border)] mb-1 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-500">
                                         Ações do Card
                                     </div>
-                                    <button onClick={() => updateRole(contextMenu.targetId!, 'parentId', undefined)} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
+                                    <button onClick={() => { updateRole(contextMenu.targetId!, 'parentId', undefined); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2 dark:text-slate-200 dark:hover:bg-[var(--tenant-control-dark)]">
                                         <LinkIcon size={14} /> Desconectar Parente
                                     </button>
-                                    <button onClick={() => duplicateRole(contextMenu.targetId!)} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
+                                    <button onClick={() => { duplicateRole(contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2 dark:text-slate-200 dark:hover:bg-[var(--tenant-control-dark)]">
                                         <Type size={14} /> Duplicar / Dividir
                                     </button>
 
-                                    <div className="px-4 py-2 hover:bg-[var(--tenant-control)] flex items-center gap-2 relative group/colors cursor-pointer">
+                                    <div className="px-4 py-2 hover:bg-[var(--tenant-control)] flex items-center gap-2 relative group/colors cursor-pointer dark:hover:bg-[var(--tenant-control-dark)]">
                                         <Palette size={14} className="text-slate-400" />
                                         <span>Cor do Card</span>
-                                        <div className="absolute left-full top-0 ml-2 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] shadow-xl rounded-lg p-3 grid grid-cols-4 gap-2 hidden group-hover/colors:grid w-40">
+                                        <div className="absolute left-full top-0 ml-2 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] shadow-xl rounded-lg p-3 grid grid-cols-4 gap-2 hidden group-hover/colors:grid w-40 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                                             {CARD_COLORS.map(c => (
                                                 <button
                                                     key={c.id}
@@ -1015,8 +1137,8 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         </div>
                                     </div>
 
-                                    <div className="h-px bg-[var(--tenant-control)] my-1"></div>
-                                    <button onClick={() => { removeEntity('role', contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2">
+                                    <div className="h-px bg-[var(--tenant-control)] my-1 dark:bg-[var(--tenant-border-dark)]"></div>
+                                    <button onClick={() => { removeEntity('role', contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 dark:text-red-300 dark:hover:bg-red-950/30">
                                         <Trash2 size={14} /> Excluir
                                     </button>
                                 </>
@@ -1024,7 +1146,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
                             {contextMenu.type === 'section' && (
                                 <>
-                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[var(--tenant-control)] border-b border-[var(--tenant-border)] mb-1">
+                                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[var(--tenant-control)] border-b border-[var(--tenant-border)] mb-1 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-500">
                                         Área / Lane
                                     </div>
                                     <div className="px-4 py-2 flex gap-2">
@@ -1032,14 +1154,14 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                             <button key={c.id} className={`w-6 h-6 rounded-full border ${c.bg} ${c.border}`} onClick={() => { updateSection(contextMenu.targetId!, 'color', c.id); setContextMenu(null); }} />
                                         ))}
                                     </div>
-                                    <button onClick={() => { removeEntity('section', contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2">
+                                    <button onClick={() => { removeEntity('section', contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 dark:text-red-300 dark:hover:bg-red-950/30">
                                         <Trash2 size={14} /> Remover Área
                                     </button>
                                 </>
                             )}
 
                             {contextMenu.type === 'decoration' && (
-                                <button onClick={() => { removeEntity('decoration', contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2">
+                                <button onClick={() => { removeEntity('decoration', contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 dark:text-red-300 dark:hover:bg-red-950/30">
                                     <Trash2 size={14} /> Remover Ícone
                                 </button>
                             )}
@@ -1052,67 +1174,67 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     {/* OVERVIEW INDICATORS */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {/* Efetivo Total */}
-                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between">
+                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                             <div>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Efetivo Total</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Efetivo Total</p>
                                 <div className="flex items-baseline gap-2 mt-1">
-                                    <p className="text-3xl font-black text-slate-800 tracking-tight">{totalHeadcount}</p>
-                                    <span className="text-xs font-medium text-slate-400">pessoas</span>
+                                    <p className="text-3xl font-black text-slate-800 tracking-tight dark:text-slate-100">{totalHeadcount}</p>
+                                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500">pessoas</span>
                                 </div>
                             </div>
-                            <div className="h-12 w-12 bg-[var(--tenant-secondary-soft)] rounded-full flex items-center justify-center text-[var(--tenant-secondary)]">
+                            <div className="h-12 w-12 bg-[var(--tenant-secondary-soft)] rounded-full flex items-center justify-center text-[var(--tenant-secondary)] dark:bg-[var(--tenant-control-dark)]">
                                 <Users size={24} />
                             </div>
                         </div>
 
                         {/* Salário Médio Base */}
-                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between">
+                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                             <div>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Salário Médio Base</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Salário Médio Base</p>
                                 <p className="text-3xl font-black text-emerald-600 mt-1 tracking-tight">{formatCurrency(averageSalary)}</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium">Não inclui adicionais e encargos</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium dark:text-slate-500">Não inclui adicionais e encargos</p>
                             </div>
-                            <div className="h-12 w-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                            <div className="h-12 w-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-300">
                                 <DollarSign size={24} />
                             </div>
                         </div>
 
                         {/* Custo Total em Folha */}
-                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between">
+                        <div className="bg-[var(--tenant-panel)] p-5 rounded-lg border border-[var(--tenant-border)] shadow-sm flex items-center justify-between dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                             <div>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Custo Total da Folha</p>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider dark:text-slate-400">Custo Total da Folha</p>
                                 <p className="text-3xl font-black text-amber-600 mt-1 tracking-tight">{formatCurrency(totalCost)}</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium flex items-center gap-1">
-                                    Inclui adicionais e <span className="font-bold text-amber-600 bg-amber-50 px-1 py-0.5 rounded">{data.taxConfig.socialChargesRate * 100}%</span> de encargos
+                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium flex items-center gap-1 dark:text-slate-500">
+                                    Inclui adicionais e <span className="font-bold text-amber-600 bg-amber-50 px-1 py-0.5 rounded dark:bg-amber-950/30 dark:text-amber-300">{data.taxConfig.socialChargesRate * 100}%</span> de encargos
                                 </p>
                             </div>
-                            <div className="h-12 w-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-600">
+                            <div className="h-12 w-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-600 dark:bg-amber-950/30 dark:text-amber-300">
                                 <Briefcase size={24} />
                             </div>
                         </div>
                     </div>
 
                     {/* BENEFITS CONFIGURATION SECTION */}
-                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 shrink-0">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 shrink-0 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                         <div className="flex items-center gap-2 mb-4">
                             <Box className="text-[var(--tenant-secondary)]" size={20} />
-                            <h3 className="text-lg font-bold text-slate-800">Configuração Global de Benefícios</h3>
-                            <span className="text-xs font-medium text-slate-500 ml-2">Aplicado proporcionalmente ao efetivo total</span>
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Configuração Global de Benefícios</h3>
+                            <span className="text-xs font-medium text-slate-500 ml-2 dark:text-slate-400">Aplicado proporcionalmente ao efetivo total</span>
                         </div>
 
                         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                             {/* Assistência Médica */}
-                            <div className="col-span-1 lg:col-span-1 border border-rose-200 bg-rose-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="col-span-1 lg:col-span-1 border border-rose-200 bg-rose-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow dark:border-rose-900/60 dark:bg-rose-950/20">
                                 <label className="text-xs font-bold text-rose-700 block mb-3 flex items-center gap-1">
                                     <HeartPulse size={16} /> Assistência Médica
                                 </label>
-                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-rose-100 focus-within:ring-2 focus-within:ring-rose-200 focus-within:border-rose-300 transition-all">
+                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-rose-100 focus-within:ring-2 focus-within:ring-rose-200 focus-within:border-rose-300 transition-all dark:bg-[var(--tenant-control-dark)] dark:border-rose-900/60">
                                     <span className="text-rose-400 text-xs font-bold">R$</span>
                                     <input
                                         type="number"
                                         value={benefits.healthInsurance}
                                         onChange={(e) => updateBenefits('healthInsurance', parseFloat(e.target.value) || 0)}
-                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0"
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0 dark:text-slate-100"
                                         placeholder="0,00"
                                     />
                                     <span className="text-rose-300 text-[10px] font-bold">/mês</span>
@@ -1120,34 +1242,34 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                             </div>
 
                             {/* Dependentes */}
-                            <div className="col-span-1 lg:col-span-1 border border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="col-span-1 lg:col-span-1 border border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow dark:bg-[var(--tenant-control-dark)]">
                                 <label className="text-xs font-bold text-[var(--tenant-secondary)] block mb-3 flex items-center gap-1">
                                     <Users size={16} /> Fator Dependentes
                                 </label>
-                                <div className="bg-[var(--tenant-panel)] p-2.5 rounded-md border border-[var(--tenant-secondary-border)] flex items-center focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)] transition-all">
+                                <div className="bg-[var(--tenant-panel)] p-2.5 rounded-md border border-[var(--tenant-secondary-border)] flex items-center focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)] transition-all dark:bg-[var(--tenant-panel-dark)]">
                                     <input
                                         type="number"
                                         step="0.1"
                                         value={benefits.healthInsuranceDependentFactor}
                                         onChange={(e) => updateBenefits('healthInsuranceDependentFactor', parseFloat(e.target.value) || 1)}
-                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0 text-center"
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0 text-center dark:text-slate-100"
                                         title="Ex: 1.5 significa Titular + 0.5 dependentes em média"
                                     />
                                 </div>
                             </div>
 
                             {/* Alimentação (VA) */}
-                            <div className="col-span-1 lg:col-span-1 border border-orange-200 bg-orange-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="col-span-1 lg:col-span-1 border border-orange-200 bg-orange-50 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow dark:border-orange-900/60 dark:bg-orange-950/20">
                                 <label className="text-xs font-bold text-orange-700 block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
                                     <ShoppingBag size={16} className="shrink-0" /> Vale Alimentação (VA)
                                 </label>
-                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-orange-100 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-300 transition-all">
+                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-orange-100 focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-300 transition-all dark:bg-[var(--tenant-control-dark)] dark:border-orange-900/60">
                                     <span className="text-orange-400 text-xs font-bold">R$</span>
                                     <input
                                         type="number"
                                         value={benefits.foodAllowance}
                                         onChange={(e) => updateBenefits('foodAllowance', parseFloat(e.target.value) || 0)}
-                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0"
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0 dark:text-slate-100"
                                         placeholder="0,00"
                                     />
                                     <span className="text-orange-300 text-[10px] font-bold">/mês</span>
@@ -1156,46 +1278,46 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
                             {/* Refeição (VR) vs Refeitório */}
                             <div className="col-span-2 lg:col-span-1 flex flex-col gap-2">
-                                <div className={`border rounded-lg p-4 flex-1 shadow-sm transition-all ${benefits.hasCafeteria ? 'border-[var(--tenant-border)] bg-[var(--tenant-control)]' : 'border-amber-200 bg-amber-50 hover:shadow-md'}`}>
-                                    <label className={`text-xs font-bold block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis ${benefits.hasCafeteria ? 'text-slate-400' : 'text-amber-700'}`}>
+                                <div className={`border rounded-lg p-4 flex-1 shadow-sm transition-all ${benefits.hasCafeteria ? 'border-[var(--tenant-border)] bg-[var(--tenant-control)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)]' : 'border-amber-200 bg-amber-50 hover:shadow-md dark:border-amber-900/60 dark:bg-amber-950/20'}`}>
+                                    <label className={`text-xs font-bold block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis ${benefits.hasCafeteria ? 'text-slate-400 dark:text-slate-500' : 'text-amber-700 dark:text-amber-300'}`}>
                                         <Utensils size={16} className="shrink-0" /> Vale Refeição (VR)
                                     </label>
-                                    <div className={`flex items-center gap-1 p-2.5 rounded-md border transition-all ${benefits.hasCafeteria ? 'bg-[var(--tenant-panel)] border-[var(--tenant-border)]' : 'bg-[var(--tenant-panel)] border-amber-100 focus-within:ring-2 focus-within:ring-amber-200 focus-within:border-amber-300'}`}>
+                                    <div className={`flex items-center gap-1 p-2.5 rounded-md border transition-all ${benefits.hasCafeteria ? 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]' : 'bg-[var(--tenant-panel)] border-amber-100 focus-within:ring-2 focus-within:ring-amber-200 focus-within:border-amber-300 dark:bg-[var(--tenant-control-dark)] dark:border-amber-900/60'}`}>
                                         <span className={`text-xs font-bold ${benefits.hasCafeteria ? 'text-slate-300' : 'text-amber-400'}`}>R$</span>
                                         <input
                                             type="number"
                                             value={benefits.mealAllowance}
                                             onChange={(e) => updateBenefits('mealAllowance', parseFloat(e.target.value) || 0)}
                                             disabled={benefits.hasCafeteria}
-                                            className={`w-full bg-transparent font-extrabold text-sm border-none p-0 focus:ring-0 ${benefits.hasCafeteria ? 'text-slate-400' : 'text-slate-700'}`}
+                                            className={`w-full bg-transparent font-extrabold text-sm border-none p-0 focus:ring-0 ${benefits.hasCafeteria ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-100'}`}
                                             placeholder="0,00"
                                         />
                                         <span className={`text-[10px] font-bold ${benefits.hasCafeteria ? 'text-slate-300' : 'text-amber-300'}`}>/mês</span>
                                     </div>
                                 </div>
-                                <label className={`flex items-center justify-center gap-2 cursor-pointer border px-3 py-2 rounded-lg transition-colors shadow-sm ${benefits.hasCafeteria ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-600 hover:bg-[var(--tenant-control)]'}`}>
+                                <label className={`flex items-center justify-center gap-2 cursor-pointer border px-3 py-2 rounded-lg transition-colors shadow-sm ${benefits.hasCafeteria ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-200' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-600 hover:bg-[var(--tenant-control)] dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-300 dark:hover:bg-[var(--tenant-control-dark)]'}`}>
                                     <input
                                         type="checkbox"
                                         checked={benefits.hasCafeteria}
                                         onChange={(e) => updateBenefits('hasCafeteria', e.target.checked)}
-                                        className="rounded border-[var(--tenant-border)] text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                                        className="rounded border-[var(--tenant-border)] text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer dark:border-[var(--tenant-border-dark)]"
                                     />
                                     <span className="text-xs font-bold">Possui Refeitório?</span>
                                 </label>
                             </div>
 
                             {/* Transporte (VT) */}
-                            <div className="col-span-1 lg:col-span-1 border border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="col-span-1 lg:col-span-1 border border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow dark:bg-[var(--tenant-control-dark)]">
                                 <label className="text-xs font-bold text-[var(--tenant-secondary)] block mb-3 flex items-center gap-1 whitespace-nowrap overflow-hidden text-ellipsis">
                                     <Bus size={16} className="shrink-0" /> Vale Transporte (VT)
                                 </label>
-                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-[var(--tenant-secondary-border)] focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)] transition-all">
+                                <div className="flex items-center gap-1 bg-[var(--tenant-panel)] p-2.5 rounded-md border border-[var(--tenant-secondary-border)] focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)] transition-all dark:bg-[var(--tenant-panel-dark)]">
                                     <span className="text-[var(--tenant-secondary)] text-xs font-bold">R$</span>
                                     <input
                                         type="number"
                                         value={benefits.transportAllowance}
                                         onChange={(e) => updateBenefits('transportAllowance', parseFloat(e.target.value) || 0)}
-                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0"
+                                        className="w-full bg-transparent font-extrabold text-slate-700 text-sm border-none p-0 focus:ring-0 dark:text-slate-100"
                                         placeholder="0,00"
                                     />
                                     <span className="text-[var(--tenant-secondary)] text-[10px] font-bold">/mês</span>
@@ -1204,88 +1326,96 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                         </div>
                     </div>
 
-                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 shrink-0">
-                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-3 shrink-0 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
+                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <CalendarDays className="text-[var(--tenant-secondary)]" size={20} />
                                 <div>
-                                    <h3 className="text-lg font-bold text-slate-800">PLR por Competencia</h3>
-                                    <p className="text-xs text-slate-500">Parcela total por mes calendario, sem encargos sociais.</p>
+                                    <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">PLR por Competencia</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Parcela total por mes calendario, sem encargos sociais.</p>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3 min-w-[300px]">
-                                <div className="bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-4 py-3">
-                                    <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wide">Total na vigencia</p>
-                                    <p className="text-sm font-black text-slate-800">{formatCurrency(financials.totalProfitSharingCost)}</p>
+                            <div className="grid grid-cols-2 gap-2 lg:min-w-[260px]">
+                                <div className="bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-3 py-1.5 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
+                                    <p className="text-[9px] font-bold uppercase text-slate-400 tracking-wide dark:text-slate-500">Total na vigencia</p>
+                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{formatCurrency(financials.totalProfitSharingCost)}</p>
                                 </div>
-                                <div className="bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-4 py-3">
-                                    <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wide">Rateio mensal</p>
+                                <div className="bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-3 py-1.5 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
+                                    <p className="text-[9px] font-bold uppercase text-slate-400 tracking-wide dark:text-slate-500">Rateio mensal</p>
                                     <p className="text-sm font-black text-[var(--tenant-secondary)]">{formatCurrency(financials.monthlyProfitSharingCost)}</p>
                                 </div>
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            {profitSharingInstallments.map(item => (
-                                <div key={item.id} className="grid grid-cols-1 md:grid-cols-[48px_1fr_1.4fr_40px] gap-3 items-center rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-3">
-                                    <label className="flex justify-center">
-                                        <input
-                                            type="checkbox"
-                                            checked={item.active}
-                                            onChange={(event) => updateProfitSharingInstallment(item.id, 'active', event.target.checked)}
-                                            className="rounded border-[var(--tenant-border)] text-[var(--tenant-secondary)] focus:ring-[var(--tenant-secondary)]"
-                                        />
-                                    </label>
-                                    <select
-                                        value={item.competenceMonth}
-                                        onChange={(event) => updateProfitSharingInstallment(item.id, 'competenceMonth', Number(event.target.value))}
-                                        className="w-full bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)]"
-                                    >
-                                        {MONTH_OPTIONS.map(month => (
-                                            <option key={month.value} value={month.value}>{month.label}</option>
-                                        ))}
-                                    </select>
-                                    <div className="flex items-center bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)]">
-                                        <span className="text-xs font-bold text-slate-400 mr-2">R$</span>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            value={item.amount || ''}
-                                            onChange={(event) => updateProfitSharingInstallment(item.id, 'amount', Number(event.target.value) || 0)}
-                                            className="w-full bg-transparent text-sm font-bold text-slate-800 border-none p-0 focus:ring-0 text-right"
-                                            placeholder="0,00"
-                                        />
-                                    </div>
+                            {profitSharingInstallments.length === 0 ? (
+                                <button
+                                    type="button"
+                                    onClick={addProfitSharingInstallment}
+                                    className="w-full min-h-9 border border-dashed border-[var(--tenant-border)] rounded-lg bg-[var(--tenant-control)] px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-[var(--tenant-secondary-soft)] hover:text-[var(--tenant-secondary)] flex justify-center items-center gap-2 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400"
+                                >
+                                    <Plus size={14} /> Adicionar competencia de PLR
+                                    <span className="hidden font-medium text-slate-400 dark:text-slate-500 sm:inline">Nenhuma parcela configurada</span>
+                                </button>
+                            ) : (
+                                <>
+                                    {profitSharingInstallments.map(item => (
+                                        <div key={item.id} className="grid grid-cols-1 md:grid-cols-[40px_1fr_1.3fr_36px] gap-2 items-center rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-2.5 py-1.5 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
+                                            <label className="flex justify-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={item.active}
+                                                    onChange={(event) => updateProfitSharingInstallment(item.id, 'active', event.target.checked)}
+                                                    className="rounded border-[var(--tenant-border)] text-[var(--tenant-secondary)] focus:ring-[var(--tenant-secondary)] dark:border-[var(--tenant-border-dark)]"
+                                                />
+                                            </label>
+                                            <select
+                                                value={item.competenceMonth}
+                                                onChange={(event) => updateProfitSharingInstallment(item.id, 'competenceMonth', Number(event.target.value))}
+                                                className="w-full bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md px-3 py-1.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-100"
+                                            >
+                                                {MONTH_OPTIONS.map(month => (
+                                                    <option key={month.value} value={month.value}>{month.label}</option>
+                                                ))}
+                                            </select>
+                                            <div className="flex items-center bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md px-3 py-1.5 focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)] dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
+                                                <span className="text-xs font-bold text-slate-400 mr-2 dark:text-slate-500">R$</span>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value={item.amount || ''}
+                                                    onChange={(event) => updateProfitSharingInstallment(item.id, 'amount', Number(event.target.value) || 0)}
+                                                    className="w-full bg-transparent text-sm font-bold text-slate-800 border-none p-0 focus:ring-0 text-right dark:text-slate-100"
+                                                    placeholder="0,00"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeProfitSharingInstallment(item.id)}
+                                                className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:text-slate-500 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                                                title="Remover PLR"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
                                     <button
                                         type="button"
-                                        onClick={() => removeProfitSharingInstallment(item.id)}
-                                        className="h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50"
-                                        title="Remover PLR"
+                                        onClick={addProfitSharingInstallment}
+                                        className="w-full py-2 border border-dashed border-[var(--tenant-border)] rounded-lg text-xs font-bold text-slate-500 hover:bg-[var(--tenant-secondary-soft)] hover:text-[var(--tenant-secondary)] flex justify-center items-center gap-2 dark:border-[var(--tenant-border-dark)] dark:text-slate-400"
                                     >
-                                        <Trash2 size={16} />
+                                        <Plus size={14} /> Adicionar competencia de PLR
                                     </button>
-                                </div>
-                            ))}
-                            {profitSharingInstallments.length === 0 && (
-                                <div className="rounded-lg border border-dashed border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 py-5 text-center text-sm font-medium text-slate-400">
-                                    Nenhuma parcela de PLR configurada.
-                                </div>
+                                </>
                             )}
-                            <button
-                                type="button"
-                                onClick={addProfitSharingInstallment}
-                                className="w-full py-3 border border-dashed border-[var(--tenant-border)] rounded-lg text-xs font-bold text-slate-500 hover:bg-[var(--tenant-secondary-soft)] hover:text-[var(--tenant-secondary)] flex justify-center items-center gap-2"
-                            >
-                                <Plus size={14} /> Adicionar competencia de PLR
-                            </button>
                         </div>
                     </div>
 
                     {viewMode === 'list' && (
-                        <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] overflow-hidden">
+                        <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] overflow-hidden dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-[var(--tenant-control)] text-slate-500 font-bold uppercase text-xs tracking-wider border-b border-[var(--tenant-border)]">
+                                <thead className="bg-[var(--tenant-control)] text-slate-500 font-bold uppercase text-xs tracking-wider border-b border-[var(--tenant-border)] dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-400">
                                     <tr>
                                         <th className="px-6 py-4">Cargo / Função</th>
                                         <th className="px-6 py-4">Categoria</th>
@@ -1296,51 +1426,51 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         <th className="px-6 py-4 w-16"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[var(--tenant-border)]">
+                                <tbody className="divide-y divide-[var(--tenant-border)] dark:divide-[var(--tenant-border-dark)]">
                                     {roles.map(role => (
-                                        <tr key={role.id} className="hover:bg-[var(--tenant-control)] group">
+                                        <tr key={role.id} className="hover:bg-[var(--tenant-control)] group dark:hover:bg-[var(--tenant-control-dark)]">
                                             <td className="px-6 py-4">
-                                                <input type="text" value={role.title} onChange={(e) => updateRole(role.id, 'title', e.target.value)} className="bg-transparent border-none font-bold text-slate-700 p-0 focus:ring-0 w-full" />
+                                                <input type="text" value={role.title} onChange={(e) => updateRole(role.id, 'title', e.target.value)} className="bg-transparent border-none font-bold text-slate-700 p-0 focus:ring-0 w-full dark:text-slate-100" />
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${role.category === 'Operational' ? 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border border-[var(--tenant-secondary-border)]' : 'bg-[var(--tenant-control)] text-slate-600 border border-[var(--tenant-border)]'}`}>
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${role.category === 'Operational' ? 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] border border-[var(--tenant-secondary-border)] dark:bg-[var(--tenant-control-dark)]' : 'bg-[var(--tenant-control)] text-slate-600 border border-[var(--tenant-border)] dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-300'}`}>
                                                     {role.category === 'Operational' ? 'Operacional' : 'Admin'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded text-center font-bold text-slate-700 py-1" />
+                                                <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-full bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded text-center font-bold text-slate-700 py-1 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-100" />
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-1">
-                                                    <span className="text-slate-400 text-xs">R$</span>
+                                                    <span className="text-slate-400 text-xs dark:text-slate-500">R$</span>
                                                     <input
                                                         value={role.baseSalary.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                         onChange={(e) => handleSalaryChange(role.id, e.target.value)}
-                                                        className="w-full bg-transparent border-none font-bold text-slate-700 p-0 focus:ring-0"
+                                                        className="w-full bg-transparent border-none font-bold text-slate-700 p-0 focus:ring-0 dark:text-slate-100"
                                                     />
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-[var(--tenant-control)] border-[var(--tenant-border)] text-slate-300'}`}>
+                                                    <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600 dark:bg-orange-950/30 dark:border-orange-900 dark:text-orange-300' : 'bg-[var(--tenant-control)] border-[var(--tenant-border)] text-slate-300 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-600'}`}>
                                                         <Biohazard size={10} /> INS (20%)
                                                     </button>
-                                                    <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600' : 'bg-[var(--tenant-control)] border-[var(--tenant-border)] text-slate-300'}`}>
+                                                    <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`p-1 rounded border text-[10px] font-bold uppercase flex items-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300' : 'bg-[var(--tenant-control)] border-[var(--tenant-border)] text-slate-300 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-600'}`}>
                                                         <Zap size={10} /> PER (30%)
                                                     </button>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right font-bold text-slate-700">{formatCurrency(calculateRoleCost(role))}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-slate-700 dark:text-slate-100">{formatCurrency(calculateRoleCost(role))}</td>
                                             <td className="px-6 py-4 text-center">
-                                                <button onClick={() => removeEntity('role', role.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>
+                                                <button onClick={() => removeEntity('role', role.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity dark:text-slate-600 dark:hover:text-red-300"><Trash2 size={16} /></button>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                            <div className="p-4 bg-[var(--tenant-control)] border-t border-[var(--tenant-border)] flex gap-4">
-                                <button onClick={() => addRole('Operational')} className="text-xs font-bold bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-slate-600 px-4 py-2 rounded-lg hover:bg-[var(--tenant-secondary-soft)] flex items-center gap-2"><Plus size={14} /> Adicionar Operacional</button>
-                                <button onClick={() => addRole('Administrative')} className="text-xs font-bold bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-slate-600 px-4 py-2 rounded-lg hover:bg-[var(--tenant-secondary-soft)] flex items-center gap-2"><Plus size={14} /> Adicionar Administrativo</button>
+                            <div className="p-4 bg-[var(--tenant-control)] border-t border-[var(--tenant-border)] flex gap-4 dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
+                                <button onClick={() => addRole('Operational')} className="text-xs font-bold bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-slate-600 px-4 py-2 rounded-lg hover:bg-[var(--tenant-secondary-soft)] flex items-center gap-2 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-300"><Plus size={14} /> Adicionar Operacional</button>
+                                <button onClick={() => addRole('Administrative')} className="text-xs font-bold bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-slate-600 px-4 py-2 rounded-lg hover:bg-[var(--tenant-secondary-soft)] flex items-center gap-2 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-300"><Plus size={14} /> Adicionar Administrativo</button>
                             </div>
                         </div>
                     )}
@@ -1348,54 +1478,54 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                     {viewMode === 'grid' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {roles.map(role => (
-                                <div key={role.id} className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 relative group hover:shadow-md transition-shadow">
+                                <div key={role.id} className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 relative group hover:shadow-md transition-shadow dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className={`p-2 rounded-lg ${role.category === 'Operational' ? 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)]' : 'bg-[var(--tenant-control)] text-slate-600'}`}>
+                                        <div className={`p-2 rounded-lg ${role.category === 'Operational' ? 'bg-[var(--tenant-secondary-soft)] text-[var(--tenant-secondary)] dark:bg-[var(--tenant-control-dark)]' : 'bg-[var(--tenant-control)] text-slate-600 dark:bg-[var(--tenant-control-dark)] dark:text-slate-300'}`}>
                                             {role.category === 'Operational' ? <Briefcase size={20} /> : <CheckSquare size={20} />}
                                         </div>
-                                        <button onClick={() => removeEntity('role', role.id)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors">
+                                        <button onClick={() => removeEntity('role', role.id)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors dark:text-slate-600 dark:hover:bg-red-950/30 dark:hover:text-red-300">
                                             <Trash2 size={16} />
                                         </button>
                                     </div>
 
-                                    <input type="text" value={role.title} onChange={(e) => updateRole(role.id, 'title', e.target.value)} className="w-full text-lg font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 mb-1" />
-                                    <p className="text-xs text-slate-400 uppercase font-bold mb-4">{role.category === 'Operational' ? 'Operacional' : 'Administrativo'}</p>
+                                    <input type="text" value={role.title} onChange={(e) => updateRole(role.id, 'title', e.target.value)} className="w-full text-lg font-bold text-slate-800 bg-transparent border-none p-0 focus:ring-0 mb-1 dark:text-slate-100" />
+                                    <p className="text-xs text-slate-400 uppercase font-bold mb-4 dark:text-slate-500">{role.category === 'Operational' ? 'Operacional' : 'Administrativo'}</p>
 
-                                    <div className="space-y-3 bg-[var(--tenant-control)] p-4 rounded-lg border border-[var(--tenant-border)]">
+                                    <div className="space-y-3 bg-[var(--tenant-control)] p-4 rounded-lg border border-[var(--tenant-border)] dark:bg-[var(--tenant-control-dark)] dark:border-[var(--tenant-border-dark)]">
                                         <div className="flex justify-between items-center">
-                                            <label className="text-xs font-bold text-slate-500">Salário Base</label>
+                                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Salário Base</label>
                                             <div className="flex items-center gap-1 w-28">
-                                                <span className="text-xs text-slate-400">R$</span>
+                                                <span className="text-xs text-slate-400 dark:text-slate-500">R$</span>
                                                 <input
                                                     value={role.baseSalary.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                     onChange={(e) => handleSalaryChange(role.id, e.target.value)}
-                                                    className="w-full bg-transparent text-right font-bold text-slate-700 text-sm border-none p-0 focus:ring-0"
+                                                    className="w-full bg-transparent text-right font-bold text-slate-700 text-sm border-none p-0 focus:ring-0 dark:text-slate-100"
                                                 />
                                             </div>
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <label className="text-xs font-bold text-slate-500">Quantidade</label>
-                                            <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-16 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-center font-bold text-slate-700 text-sm rounded py-0.5 focus:ring-0" />
+                                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Quantidade</label>
+                                            <input type="number" value={role.quantity} onChange={(e) => updateRole(role.id, 'quantity', parseFloat(e.target.value) || 0)} className="w-16 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] text-center font-bold text-slate-700 text-sm rounded py-0.5 focus:ring-0 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-100" />
                                         </div>
                                     </div>
 
                                     <div className="mt-4 flex gap-2">
-                                        <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-400'}`}>
+                                        <button onClick={() => updateRole(role.id, 'additionalHazard', !role.additionalHazard)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalHazard ? 'bg-orange-50 border-orange-200 text-orange-600 dark:bg-orange-950/30 dark:border-orange-900 dark:text-orange-300' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-400 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-500'}`}>
                                             <Biohazard size={14} /> Insalubridade
                                         </button>
-                                        <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-400'}`}>
+                                        <button onClick={() => updateRole(role.id, 'additionalDanger', !role.additionalDanger)} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors flex items-center justify-center gap-1 ${role.additionalDanger ? 'bg-red-50 border-red-200 text-red-600 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300' : 'bg-[var(--tenant-panel)] border-[var(--tenant-border)] text-slate-400 dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)] dark:text-slate-500'}`}>
                                             <Zap size={14} /> Periculosidade
                                         </button>
                                     </div>
 
-                                    <div className="mt-4 pt-4 border-t border-[var(--tenant-border)] flex justify-between items-center">
-                                        <span className="text-xs font-bold text-slate-400 uppercase">Custo Total</span>
-                                        <span className="text-lg font-black text-slate-800">{formatCurrency(calculateRoleCost(role))}</span>
+                                    <div className="mt-4 pt-4 border-t border-[var(--tenant-border)] flex justify-between items-center dark:border-[var(--tenant-border-dark)]">
+                                        <span className="text-xs font-bold text-slate-400 uppercase dark:text-slate-500">Custo Total</span>
+                                        <span className="text-lg font-black text-slate-800 dark:text-slate-100">{formatCurrency(calculateRoleCost(role))}</span>
                                     </div>
                                 </div>
                             ))}
 
-                            <button onClick={() => addRole('Operational')} className="border-2 border-dashed border-[var(--tenant-border)] rounded-lg p-6 flex flex-col items-center justify-center text-slate-400 hover:border-[var(--tenant-secondary-border)] hover:text-[var(--tenant-secondary)] hover:bg-[var(--tenant-secondary-soft)] transition-all min-h-[300px]">
+                            <button onClick={() => addRole('Operational')} className="border-2 border-dashed border-[var(--tenant-border)] rounded-lg p-6 flex flex-col items-center justify-center text-slate-400 hover:border-[var(--tenant-secondary-border)] hover:text-[var(--tenant-secondary)] hover:bg-[var(--tenant-secondary-soft)] transition-all min-h-[300px] dark:border-[var(--tenant-border-dark)] dark:text-slate-500">
                                 <Plus size={32} className="mb-2" />
                                 <span className="font-bold text-sm">Adicionar Cargo</span>
                             </button>
