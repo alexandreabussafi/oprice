@@ -916,7 +916,12 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                             })}
 
                             {/* LAYER 1: CONNECTIONS */}
-                            <svg className="absolute top-[-10000px] left-[-10000px] w-[20000px] h-[20000px] pointer-events-none overflow-visible" style={{ zIndex: 5 }}>
+                            <svg
+                                className="absolute top-[-10000px] left-[-10000px] w-[20000px] h-[20000px] pointer-events-none overflow-visible"
+                                viewBox="-10000 -10000 20000 20000"
+                                preserveAspectRatio="none"
+                                style={{ zIndex: 5 }}
+                            >
                                 <defs>
                                     <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                                         <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
@@ -930,7 +935,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                         <path
                                             key={role.id}
                                             d={getSmartPath(parent, role)}
-                                            stroke="#94a3b8" strokeWidth="2" fill="none" markerEnd="url(#arrowhead)"
+                                            stroke="#94a3b8" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)"
                                         />
                                     );
                                 })}
