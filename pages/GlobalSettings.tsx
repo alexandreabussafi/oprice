@@ -9,7 +9,7 @@ import { useTenant } from '../contexts/TenantContext';
 import { mergeProposalTemplates, PROPOSAL_TEMPLATE_KINDS, PROPOSAL_TEMPLATE_LABELS } from '../utils/proposalTemplates';
 import { PageHeader, PageShell } from '../components/ui';
 import { OPRICE_BRAND_PRIMARY, OPRICE_BRAND_SECONDARY, createTenantTheme } from '../utils/theme';
-import { getEnabledPricingModules } from '../utils/pricingModules';
+import { getEnabledPricingModules, getEnabledPricingSettingsSections } from '../utils/pricingModules';
 import { PIPELINE_CATEGORY_OPTIONS, PIPELINE_VARIANT_LABELS, getPipelineOptionKey, getPipelineStageStyle, getSalesPipelineFromConfig, getSalesPipelineOptions, normalizeSalesPipelineConfig } from '../utils/salesPipelines';
 import { DEFAULT_PROPOSAL_SEND_FOLLOW_UP_TEMPLATE, normalizeProposalSendAutomation } from '../utils/proposalSendAutomation';
 import { auditRepository } from '../services/auditRepository';
@@ -65,7 +65,7 @@ const fromDateTimeLocalValue = (value: string) => {
 
 const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobalConfig }) => {
     const [mainGroup, setMainGroup] = useState<'marca' | 'gerais' | 'crm' | 'servicos' | 'produtos' | 'propostas' | 'usuarios'>('marca');
-    const [activeTab, setActiveTab] = useState<'brand' | 'finance' | 'taxes' | 'accounting' | 'pipelines' | 'proposal_followup' | 'microsoft_workspace' | 'letterhead' | 'kits' | 'products' | 'product_layout' | 'proposal_templates' | 'user_list'>('brand');
+    const [activeTab, setActiveTab] = useState<'brand' | 'finance' | 'taxes' | 'accounting' | 'pipelines' | 'proposal_followup' | 'microsoft_workspace' | 'letterhead' | 'kits' | 'products' | 'product_layout' | 'saas_defaults' | 'proposal_templates' | 'user_list'>('brand');
     const { activeTenant, activeTenantId, memberships, tenantMembers, refreshTenantMembers, createPlatformUser, updateTenantUser, removeUserFromTenant, updateTenantBranding, uploadTenantLogo, uploadTenantBrandingAsset, isPlatformSuperAdmin } = useTenant();
     const [brandingSaving, setBrandingSaving] = useState(false);
     const [assetUploading, setAssetUploading] = useState<'logo' | 'favicon' | null>(null);
@@ -132,14 +132,18 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
     const selectedFollowUpTemplate = proposalSendAutomation.templates.find(template => template.id === selectedFollowUpTemplateId)
         || proposalSendAutomation.templates.find(template => template.id === proposalSendAutomation.defaultTemplateId)
         || proposalSendAutomation.templates[0];
-    const enabledPricingModules = getEnabledPricingModules(activeTenant?.enabledModules || ['SERVICES_COMPLEX', 'PRODUCT_SALES']);
+    const tenantEnabledModules = activeTenant?.enabledModules || [];
+    const enabledPricingModules = getEnabledPricingModules(tenantEnabledModules);
+    const enabledSettingsSections = getEnabledPricingSettingsSections(tenantEnabledModules);
     const hasServicesPricing = enabledPricingModules.includes('SERVICES_COMPLEX');
     const hasProductSalesPricing = enabledPricingModules.includes('PRODUCT_SALES');
     const hasSaasPricing = enabledPricingModules.includes('SAAS_SUBSCRIPTION');
     const hasIotPricing = enabledPricingModules.includes('IOT_SUBSCRIPTION');
     const hasProductConfigurator = hasProductSalesPricing || hasIotPricing;
+    const hasProductsSettings = hasProductConfigurator || hasSaasPricing;
+    const hasMarginFinance = hasServicesPricing || hasProductConfigurator;
     const pipelineOptions = useMemo(
-        () => getSalesPipelineOptions(activeTenant?.enabledModules || ['SERVICES_COMPLEX', 'PRODUCT_SALES']),
+        () => getSalesPipelineOptions(tenantEnabledModules),
         [activeTenant?.enabledModules?.join('|')]
     );
     const selectedPipelineOption = pipelineOptions.find(option => option.key === selectedPipelineKey) || pipelineOptions[0];
@@ -189,11 +193,103 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
 
     // Wrapper to match Taxes component signature
     const updateGlobalData = (newData: Partial<ProposalData>) => {
-        setGlobalConfig({ ...globalConfig, ...newData });
+        const pricingModules = {
+            ...(globalConfig.pricingModules || {})
+        };
+        if (newData.taxConfig && hasServicesPricing) {
+            pricingModules.SERVICES_COMPLEX = {
+                ...(pricingModules.SERVICES_COMPLEX || {}),
+                taxConfig: newData.taxConfig
+            };
+        }
+        if (newData.benefitsConfig && hasServicesPricing) {
+            pricingModules.SERVICES_COMPLEX = {
+                ...(pricingModules.SERVICES_COMPLEX || {}),
+                benefitsConfig: newData.benefitsConfig
+            };
+        }
+        if (newData.kitTemplates && hasServicesPricing) {
+            pricingModules.SERVICES_COMPLEX = {
+                ...(pricingModules.SERVICES_COMPLEX || {}),
+                kitTemplates: newData.kitTemplates
+            };
+        }
+        if (newData.accountingConfig && hasServicesPricing) {
+            pricingModules.SERVICES_COMPLEX = {
+                ...(pricingModules.SERVICES_COMPLEX || {}),
+                accountingConfig: newData.accountingConfig
+            };
+        }
+        if (newData.productAccountingConfig && hasProductSalesPricing) {
+            pricingModules.PRODUCT_SALES = {
+                ...(pricingModules.PRODUCT_SALES || {}),
+                productAccountingConfig: newData.productAccountingConfig
+            };
+        }
+        setGlobalConfig({ ...globalConfig, ...newData, pricingModules });
     };
 
     const updateGlobalParam = (field: keyof ProposalData, value: string) => {
         setGlobalConfig({ ...globalConfig, [field]: (parseFloat(value) || 0) / 100 });
+    };
+
+    const saasDefaults = globalConfig.pricingModules?.SAAS_SUBSCRIPTION || {};
+    const updateSaasDefaults = (patch: NonNullable<ProposalData['pricingModules']>['SAAS_SUBSCRIPTION']) => {
+        setGlobalConfig({
+            ...globalConfig,
+            pricingModules: {
+                ...(globalConfig.pricingModules || {}),
+                SAAS_SUBSCRIPTION: {
+                    ...saasDefaults,
+                    ...patch
+                }
+            },
+            saasPlanName: patch?.defaultPlanName ?? globalConfig.saasPlanName,
+            saasUnitPrice: patch?.defaultUnitPrice ?? globalConfig.saasUnitPrice,
+            saasQuantity: patch?.defaultQuantity ?? globalConfig.saasQuantity,
+            saasMonthlyDiscount: patch?.defaultMonthlyDiscount ?? globalConfig.saasMonthlyDiscount,
+            saasSetupFee: patch?.defaultSetupFee ?? globalConfig.saasSetupFee,
+            saasContractMonths: patch?.defaultContractMonths ?? globalConfig.saasContractMonths,
+            saasNotes: patch?.notesTemplate ?? globalConfig.saasNotes
+        });
+    };
+
+    const updateProductCatalog = (productCatalog: NonNullable<ProposalData['productCatalog']>) => {
+        setGlobalConfig({
+            ...globalConfig,
+            productCatalog,
+            pricingModules: {
+                ...(globalConfig.pricingModules || {}),
+                PRODUCT_SALES: {
+                    ...(globalConfig.pricingModules?.PRODUCT_SALES || {}),
+                    productCatalog
+                },
+                IOT_SUBSCRIPTION: {
+                    ...(globalConfig.pricingModules?.IOT_SUBSCRIPTION || {}),
+                    productCatalog
+                }
+            }
+        });
+    };
+
+    const updateProductVisualConfig = (
+        letterheadPatch: Partial<NonNullable<ProposalData['letterheadConfig']>>,
+        productPatch: Partial<NonNullable<ProposalData['pricingModules']>['PRODUCT_SALES']>
+    ) => {
+        setGlobalConfig({
+            ...globalConfig,
+            letterheadConfig: {
+                ...(globalConfig.letterheadConfig || {}),
+                ...letterheadPatch
+            },
+            pricingModules: {
+                ...(globalConfig.pricingModules || {}),
+                PRODUCT_SALES: {
+                    ...(globalConfig.pricingModules?.PRODUCT_SALES || {}),
+                    ...productPatch
+                }
+            }
+        });
     };
 
 
@@ -209,8 +305,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                 [field]: value
             }
         };
-        setGlobalConfig({
-            ...globalConfig,
+        updateGlobalData({
             [isProduct ? 'productAccountingConfig' : 'accountingConfig']: newConfig
         });
     };
@@ -561,7 +656,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
             setMainGroup('gerais');
             setActiveTab('finance');
         }
-        if (mainGroup === 'produtos' && !hasProductConfigurator) {
+        if (mainGroup === 'produtos' && !hasProductsSettings) {
             setMainGroup('gerais');
             setActiveTab('finance');
         }
@@ -569,7 +664,13 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
             setActiveTab('finance');
         }
         if ((activeTab === 'products' || activeTab === 'product_layout') && !hasProductConfigurator) {
+            setActiveTab(hasSaasPricing ? 'saas_defaults' : 'finance');
+        }
+        if (activeTab === 'saas_defaults' && !hasSaasPricing) {
             setActiveTab('finance');
+        }
+        if (activeTab === 'accounting' && !hasServicesPricing && !hasProductConfigurator) {
+            setActiveTab('taxes');
         }
         if (activeTab === 'proposal_templates' && activeProposalTemplateKinds.length > 0 && !activeProposalTemplateKinds.includes(selectedTemplateKind)) {
             setSelectedTemplateKind(activeProposalTemplateKinds[0]);
@@ -581,7 +682,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
             setMainGroup('gerais');
             setActiveTab('finance');
         }
-    }, [activeTab, mainGroup, hasServicesPricing, hasProductConfigurator, selectedTemplateKind, activeProposalTemplateKinds.join('|'), pipelineOptions.length, selectedFollowUpTemplate?.id, selectedFollowUpTemplateId]);
+    }, [activeTab, mainGroup, hasServicesPricing, hasProductConfigurator, hasProductsSettings, hasSaasPricing, selectedTemplateKind, activeProposalTemplateKinds.join('|'), pipelineOptions.length, selectedFollowUpTemplate?.id, selectedFollowUpTemplateId]);
 
     useEffect(() => {
         if (pipelineOptions.length === 0) {
@@ -942,12 +1043,12 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                 Serviços
                             </button>
                             )}
-                            {hasProductConfigurator && (
+                            {hasProductsSettings && (
                             <button
-                                onClick={() => { setMainGroup('produtos'); setActiveTab('products'); }}
+                                onClick={() => { setMainGroup('produtos'); setActiveTab(hasProductConfigurator ? 'products' : 'saas_defaults'); }}
                                 className={topTabClass(mainGroup === 'produtos', 'secondary')}
                             >
-                                Produtos
+                                Produtos / SaaS
                             </button>
                             )}
                             <button
@@ -977,7 +1078,9 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                         <>
                             <button onClick={() => setActiveTab('finance')} className={subTabClass(activeTab === 'finance')}>Parâmetros Financeiros</button>
                             <button onClick={() => setActiveTab('taxes')} className={subTabClass(activeTab === 'taxes')}>Impostos & Encargos</button>
-                            <button onClick={() => setActiveTab('accounting')} className={subTabClass(activeTab === 'accounting')}>Plano de Contas</button>
+                            {(hasServicesPricing || hasProductConfigurator) && (
+                                <button onClick={() => setActiveTab('accounting')} className={subTabClass(activeTab === 'accounting')}>Plano de Contas</button>
+                            )}
                         </>
                     )}
                     {mainGroup === 'crm' && (
@@ -992,10 +1095,17 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                             <button onClick={() => setActiveTab('kits')} className={subTabClass(activeTab === 'kits')}>Kits & Recursos</button>
                         </>
                     )}
-                    {mainGroup === 'produtos' && hasProductConfigurator && (
+                    {mainGroup === 'produtos' && hasProductsSettings && (
                         <>
-                            <button onClick={() => setActiveTab('products')} className={subTabClass(activeTab === 'products', 'secondary')}>Catálogo de Itens</button>
-                            <button onClick={() => setActiveTab('product_layout')} className={subTabClass(activeTab === 'product_layout', 'secondary')}>Layout do Orçamento</button>
+                            {hasProductConfigurator && (
+                                <>
+                                    <button onClick={() => setActiveTab('products')} className={subTabClass(activeTab === 'products', 'secondary')}>Catálogo de Itens</button>
+                                    <button onClick={() => setActiveTab('product_layout')} className={subTabClass(activeTab === 'product_layout', 'secondary')}>Layout do Orçamento</button>
+                                </>
+                            )}
+                            {hasSaasPricing && (
+                                <button onClick={() => setActiveTab('saas_defaults')} className={subTabClass(activeTab === 'saas_defaults', 'secondary')}>Assinatura SaaS</button>
+                            )}
                         </>
                     )}
                     {mainGroup === 'marca' && (
@@ -1292,8 +1402,15 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                             Eles podem ser ajustados individualmente dentro de cada projeto, mas aqui você define a política do tenant.
                         </p>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {!hasMarginFinance && (
+                            <div className="mb-6 rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] p-4 text-sm font-semibold text-slate-500 dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-400">
+                                Este tenant esta em modelo SaaS/assinatura sem margem baseada em custo. Defaults comerciais ficam em Produtos / SaaS.
+                            </div>
+                        )}
+
+                        <div className={`grid grid-cols-1 gap-8 ${hasMarginFinance ? 'md:grid-cols-3' : 'md:grid-cols-1'}`}>
                             {/* Contingency */}
+                            {hasMarginFinance && (
                             <div className="bg-orange-50 dark:bg-orange-900/10 p-6 rounded-lg border border-orange-100 dark:border-orange-800/50 relative group transition-colors">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="p-2 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] text-orange-600 dark:text-orange-400 rounded-lg shadow-sm transition-colors"><ShieldAlert size={20} /></div>
@@ -1316,6 +1433,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 dark:text-slate-500 transition-colors">%</div>
                                 </div>
                             </div>
+                            )}
 
                             {/* Financial Cost */}
                             <div className="bg-[var(--tenant-secondary-soft)] dark:bg-[var(--tenant-secondary-soft)] p-6 rounded-lg border border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)] relative group transition-colors">
@@ -1342,7 +1460,8 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                             </div>
 
                             {/* Markup Target */}
-                            <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-lg border border-emerald-100 dark:border-emerald-800/50 relative group transition-colors">
+                            {hasMarginFinance && (
+                                <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-lg border border-emerald-100 dark:border-emerald-800/50 relative group transition-colors">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="p-2 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] text-emerald-600 dark:text-emerald-400 rounded-lg shadow-sm transition-colors"><TrendingUp size={20} /></div>
                                     <div>
@@ -1364,6 +1483,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 dark:text-slate-500 transition-colors">%</div>
                                 </div>
                             </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1902,8 +2022,8 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                     <Taxes
                         data={globalConfig}
                         updateData={updateGlobalData}
-                        showServiceCharges={hasServicesPricing}
-                        showProductTaxes={hasProductConfigurator}
+                        showServiceCharges={enabledSettingsSections.has('SERVICE_CHARGES')}
+                        showProductTaxes={enabledSettingsSections.has('PRODUCT_TAXES')}
                     />
                 </div>
             ) : activeTab === 'kits' && hasServicesPricing ? (
@@ -2156,10 +2276,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     <LogoUploader
                                         label="Logo p/ Produtos"
                                         currentUrl={globalConfig.letterheadConfig?.productLogoUrl}
-                                        onUpload={(url) => setGlobalConfig({
-                                            ...globalConfig,
-                                            letterheadConfig: { ...globalConfig.letterheadConfig!, productLogoUrl: url }
-                                        })}
+                                        onUpload={(url) => updateProductVisualConfig({ productLogoUrl: url }, { productLogoUrl: url })}
                                         tip="Logo exclusivo para o catálogo de equipamentos."
                                     />
                                 </div>
@@ -2328,6 +2445,101 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                 </div>
             ) : null}
 
+            {activeTab === 'saas_defaults' && hasSaasPricing && (
+                <div className="mx-auto max-w-5xl space-y-6 pb-20">
+                    <div className="rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-panel)] p-6 shadow-sm dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-panel-dark)]">
+                        <div className="mb-5 flex items-start justify-between gap-4">
+                            <div>
+                                <h2 className="flex items-center gap-2 text-xl font-black text-slate-800 dark:text-slate-100">
+                                    <Activity className="text-[var(--tenant-secondary)]" size={22} />
+                                    Defaults de Assinatura SaaS
+                                </h2>
+                                <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+                                    Modelo comercial por receita recorrente. Nao usa custo de mao de obra, BDI ou encargos sociais.
+                                </p>
+                            </div>
+                            <span className="rounded-md border border-[var(--tenant-secondary-border)] bg-[var(--tenant-secondary-soft)] px-3 py-1.5 text-[10px] font-black uppercase text-[var(--tenant-secondary)]">
+                                SaaS ativo
+                            </span>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <label className="space-y-2 md:col-span-2">
+                                <span className="text-xs font-black uppercase text-slate-500">Nome do plano padrao</span>
+                                <input
+                                    value={saasDefaults.defaultPlanName ?? globalConfig.saasPlanName ?? 'Plano Professional'}
+                                    onChange={event => updateSaasDefaults({ defaultPlanName: event.target.value })}
+                                    className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100"
+                                />
+                            </label>
+                            <label className="space-y-2">
+                                <span className="text-xs font-black uppercase text-slate-500">Contrato (meses)</span>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={saasDefaults.defaultContractMonths ?? globalConfig.saasContractMonths ?? 12}
+                                    onChange={event => updateSaasDefaults({ defaultContractMonths: Number(event.target.value) || 12 })}
+                                    className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100"
+                                />
+                            </label>
+                            <label className="space-y-2">
+                                <span className="text-xs font-black uppercase text-slate-500">Preco unitario mensal</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={saasDefaults.defaultUnitPrice ?? globalConfig.saasUnitPrice ?? 0}
+                                    onChange={event => updateSaasDefaults({ defaultUnitPrice: Number(event.target.value) || 0 })}
+                                    className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100"
+                                />
+                            </label>
+                            <label className="space-y-2">
+                                <span className="text-xs font-black uppercase text-slate-500">Quantidade/licencas</span>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={saasDefaults.defaultQuantity ?? globalConfig.saasQuantity ?? 1}
+                                    onChange={event => updateSaasDefaults({ defaultQuantity: Number(event.target.value) || 1 })}
+                                    className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100"
+                                />
+                            </label>
+                            <label className="space-y-2">
+                                <span className="text-xs font-black uppercase text-slate-500">Setup</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={saasDefaults.defaultSetupFee ?? globalConfig.saasSetupFee ?? 0}
+                                    onChange={event => updateSaasDefaults({ defaultSetupFee: Number(event.target.value) || 0 })}
+                                    className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100"
+                                />
+                            </label>
+                            <label className="space-y-2">
+                                <span className="text-xs font-black uppercase text-slate-500">Desconto mensal (%)</span>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step="0.01"
+                                    value={((saasDefaults.defaultMonthlyDiscount ?? globalConfig.saasMonthlyDiscount ?? 0) * 100).toFixed(2)}
+                                    onChange={event => updateSaasDefaults({ defaultMonthlyDiscount: (Number(event.target.value) || 0) / 100 })}
+                                    className="w-full rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100"
+                                />
+                            </label>
+                            <label className="space-y-2 md:col-span-3">
+                                <span className="text-xs font-black uppercase text-slate-500">Notas comerciais padrao</span>
+                                <textarea
+                                    rows={4}
+                                    value={saasDefaults.notesTemplate ?? globalConfig.saasNotes ?? ''}
+                                    onChange={event => updateSaasDefaults({ notesTemplate: event.target.value })}
+                                    className="w-full resize-y rounded-md border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-[var(--tenant-primary-soft)] dark:border-[var(--tenant-border-dark)] dark:bg-[var(--tenant-control-dark)] dark:text-slate-100"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/*ABA PRODUTOS / CATALOGO */}
             {activeTab === 'products' && hasProductConfigurator && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-5xl mx-auto pb-20">
@@ -2350,7 +2562,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     description: '',
                                     imageUrl: ''
                                 };
-                                setGlobalConfig({ ...globalConfig, productCatalog: [...(globalConfig.productCatalog || []), newProduct] });
+                                updateProductCatalog([...(globalConfig.productCatalog || []), newProduct]);
                             }}
                             className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-200 dark:shadow-none"
                         >
@@ -2369,7 +2581,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                                 value={product.sku || ''}
                                                 onChange={(e) => {
                                                     const updated = globalConfig.productCatalog?.map(p => p.id === product.id ? { ...p, sku: e.target.value } : p);
-                                                    setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                    updateProductCatalog(updated || []);
                                                 }}
                                                 placeholder="SKU-000"
                                                 className="text-[10px] font-mono font-bold bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-500 px-2 py-0.5 rounded border-none focus:ring-1 focus:ring-emerald-500 w-24"
@@ -2379,7 +2591,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                                 value={product.ncm || ''}
                                                 onChange={(e) => {
                                                     const updated = globalConfig.productCatalog?.map(p => p.id === product.id ? { ...p, ncm: e.target.value } : p);
-                                                    setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                    updateProductCatalog(updated || []);
                                                 }}
                                                 placeholder="NCM"
                                                 className="text-[10px] font-mono font-bold bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] text-slate-500 px-2 py-0.5 rounded border-none focus:ring-1 focus:ring-emerald-500 w-20"
@@ -2389,7 +2601,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                                 value={product.category}
                                                 onChange={(e) => {
                                                     const updated = globalConfig.productCatalog?.map(p => p.id === product.id ? { ...p, category: e.target.value as any } : p);
-                                                    setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                    updateProductCatalog(updated || []);
                                                 }}
                                                 className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded border-none focus:ring-0"
                                             />
@@ -2399,7 +2611,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                             value={product.name}
                                             onChange={(e) => {
                                                 const updated = globalConfig.productCatalog?.map(p => p.id === product.id ? { ...p, name: e.target.value } : p);
-                                                setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                updateProductCatalog(updated || []);
                                             }}
                                             className="font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-0 text-lg w-full mb-2"
                                             placeholder="Nome do Produto"
@@ -2412,7 +2624,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                                 value={product.imageUrl || ''}
                                                 onChange={(e) => {
                                                     const updated = globalConfig.productCatalog?.map(p => p.id === product.id ? { ...p, imageUrl: e.target.value } : p);
-                                                    setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                    updateProductCatalog(updated || []);
                                                 }}
                                                 placeholder="https://..."
                                                 className="text-[10px] text-slate-400 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded px-2 py-1 focus:ring-1 focus:ring-emerald-500 outline-none w-full"
@@ -2430,7 +2642,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                         <button
                                             onClick={() => {
                                                 const updated = globalConfig.productCatalog?.filter(p => p.id !== product.id);
-                                                setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                updateProductCatalog(updated || []);
                                             }}
                                             className="text-slate-300 hover:text-red-500 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                                         >
@@ -2449,7 +2661,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                                 value={product.costPrice}
                                                 onChange={(e) => {
                                                     const updated = globalConfig.productCatalog?.map(p => p.id === product.id ? { ...p, costPrice: parseFloat(e.target.value) || 0 } : p);
-                                                    setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                    updateProductCatalog(updated || []);
                                                 }}
                                                 className="w-full pl-8 pr-2 py-1.5 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded text-sm font-black text-slate-700 dark:text-slate-200"
                                             />
@@ -2463,7 +2675,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                                 value={product.standardMargin * 100}
                                                 onChange={(e) => {
                                                     const updated = globalConfig.productCatalog?.map(p => p.id === product.id ? { ...p, standardMargin: (parseFloat(e.target.value) || 0) / 100 } : p);
-                                                    setGlobalConfig({ ...globalConfig, productCatalog: updated });
+                                                    updateProductCatalog(updated || []);
                                                 }}
                                                 className="w-full pr-6 pl-2 py-1.5 bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded text-sm font-black text-emerald-600 dark:text-emerald-400"
                                             />
@@ -2492,19 +2704,13 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                 <LogoUploader
                                     label="Capa de Produtos (Cabeçalho)"
                                     currentUrl={globalConfig.letterheadConfig?.productHeaderUrl}
-                                    onUpload={(url) => setGlobalConfig({
-                                        ...globalConfig,
-                                        letterheadConfig: { ...globalConfig.letterheadConfig!, productHeaderUrl: url }
-                                    })}
+                                    onUpload={(url) => updateProductVisualConfig({ productHeaderUrl: url }, { productHeaderUrl: url })}
                                     tip="Imagem A4 (2480x350px) exclusiva para propostas de venda de produtos."
                                 />
                                 <LogoUploader
                                     label="Rodapé de Produtos"
                                     currentUrl={globalConfig.letterheadConfig?.productFooterUrl}
-                                    onUpload={(url) => setGlobalConfig({
-                                        ...globalConfig,
-                                        letterheadConfig: { ...globalConfig.letterheadConfig!, productFooterUrl: url }
-                                    })}
+                                    onUpload={(url) => updateProductVisualConfig({ productFooterUrl: url }, { productFooterUrl: url })}
                                     tip="Imagem A4 (2480x200px) exclusiva para propostas de venda de produtos."
                                 />
                             </div>
@@ -2515,10 +2721,7 @@ const GlobalSettings: React.FC<GlobalSettingsProps> = ({ globalConfig, setGlobal
                                     className="w-full h-full min-h-[180px] px-4 py-3 bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-lg text-xs text-slate-600 dark:text-slate-300 resize-none outline-none focus:ring-2 focus:ring-emerald-500/50"
                                     placeholder="Informações Gerais - Os NCMs que fazem parte..."
                                     value={globalConfig.letterheadConfig?.productGeneralTerms || ''}
-                                    onChange={(e) => setGlobalConfig({
-                                        ...globalConfig,
-                                        letterheadConfig: { ...globalConfig.letterheadConfig!, productGeneralTerms: e.target.value }
-                                    })}
+                                    onChange={(e) => updateProductVisualConfig({ productGeneralTerms: e.target.value }, { productGeneralTerms: e.target.value })}
                                 ></textarea>
                                 <p className="text-[9px] text-slate-400 italic">Texto impresso abaixo da tabela de impostos do orçamento.</p>
                             </div>

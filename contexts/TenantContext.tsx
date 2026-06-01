@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { AppRole, BusinessUnitAccess, PlatformRole, Tenant, TenantBranding, TenantMember, TenantMembership, TenantModule } from '../types';
 import { classifySupabaseError, getPersistenceErrorMessage, runSupabaseRequest, runSupabaseResponse, withAbortSignal } from '../services/supabaseRequest';
 import { auditRepository } from '../services/auditRepository';
+import { normalizeTenantModules, resolveDefaultBusinessUnitForModules } from '../utils/pricingModules';
 
 export const PLATFORM_SUPERADMIN_EMAIL = 'alexandre.abussafi@gmail.com';
 export const LUBRIM_TENANT_ID = 'tenant-lubrim';
@@ -129,8 +130,11 @@ const toTenant = (row: any): Tenant => ({
   name: row.name,
   slug: row.slug,
   status: row.status || 'ACTIVE',
-  enabledModules: row.enabled_modules || row.enabledModules || ['CRM_CORE'],
-  defaultBusinessUnit: row.default_business_unit || row.defaultBusinessUnit || 'SERVICES',
+  enabledModules: normalizeTenantModules(row.enabled_modules || row.enabledModules || ['CRM_CORE']),
+  defaultBusinessUnit: resolveDefaultBusinessUnitForModules(
+    row.enabled_modules || row.enabledModules || ['CRM_CORE'],
+    row.default_business_unit || row.defaultBusinessUnit || 'SERVICES'
+  ),
   branding: row.branding || {}
 });
 
@@ -303,8 +307,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         name: tenant.name,
         slug: tenant.slug,
         status: tenant.status || 'ACTIVE',
-        enabledModules: tenant.enabledModules || ['CRM_CORE'],
-        defaultBusinessUnit: tenant.defaultBusinessUnit || 'SERVICES',
+        enabledModules: normalizeTenantModules(tenant.enabledModules || ['CRM_CORE']),
+        defaultBusinessUnit: resolveDefaultBusinessUnitForModules(tenant.enabledModules || ['CRM_CORE'], tenant.defaultBusinessUnit || 'SERVICES'),
         branding: tenant.branding || {}
       };
       const nextTenants = tenants.some(item => item.id === localTenant.id)
@@ -327,8 +331,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       name: tenant.name,
       slug: tenant.slug,
       status: tenant.status || 'ACTIVE',
-      enabled_modules: tenant.enabledModules || ['CRM_CORE'],
-      default_business_unit: tenant.defaultBusinessUnit || 'SERVICES',
+      enabled_modules: normalizeTenantModules(tenant.enabledModules || ['CRM_CORE']),
+      default_business_unit: resolveDefaultBusinessUnitForModules(tenant.enabledModules || ['CRM_CORE'], tenant.defaultBusinessUnit || 'SERVICES'),
       branding: tenant.branding || {}
     };
     await runSupabaseResponse(
@@ -388,15 +392,18 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateTenantModules = async (tenantId: string, enabledModules: TenantModule[]) => {
+    const normalizedModules = normalizeTenantModules(enabledModules);
+    const currentTenant = tenants.find(tenant => tenant.id === tenantId);
+    const nextDefaultBusinessUnit = resolveDefaultBusinessUnitForModules(normalizedModules, currentTenant?.defaultBusinessUnit || 'SERVICES');
     if (usingLocalFallback) {
-      const nextTenants = tenants.map(tenant => tenant.id === tenantId ? { ...tenant, enabledModules } : tenant);
+      const nextTenants = tenants.map(tenant => tenant.id === tenantId ? { ...tenant, enabledModules: normalizedModules, defaultBusinessUnit: nextDefaultBusinessUnit } : tenant);
       saveLocalTenants(nextTenants);
       setTenants(nextTenants);
       return;
     }
 
     await runSupabaseResponse(
-      signal => withAbortSignal(supabase.from('tenants').update({ enabled_modules: enabledModules }).eq('id', tenantId), signal),
+      signal => withAbortSignal(supabase.from('tenants').update({ enabled_modules: normalizedModules, default_business_unit: nextDefaultBusinessUnit }).eq('id', tenantId), signal),
       { label: 'Atualizar modulos do tenant', resource: 'tenants', tenantId, timeoutMs: 10000 }
     );
     await refreshTenants();
