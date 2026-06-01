@@ -334,7 +334,7 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                             <div className="flex mb-2 items-center justify-between">
                                 <div className="text-right">
                                     <span className="text-xs font-bold inline-block py-1 px-2 uppercase rounded text-emerald-700 bg-emerald-50 border border-emerald-100">
-                                        (-) Custos Diretos (MO + Despesas)
+                                        (-) Custos Diretos (MO + PLR + Despesas)
                                     </span>
                                 </div>
                                 <div className="text-right">
@@ -734,6 +734,10 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                 {projections.timeline.map(m => <td key={m.monthIndex} className="px-3 py-3 text-red-400">({formatCurrency(m.cashFlow.outflowLabor)})</td>)}
                             </tr>
                             <tr className="bg-[var(--tenant-control)]">
+                                <td className="px-4 py-3 text-left font-bold text-slate-700 sticky left-0 bg-[var(--tenant-control)] z-10 border-r border-[var(--tenant-border)]">(-) Pagto PLR</td>
+                                {projections.timeline.map(m => <td key={m.monthIndex} className="px-3 py-3 text-red-400">({formatCurrency(m.cashFlow.outflowProfitSharing)})</td>)}
+                            </tr>
+                            <tr className="bg-[var(--tenant-control)]">
                                 <td className="px-4 py-3 text-left font-bold text-slate-700 sticky left-0 bg-[var(--tenant-control)] z-10 border-r border-[var(--tenant-border)]">(-) Pagto Impostos</td>
                                 {projections.timeline.map(m => <td key={m.monthIndex} className="px-3 py-3 text-red-400">({formatCurrency(m.cashFlow.outflowTaxes)})</td>)}
                             </tr>
@@ -813,6 +817,11 @@ const Dashboard: React.FC<DashboardProps> = ({ data, setActiveTab, initialSnapsh
                                     <td className="px-4 py-2 text-left font-mono text-slate-500 sticky left-0 bg-[var(--tenant-panel)] z-10 border-r border-[var(--tenant-border)]">{accMap.directLaborAccount?.code || '4.1.01'}</td>
                                     <td className="px-4 py-2 text-left text-slate-600 sticky left-24 bg-[var(--tenant-panel)] z-10 border-r border-[var(--tenant-border)]">(-) Mão de Obra</td>
                                     {projections.timeline.map(m => <td key={m.monthIndex} className="px-3 py-2 text-red-500">({formatCurrency(m.dre.directLabor)})</td>)}
+                                </tr>
+                                <tr>
+                                    <td className="px-4 py-2 text-left font-mono text-slate-500 sticky left-0 bg-[var(--tenant-panel)] z-10 border-r border-[var(--tenant-border)]">4.1.02</td>
+                                    <td className="px-4 py-2 text-left text-slate-600 sticky left-24 bg-[var(--tenant-panel)] z-10 border-r border-[var(--tenant-border)]">(-) PLR</td>
+                                    {projections.timeline.map(m => <td key={m.monthIndex} className="px-3 py-2 text-red-500">({formatCurrency(m.dre.profitSharing)})</td>)}
                                 </tr>
                                 <tr>
                                     <td className="px-4 py-2 text-left font-mono text-slate-500 sticky left-0 bg-[var(--tenant-panel)] z-10 border-r border-[var(--tenant-border)]">{accMap.operationalCostsAccount?.code || '4.2.01'}</td>

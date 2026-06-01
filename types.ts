@@ -166,6 +166,13 @@ export interface BenefitsConfig {
   hasCafeteria: boolean; // Zera VR
 }
 
+export interface ProfitSharingInstallment {
+  id: string;
+  competenceMonth: number; // 1-12, calendar month
+  amount: number; // Total installment amount for the selected competence
+  active: boolean;
+}
+
 // Novos Tipos para Segurança e Suporte
 export interface SafetyItem {
   id: string;
@@ -1055,6 +1062,8 @@ export interface ProposalData {
   supportCosts: SupportItem[]; // Overhead, Visitas de Gestão
   benefitsConfig?: BenefitsConfig; // NOVO: Configuração Global de Benefícios
 
+  profitSharingInstallments?: ProfitSharingInstallment[]; // PLR por competencia calendario
+
   // SPOT SPECIFIC (NOVO)
   spotServiceIds?: string[]; // IDs dos serviços selecionados
   spotResources?: SpotResource[];
@@ -1108,6 +1117,9 @@ export interface CalculatedFinancials {
   totalSafetyCost: number; // Treinamentos e Exames
   totalSupportCost: number; // Overhead de Gestão
   totalDepreciationCost: number; // Sum of monthly depreciation for CAPEX
+
+  totalProfitSharingCost: number; // PLR total previsto na vigencia
+  monthlyProfitSharingCost: number; // PLR medio mensal usado na formacao do preco
 
   totalDirectCost: number; // Soma de tudo acima
 

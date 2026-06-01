@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ProposalData, ChargeComponent, TaxItem } from '../types';
 import { calculateFinancials, formatCurrency, formatPercent } from '../utils/pricingEngine';
 import { FileText, Percent, TrendingUp, DollarSign, Calculator, ChevronDown, CheckSquare, Square, Info, AlertTriangle, Package } from 'lucide-react';
+import PercentInput from '../components/PercentInput';
 
 interface TaxesProps {
     data: ProposalData;
@@ -157,7 +158,7 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData, showServiceCharges = tr
                                         <span className={`text-sm font-medium ${tax.active ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-600 line-through'}`}>{tax.name}</span>
                                     </div>
                                     <div className="flex items-center bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-md w-24 shadow-sm transition-colors">
-                                        <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('sales', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
+                                        <PercentInput value={tax.rate} onChange={(value) => updateTaxRate('sales', tax.id, value)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
                                         <span className="pr-2 text-[10px] font-bold text-slate-400 select-none transition-colors">%</span>
                                     </div>
                                 </div>
@@ -187,12 +188,9 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData, showServiceCharges = tr
                                         <div key={state} className="flex items-center justify-between">
                                             <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{state}</span>
                                             <div className="flex items-center bg-[var(--tenant-control)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-md w-24 shadow-sm transition-colors">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={(rate * 100).toFixed(2)}
-                                                    onChange={(e) => {
-                                                        const newVal = (parseFloat(e.target.value) || 0) / 100;
+                                                <PercentInput
+                                                    value={rate}
+                                                    onChange={(newVal) => {
                                                         const currentRates = data.taxConfig.icmsStateRates || {
                                                             SP: 0.18, RJ: 0.12, MG: 0.12, PR: 0.12, SC: 0.12, RS: 0.12, OUTROS: 0.07
                                                         };
@@ -243,7 +241,7 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData, showServiceCharges = tr
                                         <span className={`text-sm font-medium ${tax.active ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-600 line-through'}`}>{tax.name}</span>
                                     </div>
                                     <div className="flex items-center bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-md w-24 shadow-sm transition-colors">
-                                        <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('profit', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
+                                        <PercentInput value={tax.rate} onChange={(value) => updateTaxRate('profit', tax.id, value)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
                                         <span className="pr-2 text-[10px] font-bold text-slate-400 select-none transition-colors">%</span>
                                     </div>
                                 </div>
@@ -301,7 +299,7 @@ const Taxes: React.FC<TaxesProps> = ({ data, updateData, showServiceCharges = tr
                                                         <input type="text" value={item.name} onChange={(e) => updateComponent(group.key, item.id, 'name', e.target.value)} className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 bg-transparent border-none focus:ring-0 p-0 placeholder-slate-400 dark:placeholder-slate-500 transition-colors" />
                                                         <div className="flex items-center gap-3 transition-colors">
                                                             <div className="relative flex items-center bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-border)] dark:border-[var(--tenant-border-dark)] rounded-md shadow-sm w-24 transition-colors">
-                                                                <input type="number" step="0.01" value={(item.value * 100).toFixed(2)} onChange={(e) => updateComponent(group.key, item.id, 'value', (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
+                                                                <PercentInput value={item.value} onChange={(value) => updateComponent(group.key, item.id, 'value', value)} className="w-full text-right text-sm font-bold text-slate-800 dark:text-slate-100 bg-transparent border-none focus:ring-0 p-1.5 outline-none transition-colors" />
                                                                 <span className="pr-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 select-none transition-colors">%</span>
                                                             </div>
                                                         </div>

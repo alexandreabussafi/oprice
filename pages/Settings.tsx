@@ -4,6 +4,7 @@ import { ProposalData, ChargeComponent, TaxItem, PricingModel } from '../types';
 import { formatPercent } from '../utils/pricingEngine';
 import { FileText, Percent, TrendingUp, ChevronDown, Plus, Trash2, Info, Settings as SettingsIcon, ShieldAlert, RefreshCw, AlertTriangle, Calculator, CheckSquare, Square, CalendarClock, DollarSign, Calendar, ArrowRightLeft } from 'lucide-react';
 import InfoTooltip from '../components/InfoTooltip';
+import PercentInput from '../components/PercentInput';
 
 interface SettingsProps {
     data: ProposalData;
@@ -30,8 +31,11 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
         setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
     };
 
-    const updateGlobalParam = (field: keyof ProposalData, value: string) => {
-        updateData({ [field]: (parseFloat(value) || 0) / 100 });
+    const updateGlobalParam = (
+        field: 'markup' | 'targetMargin' | 'financialCostRate' | 'contingencyRate',
+        value: number
+    ) => {
+        updateData({ [field]: value } as Partial<ProposalData>);
     };
 
     const updateRegime = (regime: ProposalData['taxConfig']['regime']) => {
@@ -188,11 +192,9 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                                         <Tooltip text="Percentual adicionado sobre a base de custo para gerar o lucro. Ex: Custo 100 + 30% Markup = Lucro 30." />
                                     </label>
                                     <div className="relative group">
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={(data.markup * 100).toFixed(2)}
-                                            onChange={(e) => updateGlobalParam('markup', e.target.value)}
+                                        <PercentInput
+                                            value={data.markup}
+                                            onChange={(value) => updateGlobalParam('markup', value)}
                                             className="w-full pl-4 pr-12 py-3 bg-[var(--tenant-panel)] border border-emerald-200 rounded-lg text-2xl font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                                         />
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">%</div>
@@ -208,11 +210,9 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                                         <Tooltip text="Percentual do preço de venda (numerador) que será lucro. Ex: Preço 100 com 20% Margem = Lucro 20." />
                                     </label>
                                     <div className="relative group">
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={((data.targetMargin || 0) * 100).toFixed(2)}
-                                            onChange={(e) => updateGlobalParam('targetMargin', e.target.value)}
+                                        <PercentInput
+                                            value={data.targetMargin || 0}
+                                            onChange={(value) => updateGlobalParam('targetMargin', value)}
                                             className="w-full pl-4 pr-12 py-3 bg-[var(--tenant-panel)] border border-[var(--tenant-secondary-border)] rounded-lg text-2xl font-bold text-slate-800 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] outline-none"
                                         />
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">%</div>
@@ -241,11 +241,9 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                                 </div>
                             </div>
                             <div className="relative">
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    value={(data.financialCostRate * 100).toFixed(2)}
-                                    onChange={(e) => updateGlobalParam('financialCostRate', e.target.value)}
+                                <PercentInput
+                                    value={data.financialCostRate}
+                                    onChange={(value) => updateGlobalParam('financialCostRate', value)}
                                     className="w-full pl-4 pr-12 py-3 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg text-xl font-bold text-slate-800 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] outline-none"
                                 />
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">%</div>
@@ -264,11 +262,9 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                                 </div>
                             </div>
                             <div className="relative">
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    value={(data.contingencyRate * 100).toFixed(2)}
-                                    onChange={(e) => updateGlobalParam('contingencyRate', e.target.value)}
+                                <PercentInput
+                                    value={data.contingencyRate}
+                                    onChange={(value) => updateGlobalParam('contingencyRate', value)}
                                     className="w-full pl-4 pr-12 py-3 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-lg text-xl font-bold text-slate-800 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                                 />
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">%</div>
@@ -348,7 +344,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                                             <span className={`text-sm font-medium ${tax.active ? 'text-slate-700' : 'text-slate-400 line-through'}`}>{tax.name}</span>
                                         </div>
                                         <div className="flex items-center bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md w-20 px-2">
-                                            <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('sales', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1 outline-none" />
+                                            <PercentInput value={tax.rate} onChange={(value) => updateTaxRate('sales', tax.id, value)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1 outline-none" />
                                             <span className="text-[10px] font-bold text-slate-400">%</span>
                                         </div>
                                     </div>
@@ -380,7 +376,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                                             <span className={`text-sm font-medium ${tax.active ? 'text-slate-700' : 'text-slate-400 line-through'}`}>{tax.name}</span>
                                         </div>
                                         <div className="flex items-center bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md w-20 px-2">
-                                            <input type="number" step="0.01" value={(tax.rate * 100).toFixed(2)} onChange={(e) => updateTaxRate('profit', tax.id, (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1 outline-none" />
+                                            <PercentInput value={tax.rate} onChange={(value) => updateTaxRate('profit', tax.id, value)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1 outline-none" />
                                             <span className="text-[10px] font-bold text-slate-400">%</span>
                                         </div>
                                     </div>
@@ -418,7 +414,7 @@ const Settings: React.FC<SettingsProps> = ({ data, updateData, resetData }) => {
                                                         <div key={item.id} className="flex items-center justify-between p-2 hover:bg-[var(--tenant-control)] rounded-lg group/item">
                                                             <input type="text" value={item.name} onChange={(e) => updateComponent(group.key as any, item.id, 'name', e.target.value)} className="flex-1 text-sm font-medium text-slate-700 bg-transparent border-none focus:ring-0 p-0" />
                                                             <div className="flex items-center gap-3">
-                                                                <div className="relative flex items-center bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md w-24"><input type="number" step="0.01" value={(item.value * 100).toFixed(2)} onChange={(e) => updateComponent(group.key as any, item.id, 'value', (parseFloat(e.target.value) || 0) / 100)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1.5 outline-none" /><span className="pr-2 text-[10px] font-bold text-slate-400">%</span></div>
+                                                                <div className="relative flex items-center bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md w-24"><PercentInput value={item.value} onChange={(value) => updateComponent(group.key as any, item.id, 'value', value)} className="w-full text-right text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-1.5 outline-none" /><span className="pr-2 text-[10px] font-bold text-slate-400">%</span></div>
                                                                 <button onClick={() => removeComponent(group.key as any, item.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100"><Trash2 size={16} /></button>
                                                             </div>
                                                         </div>

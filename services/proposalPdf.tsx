@@ -329,6 +329,8 @@ const getFinancialRows = (proposal: ProposalData) => {
     const financials = calculateFinancials(proposal);
     return [
       ['Receita bruta', formatCurrency(financials.grossRevenue)],
+      ['Mao de obra', formatCurrency(financials.totalLaborCost)],
+      ['PLR mensalizado', formatCurrency(financials.monthlyProfitSharingCost)],
       ['Custo direto', formatCurrency(financials.totalDirectCost)],
       ['Impostos', formatCurrency(financials.salesTaxAmount)],
       ['Margem operacional', `${(financials.operationalMarginPercent * 100).toFixed(1)}%`]
