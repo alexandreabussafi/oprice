@@ -1726,7 +1726,8 @@ function App() {
   const getDefaultStageForPricing = (pricingModule: PricingModuleId, type: ProposalType) =>
     getSalesPipelineForCreation(brandedGlobalConfig, pricingModule, type).defaultStageId;
 
-  const persistProposal = async (proposal: ProposalData) => {
+  const persistProposal = async (proposal: ProposalData, options: { rollbackOnError?: boolean } = {}) => {
+    const shouldRollbackOnError = options.rollbackOnError !== false;
     const previousProposals = tenantProposals;
     const optimistic = { ...proposal, tenantId: resolvedTenantId };
     upsertLocalProposal(resolvedTenantId, optimistic);
@@ -1757,7 +1758,9 @@ function App() {
       }
     } catch (error: any) {
       const message = getCrmSaveErrorMessage(error, 'Erro ao salvar proposta.');
-      replaceTenantProposals(resolvedTenantId, previousProposals);
+      if (shouldRollbackOnError) {
+        replaceTenantProposals(resolvedTenantId, previousProposals);
+      }
       setCrmDataError(message);
       throw new Error(message);
     } finally {
@@ -2197,7 +2200,7 @@ function App() {
       }
       return p;
     }));
-    if (changedProposal && shouldPersist) persistProposal(changedProposal).catch(() => undefined);
+    if (changedProposal && shouldPersist) persistProposal(changedProposal, { rollbackOnError: false }).catch(() => undefined);
   };
 
   const updateCurrentDataDraft = (newData: Partial<ProposalData>) => updateCurrentData(newData, { persist: false });

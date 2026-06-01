@@ -43,6 +43,16 @@ const MONTH_OPTIONS = [
     { value: 12, label: 'Dez' },
 ];
 
+const ROLE_CARD_WIDTH = 256;
+const ROLE_CARD_HEIGHT = 180;
+
+const SIDE_VECTORS: Record<ConnectionSide, { x: number; y: number }> = {
+    top: { x: 0, y: -1 },
+    right: { x: 1, y: 0 },
+    bottom: { x: 0, y: 1 },
+    left: { x: -1, y: 0 }
+};
+
 const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const [viewMode, setViewMode] = useState<'list' | 'grid' | 'organogram'>('list');
 
@@ -119,18 +129,23 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         return getDescendantIds(roles, roleId).includes(parentId);
     };
 
+    const disconnectRole = (role: Role): Role => {
+        const { parentId: _parentId, parentSourceSide: _parentSourceSide, childTargetSide: _childTargetSide, ...rest } = role;
+        return rest;
+    };
+
     const sanitizeRoleHierarchy = (roles: Role[]) => {
         const existingIds = new Set(roles.map(r => r.id));
         const sanitized = roles.map(role => {
             if (!role.parentId || !existingIds.has(role.parentId) || role.parentId === role.id) {
-                return { ...role, parentId: undefined };
+                return disconnectRole(role);
             }
             return role;
         });
 
         return sanitized.map(role => (
             role.parentId && wouldCreateRoleCycle(sanitized, role.id, role.parentId)
-                ? { ...role, parentId: undefined }
+                ? disconnectRole(role)
                 : role
         ));
     };
@@ -144,14 +159,16 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
         const currentRoles = dataRef.current.roles;
         if (wouldCreateRoleCycle(currentRoles, targetId, sourceId)) return false;
+        const sourceSide = connectingSourceSideRef.current;
+        if (!sourceSide || !targetSide) return false;
 
         const updatedRoles = currentRoles.map(role =>
             role.id === targetId
                 ? {
                     ...role,
                     parentId: sourceId,
-                    parentSourceSide: connectingSourceSideRef.current || undefined,
-                    childTargetSide: targetSide || undefined
+                    parentSourceSide: sourceSide,
+                    childTargetSide: targetSide
                 }
                 : role
         );
@@ -169,14 +186,14 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         let keepPendingConnection = false;
         if (sourceId) {
             const dropElement = (e.target instanceof Element ? e.target : document.elementFromPoint(e.clientX, e.clientY));
-            const targetRoleElement = dropElement?.closest<HTMLElement>('[data-role-id]');
             const targetConnectorElement = dropElement?.closest<HTMLElement>('[data-connector-side]');
+            const targetRoleElement = targetConnectorElement?.closest<HTMLElement>('[data-role-id]');
             const targetId = targetRoleElement?.dataset.roleId;
             const targetSide = targetConnectorElement?.dataset.connectorSide as ConnectionSide | undefined;
 
-            if (targetId && targetId !== sourceId) {
+            if (targetConnectorElement && targetId && targetId !== sourceId) {
                 commitRoleConnection(sourceId, targetId, targetSide);
-            } else if (!connectionDragStartedRef.current) {
+            } else if (targetConnectorElement && targetId === sourceId && !connectionDragStartedRef.current) {
                 keepPendingConnection = true;
             }
         }
@@ -326,11 +343,6 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             e.stopPropagation();
             e.preventDefault();
 
-            const sourceId = connectingNodeIdRef.current;
-            if (type === 'role' && sourceId !== id) {
-                commitRoleConnection(sourceId, id, null);
-            }
-
             connectingSourceSideRef.current = null;
             connectionStartPointRef.current = null;
             connectionDragStartedRef.current = false;
@@ -392,8 +404,8 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const getCenterViewCoords = () => {
         if (canvasRef.current) {
             const rect = canvasRef.current.getBoundingClientRect();
-            const x = (rect.width / 2 - pan.x) / scale - 150;
-            const y = (rect.height / 2 - pan.y) / scale - 100;
+            const x = (rect.width / 2 - pan.x) / scale - ROLE_CARD_WIDTH / 2;
+            const y = (rect.height / 2 - pan.y) / scale - ROLE_CARD_HEIGHT / 2;
             return { x, y };
         }
         return { x: 0, y: 0 };
@@ -474,9 +486,9 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             quantity: newQuantity,
             x: (source.x || 0) + 50,
             y: (source.y || 0) + 50,
-            parentId: source.parentId,
-            parentSourceSide: source.parentSourceSide,
-            childTargetSide: source.childTargetSide
+            parentId: source.parentId || undefined,
+            parentSourceSide: source.parentId ? source.parentSourceSide : undefined,
+            childTargetSide: source.parentId ? source.childTargetSide : undefined
         };
         updateRoles([
             ...data.roles.map(role => role.id === roleId ? { ...role, quantity: originalQuantity } : role),
@@ -485,8 +497,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     };
 
     const updateRole = (id: string, field: keyof Role, value: any) => {
+        if (field === 'parentId') {
+            if (value && wouldCreateRoleCycle(data.roles, id, value)) return;
+            const updatedRoles = data.roles.map(r => r.id === id ? (value ? { ...r, parentId: value } : disconnectRole(r)) : r);
+            updateRoles(updatedRoles);
+            return;
+        }
         const updatedRoles = data.roles.map(r => r.id === id ? { ...r, [field]: value } : r);
-        if (field === 'parentId' && wouldCreateRoleCycle(data.roles, id, value)) return;
         updateRoles(updatedRoles);
     };
 
@@ -499,7 +516,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         if (type === 'role') {
             const updatedRoles = data.roles
                 .filter(r => r.id !== id)
-                .map(r => r.parentId === id ? { ...r, parentId: undefined } : r);
+                .map(r => r.parentId === id ? disconnectRole(r) : r);
             updateRoles(updatedRoles);
         }
         if (type === 'section') {
@@ -573,76 +590,58 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         updateRole(id, 'baseSalary', val);
     };
 
-    // --- Smart Path Logic (Dynamic Entry/Exit) ---
+    // --- Anchor Path Logic ---
 
-    const getSmartPath = (parent: Role, child: Role) => {
-        const pW = 256; const pH = 140;
-        const cW = 256; const cH = 140;
+    const getRoleAnchorPoint = (role: Role, side: ConnectionSide) => {
+        const x = role.x || 0;
+        const y = role.y || 0;
+        if (side === 'top') return { x: x + ROLE_CARD_WIDTH / 2, y };
+        if (side === 'right') return { x: x + ROLE_CARD_WIDTH, y: y + ROLE_CARD_HEIGHT / 2 };
+        if (side === 'bottom') return { x: x + ROLE_CARD_WIDTH / 2, y: y + ROLE_CARD_HEIGHT };
+        return { x, y: y + ROLE_CARD_HEIGHT / 2 };
+    };
 
-        const pX = parent.x || 0; const pY = parent.y || 0;
-        const cX = child.x || 0; const cY = child.y || 0;
+    const inferConnectionSides = (parent: Role, child: Role): { sourceSide: ConnectionSide; targetSide: ConnectionSide } => {
+        const parentCenter = {
+            x: (parent.x || 0) + ROLE_CARD_WIDTH / 2,
+            y: (parent.y || 0) + ROLE_CARD_HEIGHT / 2
+        };
+        const childCenter = {
+            x: (child.x || 0) + ROLE_CARD_WIDTH / 2,
+            y: (child.y || 0) + ROLE_CARD_HEIGHT / 2
+        };
+        const dx = childCenter.x - parentCenter.x;
+        const dy = childCenter.y - parentCenter.y;
 
-        // Centers
-        const pCenter = { x: pX + pW / 2, y: pY + pH / 2 };
-        const cCenter = { x: cX + cW / 2, y: cY + cH / 2 };
-
-        // Determine relative position
-        const dx = cCenter.x - pCenter.x;
-        const dy = cCenter.y - pCenter.y;
-
-        let startPoint = { x: 0, y: 0 };
-        let endPoint = { x: 0, y: 0 };
-        let controlPoint1 = { x: 0, y: 0 };
-        let controlPoint2 = { x: 0, y: 0 };
-
-        // SMART EXIT LOGIC (From Parent)
-        // If child is significantly to the right/left vs top/bottom
         if (Math.abs(dx) > Math.abs(dy)) {
-            // Horizontal Dominance
-            if (dx > 0) {
-                // Child is to the Right -> Exit Parent Right
-                startPoint = { x: pX + pW, y: pY + pH / 2 };
-                controlPoint1 = { x: startPoint.x + 50, y: startPoint.y };
-            } else {
-                // Child is to the Left -> Exit Parent Left
-                startPoint = { x: pX, y: pY + pH / 2 };
-                controlPoint1 = { x: startPoint.x - 50, y: startPoint.y };
-            }
-        } else {
-            // Vertical Dominance
-            if (dy > 0) {
-                // Child is Below -> Exit Parent Bottom
-                startPoint = { x: pX + pW / 2, y: pY + pH };
-                controlPoint1 = { x: startPoint.x, y: startPoint.y + 50 };
-            } else {
-                // Child is Above -> Exit Parent Top
-                startPoint = { x: pX + pW / 2, y: pY };
-                controlPoint1 = { x: startPoint.x, y: startPoint.y - 50 };
-            }
+            return dx >= 0
+                ? { sourceSide: 'right', targetSide: 'left' }
+                : { sourceSide: 'left', targetSide: 'right' };
         }
 
-        // SMART ENTRY LOGIC (To Child)
-        // Logic: Enter from the side closest to parent center
-        const angle = Math.atan2(dy, dx); // Radians
-        const degrees = angle * (180 / Math.PI);
+        return dy >= 0
+            ? { sourceSide: 'bottom', targetSide: 'top' }
+            : { sourceSide: 'top', targetSide: 'bottom' };
+    };
 
-        if (degrees >= -45 && degrees <= 45) {
-            // Parent is left of Child (Child is right) -> Enter Left
-            endPoint = { x: cX, y: cY + cH / 2 };
-            controlPoint2 = { x: endPoint.x - 50, y: endPoint.y };
-        } else if (degrees > 45 && degrees < 135) {
-            // Parent is above Child (Child is below) -> Enter Top
-            endPoint = { x: cX + cW / 2, y: cY };
-            controlPoint2 = { x: endPoint.x, y: endPoint.y - 50 };
-        } else if (degrees >= 135 || degrees <= -135) {
-            // Parent is right of Child (Child is left) -> Enter Right
-            endPoint = { x: cX + cW, y: cY + cH / 2 };
-            controlPoint2 = { x: endPoint.x + 50, y: endPoint.y };
-        } else {
-            // Parent is below Child (Child is above) -> Enter Bottom
-            endPoint = { x: cX + cW / 2, y: cY + cH };
-            controlPoint2 = { x: endPoint.x, y: endPoint.y + 50 };
-        }
+    const getConnectionPath = (parent: Role, child: Role) => {
+        const fallback = inferConnectionSides(parent, child);
+        const sourceSide = child.parentSourceSide || fallback.sourceSide;
+        const targetSide = child.childTargetSide || fallback.targetSide;
+        const startPoint = getRoleAnchorPoint(parent, sourceSide);
+        const endPoint = getRoleAnchorPoint(child, targetSide);
+        const distance = Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+        const bend = Math.max(48, Math.min(120, distance / 2.5));
+        const sourceVector = SIDE_VECTORS[sourceSide];
+        const targetVector = SIDE_VECTORS[targetSide];
+        const controlPoint1 = {
+            x: startPoint.x + sourceVector.x * bend,
+            y: startPoint.y + sourceVector.y * bend
+        };
+        const controlPoint2 = {
+            x: endPoint.x + targetVector.x * bend,
+            y: endPoint.y + targetVector.y * bend
+        };
 
         return `M ${startPoint.x} ${startPoint.y} C ${controlPoint1.x} ${controlPoint1.y}, ${controlPoint2.x} ${controlPoint2.y}, ${endPoint.x} ${endPoint.y}`;
     };
@@ -714,15 +713,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
     const fitToView = useCallback(() => {
         if (data.roles.length === 0 || !canvasRef.current) return;
-        const cW = 256;
-        const cH = 140;
         const padding = 80;
         const xs = data.roles.map(r => r.x || 0);
         const ys = data.roles.map(r => r.y || 0);
         const minX = Math.min(...xs) - padding;
         const minY = Math.min(...ys) - padding;
-        const maxX = Math.max(...xs) + cW + padding;
-        const maxY = Math.max(...ys) + cH + padding;
+        const maxX = Math.max(...xs) + ROLE_CARD_WIDTH + padding;
+        const maxY = Math.max(...ys) + ROLE_CARD_HEIGHT + padding;
         const contentW = maxX - minX;
         const contentH = maxY - minY;
         const rect = canvasRef.current.getBoundingClientRect();
@@ -827,9 +824,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const averageSalary = totalHeadcount > 0
         ? roles.reduce((acc, role) => acc + (role.baseSalary * role.quantity), 0) / totalHeadcount
         : 0;
+    const pendingConnectionSource = connectingNodeId ? roles.find(role => role.id === connectingNodeId) : undefined;
+    const pendingConnectionStart = pendingConnectionSource
+        ? getRoleAnchorPoint(pendingConnectionSource, connectingSourceSideRef.current || 'right')
+        : null;
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-[var(--tenant-control)] text-[var(--tenant-text)] dark:bg-[var(--tenant-bg-dark)] dark:text-[var(--tenant-text-dark)]">
+        <div className="flex min-h-[100dvh] flex-col overflow-hidden bg-[var(--tenant-control)] text-[var(--tenant-text)] dark:bg-[var(--tenant-bg-dark)] dark:text-[var(--tenant-text-dark)]">
             {/* Header Toolbar */}
             <div className="p-6 pb-2 shrink-0 z-20 relative bg-[var(--tenant-panel)] border-b border-[var(--tenant-border)] dark:bg-[var(--tenant-panel-dark)] dark:border-[var(--tenant-border-dark)]">
                 <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -922,11 +923,6 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                 preserveAspectRatio="none"
                                 style={{ zIndex: 5 }}
                             >
-                                <defs>
-                                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                                        <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
-                                    </marker>
-                                </defs>
                                 {roles.map(role => {
                                     if (!role.parentId) return null;
                                     const parent = roles.find(r => r.id === role.parentId);
@@ -934,21 +930,15 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                     return (
                                         <path
                                             key={role.id}
-                                            d={getSmartPath(parent, role)}
-                                            stroke="#94a3b8" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#arrowhead)"
+                                            d={getConnectionPath(parent, role)}
+                                            stroke="#94a3b8" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"
                                         />
                                     );
                                 })}
-                                {connectingNodeId && (
+                                {pendingConnectionStart && (
                                     <line
-                                        x1={(() => {
-                                            const r = roles.find(n => n.id === connectingNodeId);
-                                            return (r?.x || 0) + 128;
-                                        })()}
-                                        y1={(() => {
-                                            const r = roles.find(n => n.id === connectingNodeId);
-                                            return (r?.y || 0) + 70;
-                                        })()}
+                                        x1={pendingConnectionStart.x}
+                                        y1={pendingConnectionStart.y}
                                         x2={mousePos.x}
                                         y2={mousePos.y}
                                         stroke="#fbbf24" strokeWidth="2" strokeDasharray="5,5"
