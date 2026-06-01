@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ProposalData, Role, CanvasSection, CanvasDecoration, ProfitSharingInstallment } from '../types';
+import { ProposalData, Role, CanvasSection, CanvasDecoration, ProfitSharingInstallment, ConnectionSide } from '../types';
 import { calculateFinancials, formatCurrency } from '../utils/pricingEngine';
 import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard, HeartPulse, ShoppingBag, Utensils, Bus, Wand2, Maximize2, CalendarDays } from 'lucide-react';
 
@@ -54,6 +54,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const [isDraggingUI, setIsDraggingUI] = useState(false);
     const [connectingNodeIdState, setConnectingNodeIdState] = useState<string | null>(null);
     const connectingNodeIdRef = useRef<string | null>(null);
+    const connectingSourceSideRef = useRef<ConnectionSide | null>(null);
 
     // Wrapper to keep ref and state in sync
     const connectingNodeId = connectingNodeIdState;
@@ -136,14 +137,49 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         updateData({ roles: sanitizeRoleHierarchy(roles) });
     };
 
+    const commitRoleConnection = useCallback((sourceId: string, targetId: string, targetSide?: ConnectionSide | null) => {
+        if (!sourceId || sourceId === targetId) return false;
+
+        const currentRoles = dataRef.current.roles;
+        if (wouldCreateRoleCycle(currentRoles, targetId, sourceId)) return false;
+
+        const updatedRoles = currentRoles.map(role =>
+            role.id === targetId
+                ? {
+                    ...role,
+                    parentId: sourceId,
+                    parentSourceSide: connectingSourceSideRef.current || undefined,
+                    childTargetSide: targetSide || undefined
+                }
+                : role
+        );
+
+        updateData({ roles: sanitizeRoleHierarchy(updatedRoles) });
+        return true;
+    }, [updateData]);
+
     // --- ROBUST EVENT SYSTEM TO PREVENT "STICKY HAND" ---
     // We use stable function refs that NEVER get recreated. All state is read via refs.
     const activeCleanupRef = useRef<(() => void) | null>(null);
 
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
+        const sourceId = connectingNodeIdRef.current;
+        if (sourceId) {
+            const dropElement = (e.target instanceof Element ? e.target : document.elementFromPoint(e.clientX, e.clientY));
+            const targetRoleElement = dropElement?.closest<HTMLElement>('[data-role-id]');
+            const targetConnectorElement = dropElement?.closest<HTMLElement>('[data-connector-side]');
+            const targetId = targetRoleElement?.dataset.roleId;
+            const targetSide = targetConnectorElement?.dataset.connectorSide as ConnectionSide | undefined;
+
+            if (targetId) {
+                commitRoleConnection(sourceId, targetId, targetSide);
+            }
+        }
+
         // Clean up Refs
         isPanningRef.current = false;
         dragInfoRef.current = null;
+        connectingSourceSideRef.current = null;
 
         // Clean up UI State
         setIsDraggingUI(false);
@@ -155,7 +191,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             activeCleanupRef.current = null;
         }
         document.body.style.cursor = 'default';
-    }, [setConnectingNodeId]);
+    }, [commitRoleConnection, setConnectingNodeId]);
 
     const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
         // --- SAFETY VALVE: THE "STICKY HAND" FIX ---
@@ -278,10 +314,11 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         startGlobalListeners();
     };
 
-    const handleConnectorMouseDown = (e: React.MouseEvent, roleId: string) => {
+    const handleConnectorMouseDown = (e: React.MouseEvent, roleId: string, side: ConnectionSide) => {
         e.stopPropagation();
         e.preventDefault();
 
+        connectingSourceSideRef.current = side;
         setConnectingNodeId(roleId);
 
         if (canvasRef.current) {
@@ -452,13 +489,13 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
     const onConnectorMouseUp = (e: React.MouseEvent, targetId: string) => {
         e.stopPropagation();
-        if (connectingNodeId && connectingNodeId !== targetId) {
-            if (wouldCreateRoleCycle(data.roles, targetId, connectingNodeId)) {
-                setConnectingNodeId(null);
-                return;
-            }
-            updateRole(targetId, 'parentId', connectingNodeId);
+        const sourceId = connectingNodeIdRef.current;
+        if (sourceId && sourceId !== targetId) {
+            const targetConnectorElement = (e.target as Element).closest<HTMLElement>('[data-connector-side]');
+            const targetSide = targetConnectorElement?.dataset.connectorSide as ConnectionSide | undefined;
+            commitRoleConnection(sourceId, targetId, targetSide);
         }
+        connectingSourceSideRef.current = null;
         setConnectingNodeId(null);
     };
 
@@ -863,22 +900,23 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                             {/* LAYER 3: ROLES (Cards) - Highest Z-Index */}
                             {roles.map(role => {
                                 const style = CARD_COLORS.find(c => c.id === (role.color || 'slate')) || CARD_COLORS[0];
-                                const connectorStyle = "absolute w-4 h-4 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-crosshair hover:bg-[var(--tenant-secondary-soft)] hover:border-[var(--tenant-secondary-border)] z-50 shadow-sm";
+                                const connectorStyle = `absolute w-5 h-5 bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-full flex items-center justify-center ${connectingNodeId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity cursor-crosshair hover:bg-[var(--tenant-secondary-soft)] hover:border-[var(--tenant-secondary-border)] z-50 shadow-sm`;
 
                                 return (
                                     <div
                                         key={role.id}
-                                        className={`absolute w-64 bg-[var(--tenant-panel)] rounded-lg shadow-sm border group hover:shadow-xl transition-shadow ${style.border} ${connectingNodeId === role.id ? 'ring-2 ring-[#fbbf24]' : ''}`}
+                                        data-role-id={role.id}
+                                        className={`absolute w-64 bg-[var(--tenant-panel)] rounded-lg shadow-sm border group hover:shadow-xl transition-shadow ${style.border} ${connectingNodeId === role.id ? 'ring-2 ring-[#fbbf24]' : ''} ${connectingNodeId && connectingNodeId !== role.id ? 'hover:ring-2 hover:ring-[var(--tenant-secondary-border)]' : ''}`}
                                         style={{ left: role.x, top: role.y, zIndex: 10 }}
                                         onMouseDown={(e) => handleEntityMouseDown(e, 'role', role.id, role)}
                                         onMouseUp={(e) => onConnectorMouseUp(e, role.id)}
                                         onContextMenu={(e) => handleContextMenuCanvas(e, 'node', role.id)}
                                     >
                                         {/* Connectors (N/S/E/W) */}
-                                        <div className={`${connectorStyle} -top-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
-                                        <div className={`${connectorStyle} -bottom-2 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
-                                        <div className={`${connectorStyle} top-1/2 -left-2 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
-                                        <div className={`${connectorStyle} top-1/2 -right-2 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id)} />
+                                        <div data-connector-side="top" className={`${connectorStyle} -top-2.5 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'top')} />
+                                        <div data-connector-side="bottom" className={`${connectorStyle} -bottom-2.5 left-1/2 -translate-x-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'bottom')} />
+                                        <div data-connector-side="left" className={`${connectorStyle} top-1/2 -left-2.5 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'left')} />
+                                        <div data-connector-side="right" className={`${connectorStyle} top-1/2 -right-2.5 -translate-y-1/2`} onMouseDown={(e) => handleConnectorMouseDown(e, role.id, 'right')} />
 
                                         {/* Header */}
                                         <div className={`px-3 py-2 rounded-t-lg border-b flex justify-between items-center ${style.header} ${style.border}`}>
