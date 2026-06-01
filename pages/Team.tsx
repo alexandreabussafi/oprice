@@ -371,14 +371,24 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const duplicateRole = (roleId: string) => {
         const source = data.roles.find(r => r.id === roleId);
         if (!source) return;
-        const newRole = {
+        const shouldSplitQuantity = source.quantity > 1;
+        const originalQuantity = shouldSplitQuantity ? Math.ceil(source.quantity / 2) : source.quantity;
+        const newQuantity = shouldSplitQuantity ? Math.floor(source.quantity / 2) : 1;
+        const newRole: Role = {
             ...source,
             id: Math.random().toString(36).substr(2, 9),
+            title: shouldSplitQuantity ? source.title : `${source.title} Copia`,
+            quantity: newQuantity,
             x: (source.x || 0) + 50,
             y: (source.y || 0) + 50,
-            parentId: source.parentId
+            parentId: source.parentId,
+            parentSourceSide: source.parentSourceSide,
+            childTargetSide: source.childTargetSide
         };
-        updateRoles([...data.roles, newRole]);
+        updateRoles([
+            ...data.roles.map(role => role.id === roleId ? { ...role, quantity: originalQuantity } : role),
+            newRole
+        ]);
     };
 
     const updateRole = (id: string, field: keyof Role, value: any) => {
@@ -987,6 +997,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                         <div
                             className="fixed z-[100] bg-[var(--tenant-panel)] rounded-lg shadow-xl border border-[var(--tenant-border)] py-1 w-56 text-sm animate-in fade-in zoom-in-95 duration-100"
                             style={{ top: contextMenu.y, left: contextMenu.x }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                         >
                             {contextMenu.type === 'node' && (
@@ -994,10 +1005,10 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                     <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-[var(--tenant-control)] border-b border-[var(--tenant-border)] mb-1">
                                         Ações do Card
                                     </div>
-                                    <button onClick={() => updateRole(contextMenu.targetId!, 'parentId', undefined)} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
+                                    <button onClick={() => { updateRole(contextMenu.targetId!, 'parentId', undefined); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
                                         <LinkIcon size={14} /> Desconectar Parente
                                     </button>
-                                    <button onClick={() => duplicateRole(contextMenu.targetId!)} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
+                                    <button onClick={() => { duplicateRole(contextMenu.targetId!); setContextMenu(null); }} className="w-full text-left px-4 py-2 hover:bg-[var(--tenant-control)] text-slate-700 flex items-center gap-2">
                                         <Type size={14} /> Duplicar / Dividir
                                     </button>
 
