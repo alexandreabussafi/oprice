@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ProposalData, Role, CanvasSection, CanvasDecoration } from '../types';
-import { formatCurrency } from '../utils/pricingEngine';
-import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard, HeartPulse, ShoppingBag, Utensils, Bus, Wand2, Maximize2 } from 'lucide-react';
+import { ProposalData, Role, CanvasSection, CanvasDecoration, ProfitSharingInstallment } from '../types';
+import { calculateFinancials, formatCurrency } from '../utils/pricingEngine';
+import { Users, Plus, Trash2, LayoutList, LayoutGrid, CheckSquare, Workflow, Move, ZoomIn, ZoomOut, MousePointer2, X, Link as LinkIcon, Palette, Briefcase, Factory, Wrench, Truck, AlertTriangle, Box, Type, Grip, Ban, DollarSign, Square, MousePointer, Flame, Zap, Skull, Biohazard, HeartPulse, ShoppingBag, Utensils, Bus, Wand2, Maximize2, CalendarDays } from 'lucide-react';
 
 interface TeamProps {
     data: ProposalData;
@@ -26,6 +26,21 @@ const SECTION_COLORS = [
     { id: 'green', bg: 'bg-emerald-100/20', border: 'border-emerald-200' },
     { id: 'yellow', bg: 'bg-amber-100/20', border: 'border-amber-200' },
     { id: 'red', bg: 'bg-red-100/20', border: 'border-red-200' },
+];
+
+const MONTH_OPTIONS = [
+    { value: 1, label: 'Jan' },
+    { value: 2, label: 'Fev' },
+    { value: 3, label: 'Mar' },
+    { value: 4, label: 'Abr' },
+    { value: 5, label: 'Mai' },
+    { value: 6, label: 'Jun' },
+    { value: 7, label: 'Jul' },
+    { value: 8, label: 'Ago' },
+    { value: 9, label: 'Set' },
+    { value: 10, label: 'Out' },
+    { value: 11, label: 'Nov' },
+    { value: 12, label: 'Dez' },
 ];
 
 const Team: React.FC<TeamProps> = ({ data, updateData }) => {
@@ -656,6 +671,41 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
         updateData({ benefitsConfig: { ...benefits, [field]: value } });
     };
 
+    const profitSharingInstallments = data.profitSharingInstallments || [];
+    const financials = calculateFinancials(data);
+
+    const updateProfitSharing = (nextInstallments: ProfitSharingInstallment[]) => {
+        updateData({ profitSharingInstallments: nextInstallments });
+    };
+
+    const addProfitSharingInstallment = () => {
+        const usedMonths = new Set(profitSharingInstallments.map(item => item.competenceMonth));
+        const defaultMonth = MONTH_OPTIONS.find(month => !usedMonths.has(month.value))?.value || 7;
+        updateProfitSharing([
+            ...profitSharingInstallments,
+            {
+                id: Math.random().toString(36).substring(2, 9),
+                competenceMonth: defaultMonth,
+                amount: 0,
+                active: true
+            }
+        ]);
+    };
+
+    const updateProfitSharingInstallment = <K extends keyof ProfitSharingInstallment>(
+        id: string,
+        field: K,
+        value: ProfitSharingInstallment[K]
+    ) => {
+        updateProfitSharing(profitSharingInstallments.map(item => (
+            item.id === id ? { ...item, [field]: value } : item
+        )));
+    };
+
+    const removeProfitSharingInstallment = (id: string) => {
+        updateProfitSharing(profitSharingInstallments.filter(item => item.id !== id));
+    };
+
     // --- Overview Indicators ---
     const totalHeadcount = roles.reduce((acc, role) => acc + role.quantity, 0);
     const totalCost = roles.reduce((acc, role) => acc + calculateRoleCost(role), 0);
@@ -1151,6 +1201,84 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
                                     <span className="text-[var(--tenant-secondary)] text-[10px] font-bold">/mês</span>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-[var(--tenant-panel)] rounded-lg shadow-sm border border-[var(--tenant-border)] p-6 shrink-0">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-5">
+                            <div className="flex items-center gap-2">
+                                <CalendarDays className="text-[var(--tenant-secondary)]" size={20} />
+                                <div>
+                                    <h3 className="text-lg font-bold text-slate-800">PLR por Competencia</h3>
+                                    <p className="text-xs text-slate-500">Parcela total por mes calendario, sem encargos sociais.</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 min-w-[300px]">
+                                <div className="bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-4 py-3">
+                                    <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wide">Total na vigencia</p>
+                                    <p className="text-sm font-black text-slate-800">{formatCurrency(financials.totalProfitSharingCost)}</p>
+                                </div>
+                                <div className="bg-[var(--tenant-control)] border border-[var(--tenant-border)] rounded-lg px-4 py-3">
+                                    <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wide">Rateio mensal</p>
+                                    <p className="text-sm font-black text-[var(--tenant-secondary)]">{formatCurrency(financials.monthlyProfitSharingCost)}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            {profitSharingInstallments.map(item => (
+                                <div key={item.id} className="grid grid-cols-1 md:grid-cols-[48px_1fr_1.4fr_40px] gap-3 items-center rounded-lg border border-[var(--tenant-border)] bg-[var(--tenant-control)] px-3 py-3">
+                                    <label className="flex justify-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={item.active}
+                                            onChange={(event) => updateProfitSharingInstallment(item.id, 'active', event.target.checked)}
+                                            className="rounded border-[var(--tenant-border)] text-[var(--tenant-secondary)] focus:ring-[var(--tenant-secondary)]"
+                                        />
+                                    </label>
+                                    <select
+                                        value={item.competenceMonth}
+                                        onChange={(event) => updateProfitSharingInstallment(item.id, 'competenceMonth', Number(event.target.value))}
+                                        className="w-full bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md px-3 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)]"
+                                    >
+                                        {MONTH_OPTIONS.map(month => (
+                                            <option key={month.value} value={month.value}>{month.label}</option>
+                                        ))}
+                                    </select>
+                                    <div className="flex items-center bg-[var(--tenant-panel)] border border-[var(--tenant-border)] rounded-md px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--tenant-primary-soft)] focus-within:border-[var(--tenant-secondary-border)]">
+                                        <span className="text-xs font-bold text-slate-400 mr-2">R$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={item.amount || ''}
+                                            onChange={(event) => updateProfitSharingInstallment(item.id, 'amount', Number(event.target.value) || 0)}
+                                            className="w-full bg-transparent text-sm font-bold text-slate-800 border-none p-0 focus:ring-0 text-right"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeProfitSharingInstallment(item.id)}
+                                        className="h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                        title="Remover PLR"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                            {profitSharingInstallments.length === 0 && (
+                                <div className="rounded-lg border border-dashed border-[var(--tenant-border)] bg-[var(--tenant-control)] px-4 py-5 text-center text-sm font-medium text-slate-400">
+                                    Nenhuma parcela de PLR configurada.
+                                </div>
+                            )}
+                            <button
+                                type="button"
+                                onClick={addProfitSharingInstallment}
+                                className="w-full py-3 border border-dashed border-[var(--tenant-border)] rounded-lg text-xs font-bold text-slate-500 hover:bg-[var(--tenant-secondary-soft)] hover:text-[var(--tenant-secondary)] flex justify-center items-center gap-2"
+                            >
+                                <Plus size={14} /> Adicionar competencia de PLR
+                            </button>
                         </div>
                     </div>
 

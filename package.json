@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "check:supabase": "node scripts/supabase-smoke.mjs",
     "provision:lubcore-users": "node scripts/provision-lubcore-users.mjs",
+    "test:pricing": "vitest run tests/pricingEngine.plr.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug"
@@ -30,6 +31,7 @@
     "gifenc": "^1.0.3",
     "typescript": "~5.8.2",
     "upng-js": "^2.1.0",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^3.2.4"
   }
 }

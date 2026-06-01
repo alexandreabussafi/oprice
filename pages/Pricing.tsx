@@ -4,6 +4,7 @@ import { ProposalData } from '../types';
 import { calculateFinancials, formatCurrency, formatPercent, ExtendedFinancials } from '../utils/pricingEngine';
 import { Settings, Save, TrendingUp, Layers, AlertCircle, Download, FileSpreadsheet, ChevronDown, Printer, ShieldAlert, BarChart4, DollarSign, Copy, X } from 'lucide-react';
 import InfoTooltip from '../components/InfoTooltip';
+import PercentInput from '../components/PercentInput';
 
 interface PricingProps {
     data: ProposalData;
@@ -37,12 +38,12 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
         ? activeSalesRate + activeIncomeRate
         : activeSalesRate;
 
-    const updateMarkup = (value: string) => {
-        updateData({ markup: (parseFloat(value) || 0) / 100 });
+    const updateMarkup = (value: number) => {
+        updateData({ markup: value });
     };
 
-    const updateMargin = (value: string) => {
-        updateData({ targetMargin: (parseFloat(value) || 0) / 100 });
+    const updateMargin = (value: number) => {
+        updateData({ targetMargin: value });
     };
 
     const isMarginModel = data.pricingModel === 'MARGIN';
@@ -67,6 +68,9 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
         rows.push(['Faturamento Bruto', financials.monthlyValue.toFixed(2), '100%']);
         rows.push(['(-) Impostos s/ Venda', financials.salesTaxAmount.toFixed(2), formatPercent(financials.salesTaxAmount / financials.monthlyValue)]);
         rows.push(['= Receita Líquida', financials.netRevenue.toFixed(2), formatPercent(financials.netRevenue / financials.monthlyValue)]);
+        rows.push(['(-) Mao de Obra e Encargos', financials.totalLaborCost.toFixed(2), formatPercent(financials.totalLaborCost / financials.monthlyValue)]);
+        rows.push(['(-) PLR (rateio mensal)', financials.monthlyProfitSharingCost.toFixed(2), formatPercent(financials.monthlyProfitSharingCost / financials.monthlyValue)]);
+        rows.push(['(-) Despesas Operacionais / Materiais', (financials.totalOperationalCost + financials.totalSafetyCost + financials.totalSupportCost).toFixed(2), formatPercent((financials.totalOperationalCost + financials.totalSafetyCost + financials.totalSupportCost) / financials.monthlyValue)]);
         rows.push(['(-) Custos Diretos', financials.totalDirectCost.toFixed(2), formatPercent(financials.totalDirectCost / financials.monthlyValue)]);
         rows.push(['= Margem Operacional', financials.contributionMarginAmount.toFixed(2), formatPercent(financials.contributionMarginPercent / 100)]);
         rows.push(['(-) Custos Indiretos/Risco', financials.contingencyAmount.toFixed(2), formatPercent(financials.contingencyAmount / financials.monthlyValue)]);
@@ -249,19 +253,17 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                 </label>
                                 <div className="relative group">
                                     {isMarginModel ? (
-                                        <input
-                                            type="number"
+                                        <PercentInput
                                             disabled={isLocked}
-                                            value={((data.targetMargin || 0) * 100).toFixed(2)}
-                                            onChange={(e) => updateMargin(e.target.value)}
+                                            value={data.targetMargin || 0}
+                                            onChange={updateMargin}
                                             className="w-full bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-[var(--tenant-secondary-border)] dark:border-[var(--tenant-secondary-border)] rounded-lg py-4 pl-4 pr-12 text-right font-bold text-2xl text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[var(--tenant-primary-soft)] focus:border-[var(--tenant-secondary-border)] outline-none shadow-sm transition-all disabled:opacity-50 disabled:bg-[var(--tenant-control)] dark:disabled:bg-[var(--tenant-panel-dark)]"
                                         />
                                     ) : (
-                                        <input
-                                            type="number"
+                                        <PercentInput
                                             disabled={isLocked}
-                                            value={(data.markup * 100).toFixed(2)}
-                                            onChange={(e) => updateMarkup(e.target.value)}
+                                            value={data.markup}
+                                            onChange={updateMarkup}
                                             className="w-full bg-[var(--tenant-panel)] dark:bg-[var(--tenant-control-dark)] border border-emerald-200 dark:border-emerald-800 rounded-lg py-4 pl-4 pr-12 text-right font-bold text-2xl text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all disabled:opacity-50 disabled:bg-[var(--tenant-control)] dark:disabled:bg-[var(--tenant-panel-dark)]"
                                         />
                                     )}
@@ -411,6 +413,14 @@ const Pricing: React.FC<PricingProps> = ({ data, updateData, onCreateNewVersion 
                                             <tr className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
                                                 <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-[var(--tenant-border)] dark:hover:border-[var(--tenant-border-dark)]">(-) Mão de Obra e Encargos</td>
                                                 <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.totalLaborCost)})</td>
+                                                <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
+                                            </tr>
+                                            <tr className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">
+                                                <td className="px-10 py-2 text-slate-600 dark:text-slate-400 pl-12 border-l-4 border-transparent hover:border-[var(--tenant-border)] dark:hover:border-[var(--tenant-border-dark)]">
+                                                    (-) PLR (rateio mensal)
+                                                    <InfoTooltip text="Total das parcelas de PLR previstas na vigencia, rateado pelo prazo do contrato para formacao do preco. No DRE projetado e no fluxo de caixa, o valor aparece no mes da competencia." />
+                                                </td>
+                                                <td className="px-6 py-2 text-right text-red-500 dark:text-red-400">({formatCurrency(financials.monthlyProfitSharingCost)})</td>
                                                 <td className="px-6 py-2 text-right text-[10px] font-medium text-slate-400 dark:text-slate-500 transition-colors">-</td>
                                             </tr>
                                             <tr className="hover:bg-[var(--tenant-control)] dark:hover:bg-[var(--tenant-control-dark)] transition-colors">

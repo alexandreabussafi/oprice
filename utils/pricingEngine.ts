@@ -30,6 +30,56 @@ const PricingMath = {
   }
 };
 
+const parseProposalDate = (value?: string): Date => {
+  if (!value) return new Date();
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const addCalendarMonths = (date: Date, months: number): Date => {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+};
+
+const getContractStartDate = (data: ProposalData): Date => parseProposalDate(data.contractStartDate || data.createdAt);
+
+const getContractDuration = (data: ProposalData): number => Math.max(1, data.contractDuration || 12);
+
+const getProfitSharingAmountForMonth = (data: ProposalData, monthIndex: number): number => {
+  if (data.type !== 'CONTINUOUS') return 0;
+
+  const currentDate = addCalendarMonths(getContractStartDate(data), monthIndex);
+  const calendarMonth = currentDate.getMonth() + 1;
+  const total = (data.profitSharingInstallments || []).reduce((sum, installment) => {
+    const competenceMonth = Number(installment.competenceMonth);
+    const amount = Number(installment.amount || 0);
+    if (!installment.active) return sum;
+    if (competenceMonth !== calendarMonth) return sum;
+    if (!Number.isFinite(amount) || amount <= 0) return sum;
+    return sum + amount;
+  }, 0);
+
+  return PricingMath.round(total);
+};
+
+const getTotalProfitSharingCost = (data: ProposalData): number => {
+  if (data.type !== 'CONTINUOUS') return 0;
+
+  const contractDuration = getContractDuration(data);
+  let total = 0;
+  for (let monthIndex = 0; monthIndex < contractDuration; monthIndex++) {
+    total = PricingMath.add(total, getProfitSharingAmountForMonth(data, monthIndex));
+  }
+  return total;
+};
+
 export interface ExtendedFinancials extends CalculatedFinancials {
   contingencyAmount: number;
   financialCostAmount: number;
@@ -53,6 +103,8 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
   let totalSafetyCost = 0;
   let totalSupportCost = 0;
   let totalDepreciationCost = 0;
+  let totalProfitSharingCost = 0;
+  let monthlyProfitSharingCost = 0;
 
   if (data.type === 'PRODUCT') {
     // Cálculo de Produtos: Soma direta dos itens da lista
@@ -143,11 +195,14 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
       const monthlyDepr = PricingMath.round(item.value / months);
       totalDepreciationCost = PricingMath.add(totalDepreciationCost, monthlyDepr);
     });
+
+    totalProfitSharingCost = getTotalProfitSharingCost(data);
+    monthlyProfitSharingCost = PricingMath.round(totalProfitSharingCost / getContractDuration(data));
   }
 
   // 5. Custos Diretos Totais (CD) - Non-Depreciation Box
   const totalDirectCost = PricingMath.add(
-    PricingMath.add(totalLaborCost, totalOperationalCost),
+    PricingMath.add(PricingMath.add(totalLaborCost, totalOperationalCost), monthlyProfitSharingCost),
     PricingMath.add(totalSafetyCost, totalSupportCost)
   );
 
@@ -245,6 +300,8 @@ export const calculateFinancials = (data: ProposalData): ExtendedFinancials => {
     totalSafetyCost,
     totalSupportCost,
     totalDepreciationCost,
+    totalProfitSharingCost,
+    monthlyProfitSharingCost,
     totalDirectCost,
     contingencyAmount,
     financialCostAmount,
@@ -303,6 +360,7 @@ export interface FinancialMonth {
     deductionTaxes: number;
     netRevenue: number;
     directLabor: number;
+    profitSharing: number;
     operationalCosts: number;
     safetyCosts: number;
     supportCosts: number;
@@ -319,6 +377,7 @@ export interface FinancialMonth {
   cashFlow: {
     inflow: number;
     outflowLabor: number;
+    outflowProfitSharing: number;
     outflowTaxes: number;
     outflowSuppliers: number;
     outflowFinancial: number;
@@ -402,7 +461,7 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
   let minCash = 0;
 
   const maxTimeline = contractDuration + receiptLag + 1;
-  const startDate = data.contractStartDate ? new Date(data.contractStartDate) : new Date();
+  const startDate = getContractStartDate(data);
   const projectStartDate = new Date(startDate);
   projectStartDate.setMonth(projectStartDate.getMonth() - mobilizationMonths);
 
@@ -421,6 +480,7 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
 
     const hasRevenue = isContractPeriod;
     const opFactor = isMobilization ? 0.6 : (isContractPeriod ? 1.0 : 0);
+    const profitSharing = isContractPeriod ? getProfitSharingAmountForMonth(data, i) : 0;
 
     const dre = {
       grossRevenue: hasRevenue ? financials.monthlyValue : 0,
@@ -428,11 +488,12 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
       netRevenue: hasRevenue ? financials.netRevenue : 0,
 
       directLabor: PricingMath.multiply(financials.totalLaborCost, opFactor),
+      profitSharing,
       operationalCosts: PricingMath.multiply(financials.totalOperationalCost, opFactor),
       safetyCosts: PricingMath.multiply(financials.totalSafetyCost, opFactor),
       supportCosts: PricingMath.multiply(financials.totalSupportCost, opFactor),
 
-      get grossProfit() { return PricingMath.round(this.netRevenue - (this.directLabor + this.operationalCosts + this.safetyCosts + this.supportCosts)) },
+      get grossProfit() { return PricingMath.round(this.netRevenue - (this.directLabor + this.profitSharing + this.operationalCosts + this.safetyCosts + this.supportCosts)) },
 
       indirectCosts: PricingMath.multiply(financials.contingencyAmount, opFactor),
 
@@ -452,9 +513,9 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
     };
 
     const getMonthDRE = (targetIndex: number) => {
-      if (targetIndex >= 0 && targetIndex < contractDuration) return { ...financials, opFactor: 1 };
-      if (targetIndex >= -mobilizationMonths && targetIndex < 0) return { ...financials, monthlyValue: 0, salesTaxAmount: 0, opFactor: 0.6 };
-      return { monthlyValue: 0, salesTaxAmount: 0, totalLaborCost: 0, totalOperationalCost: 0, totalSafetyCost: 0, totalSupportCost: 0, opFactor: 0, incomeTaxAmount: 0, financialCostAmount: 0, contingencyAmount: 0 };
+      if (targetIndex >= 0 && targetIndex < contractDuration) return { ...financials, profitSharing: getProfitSharingAmountForMonth(data, targetIndex), opFactor: 1 };
+      if (targetIndex >= -mobilizationMonths && targetIndex < 0) return { ...financials, monthlyValue: 0, salesTaxAmount: 0, profitSharing: 0, opFactor: 0.6 };
+      return { monthlyValue: 0, salesTaxAmount: 0, totalLaborCost: 0, totalOperationalCost: 0, totalSafetyCost: 0, totalSupportCost: 0, profitSharing: 0, opFactor: 0, incomeTaxAmount: 0, financialCostAmount: 0, contingencyAmount: 0 };
     };
 
     const revenueSourceMonth = i - receiptLag;
@@ -462,6 +523,7 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
 
     const laborSource = getMonthDRE(i - laborLag);
     const outflowLabor = laborSource.totalLaborCost * laborSource.opFactor;
+    const outflowProfitSharing = isContractPeriod ? profitSharing : 0;
 
     const taxSource = getMonthDRE(i - taxLag);
     const outflowTaxes = (taxSource.salesTaxAmount + taxSource.incomeTaxAmount) * (taxSource.monthlyValue > 0 ? 1 : 0);
@@ -486,7 +548,7 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
       }
     });
 
-    const totalOutflow = outflowLabor + outflowTaxes + outflowSuppliers + outflowFinancial + outflowCapex;
+    const totalOutflow = outflowLabor + outflowProfitSharing + outflowTaxes + outflowSuppliers + outflowFinancial + outflowCapex;
     const netCash = inflow - totalOutflow;
 
     cumulativeCash += netCash;
@@ -500,6 +562,7 @@ export const generateFinancialProjections = (data: ProposalData, accountingConfi
       cashFlow: {
         inflow,
         outflowLabor,
+        outflowProfitSharing,
         outflowTaxes,
         outflowSuppliers,
         outflowFinancial,

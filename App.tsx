@@ -198,6 +198,7 @@ const defaultProposalTemplate: ProposalData = {
   },
   taxConfig: defaultTaxConfig, // Use the default config
   roles: [],
+  profitSharingInstallments: [],
   expenses: [],
   safetyCosts: [], // Init empty
   supportCosts: [], // Init empty
@@ -573,7 +574,7 @@ function App() {
       let newStatus = p.status;
       if (['Won', 'Lost'].includes(p.status)) { newStage = p.status; newStatus = 'Active'; }
       if (['Canceled', 'OnHold'].includes(p.status)) { newStatus = p.status === 'OnHold' ? 'Frozen' : 'Archived'; }
-      return { ...p, tenantId: p.tenantId || LUBRIM_TENANT_ID, stage: newStage, status: newStatus as OpportunityStatus, versionStatus: p.versionStatus || 'DRAFT', isCurrentVersion: p.isCurrentVersion !== undefined ? p.isCurrentVersion : true };
+      return { ...p, tenantId: p.tenantId || LUBRIM_TENANT_ID, profitSharingInstallments: p.profitSharingInstallments || [], stage: newStage, status: newStatus as OpportunityStatus, versionStatus: p.versionStatus || 'DRAFT', isCurrentVersion: p.isCurrentVersion !== undefined ? p.isCurrentVersion : true };
     });
   });
   const [crmDataLoading, setCrmDataLoading] = useState(false);
@@ -1839,6 +1840,7 @@ function App() {
       clientId: selectedClient.id,
       clientName: selectedClient.name,
       roles: shouldInheritRef ? [...referenceProp!.roles] : defaultProposalTemplate.roles,
+      profitSharingInstallments: shouldInheritRef ? [...(referenceProp!.profitSharingInstallments || [])] : defaultProposalTemplate.profitSharingInstallments,
       expenses: shouldInheritRef ? [...referenceProp!.expenses] : defaultProposalTemplate.expenses,
       safetyCosts: shouldInheritRef ? [...referenceProp!.safetyCosts] : defaultProposalTemplate.safetyCosts,
       supportCosts: shouldInheritRef ? [...referenceProp!.supportCosts] : defaultProposalTemplate.supportCosts,
@@ -2185,7 +2187,7 @@ function App() {
 
         // Auto-calculate value for CRM view snapshot if structure changes
         // Trigger calculation on key data changes
-        if (newData.roles || newData.expenses || newData.markup || newData.taxConfig || newData.safetyCosts || newData.supportCosts || newData.spotResources || newData.spotExpenses) {
+        if (newData.roles || newData.profitSharingInstallments || newData.expenses || newData.markup || newData.taxConfig || newData.safetyCosts || newData.supportCosts || newData.spotResources || newData.spotExpenses) {
           const financials = calculateFinancials(updated);
           updated.value = financials.monthlyValue;
         }
@@ -2393,6 +2395,7 @@ function App() {
     if (!currentId) return;
     updateCurrentData({
       roles: [],
+      profitSharingInstallments: [],
       expenses: [],
       safetyCosts: [],
       supportCosts: [],
