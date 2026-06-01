@@ -55,6 +55,8 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const [connectingNodeIdState, setConnectingNodeIdState] = useState<string | null>(null);
     const connectingNodeIdRef = useRef<string | null>(null);
     const connectingSourceSideRef = useRef<ConnectionSide | null>(null);
+    const connectionStartPointRef = useRef<{ x: number; y: number } | null>(null);
+    const connectionDragStartedRef = useRef(false);
 
     // Wrapper to keep ref and state in sync
     const connectingNodeId = connectingNodeIdState;
@@ -164,6 +166,7 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
     const handleGlobalMouseUp = useCallback((e: MouseEvent) => {
         const sourceId = connectingNodeIdRef.current;
+        let keepPendingConnection = false;
         if (sourceId) {
             const dropElement = (e.target instanceof Element ? e.target : document.elementFromPoint(e.clientX, e.clientY));
             const targetRoleElement = dropElement?.closest<HTMLElement>('[data-role-id]');
@@ -171,19 +174,25 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
             const targetId = targetRoleElement?.dataset.roleId;
             const targetSide = targetConnectorElement?.dataset.connectorSide as ConnectionSide | undefined;
 
-            if (targetId) {
+            if (targetId && targetId !== sourceId) {
                 commitRoleConnection(sourceId, targetId, targetSide);
+            } else if (!connectionDragStartedRef.current) {
+                keepPendingConnection = true;
             }
         }
 
         // Clean up Refs
         isPanningRef.current = false;
         dragInfoRef.current = null;
-        connectingSourceSideRef.current = null;
+        connectionStartPointRef.current = null;
+        connectionDragStartedRef.current = false;
+        if (!keepPendingConnection) {
+            connectingSourceSideRef.current = null;
+        }
 
         // Clean up UI State
         setIsDraggingUI(false);
-        if (connectingNodeIdRef.current) setConnectingNodeId(null);
+        if (connectingNodeIdRef.current && !keepPendingConnection) setConnectingNodeId(null);
 
         // Remove Listeners using the stored cleanup
         if (activeCleanupRef.current) {
@@ -257,6 +266,12 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
 
         // 3. Connecting Line Logic
         if (connectingNodeIdRef.current && canvasRef.current) {
+            const startPoint = connectionStartPointRef.current;
+            if (startPoint && !connectionDragStartedRef.current) {
+                const distance = Math.hypot(e.clientX - startPoint.x, e.clientY - startPoint.y);
+                if (distance > 4) connectionDragStartedRef.current = true;
+            }
+
             const rect = canvasRef.current.getBoundingClientRect();
             const worldX = (e.clientX - rect.left - panRef.current.x) / scaleRef.current;
             const worldY = (e.clientY - rect.top - panRef.current.y) / scaleRef.current;
@@ -280,6 +295,15 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
+        if (e.button === 0 && connectingNodeIdRef.current) {
+            setContextMenu(null);
+            connectingSourceSideRef.current = null;
+            connectionStartPointRef.current = null;
+            connectionDragStartedRef.current = false;
+            setConnectingNodeId(null);
+            return;
+        }
+
         // Middle mouse or Space+Click to Pan
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
             isPanningRef.current = true;
@@ -298,6 +322,22 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     };
 
     const handleEntityMouseDown = (e: React.MouseEvent, type: any, id: string, initialObj: any) => {
+        if (e.button === 0 && !e.altKey && connectingNodeIdRef.current) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            const sourceId = connectingNodeIdRef.current;
+            if (type === 'role' && sourceId !== id) {
+                commitRoleConnection(sourceId, id, null);
+            }
+
+            connectingSourceSideRef.current = null;
+            connectionStartPointRef.current = null;
+            connectionDragStartedRef.current = false;
+            setConnectingNodeId(null);
+            return;
+        }
+
         if (e.button !== 0 || e.altKey || connectingNodeId) return;
         e.stopPropagation();
         e.preventDefault();
@@ -317,8 +357,24 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const handleConnectorMouseDown = (e: React.MouseEvent, roleId: string, side: ConnectionSide) => {
         e.stopPropagation();
         e.preventDefault();
+        setContextMenu(null);
+
+        const currentSourceId = connectingNodeIdRef.current;
+        if (currentSourceId) {
+            if (currentSourceId !== roleId) {
+                commitRoleConnection(currentSourceId, roleId, side);
+            }
+
+            connectingSourceSideRef.current = null;
+            connectionStartPointRef.current = null;
+            connectionDragStartedRef.current = false;
+            setConnectingNodeId(null);
+            return;
+        }
 
         connectingSourceSideRef.current = side;
+        connectionStartPointRef.current = { x: e.clientX, y: e.clientY };
+        connectionDragStartedRef.current = false;
         setConnectingNodeId(roleId);
 
         if (canvasRef.current) {
@@ -490,12 +546,24 @@ const Team: React.FC<TeamProps> = ({ data, updateData }) => {
     const onConnectorMouseUp = (e: React.MouseEvent, targetId: string) => {
         e.stopPropagation();
         const sourceId = connectingNodeIdRef.current;
+        if (sourceId && sourceId === targetId) {
+            if (connectionDragStartedRef.current) {
+                connectingSourceSideRef.current = null;
+                connectionStartPointRef.current = null;
+                connectionDragStartedRef.current = false;
+                setConnectingNodeId(null);
+            }
+            return;
+        }
+
         if (sourceId && sourceId !== targetId) {
             const targetConnectorElement = (e.target as Element).closest<HTMLElement>('[data-connector-side]');
             const targetSide = targetConnectorElement?.dataset.connectorSide as ConnectionSide | undefined;
             commitRoleConnection(sourceId, targetId, targetSide);
         }
         connectingSourceSideRef.current = null;
+        connectionStartPointRef.current = null;
+        connectionDragStartedRef.current = false;
         setConnectingNodeId(null);
     };
 
